@@ -1,0 +1,63 @@
+version: "3.9"
+
+services:
+  # PostgreSQL with pgvector + Apache AGE
+  postgres:
+    build:
+      context: ./docker/postgres
+      dockerfile: Dockerfile
+    environment:
+      POSTGRES_DB: quill
+      POSTGRES_USER: quill
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-quill_dev_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init-extensions.sh:/docker-entrypoint-initdb.d/01-init-extensions.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quill"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Go Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://quill:${DB_PASSWORD:-quill_dev_password}@postgres:5432/quill?sslmode=disable
+      QWEN_API_KEY: ${QWEN_API_KEY}
+      QWEN_BASE_URL: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+      QWEN_MAX_MODEL: qwen-max-latest
+      QWEN_TURBO_MODEL: qwen-turbo-latest
+      QWEN_EMBEDDING_MODEL: text-embedding-v3
+      QWEN_EMBEDDING_DIMENSIONS: "1024"
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
+      PORT: "8080"
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      ALLOWED_ORIGINS: ${FRONTEND_URL:-http://localhost:3000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: http://localhost:8080
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:
