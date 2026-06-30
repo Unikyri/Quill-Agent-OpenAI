@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -10,6 +11,54 @@ import (
 	"github.com/quill/backend/internal/models"
 	"github.com/quill/backend/internal/repositories"
 )
+
+var (
+	allowedGenres = map[string]struct{}{
+		"sci-fi":      {},
+		"fantasy":     {},
+		"mystery":     {},
+		"romance":     {},
+		"horror":      {},
+		"non-fiction": {},
+		"thriller":    {},
+		"historical":  {},
+		"adventure":   {},
+		"comedy":      {},
+		"drama":       {},
+	}
+
+	allowedFormats = map[string]struct{}{
+		"novel":         {},
+		"short-story":   {},
+		"screenplay":    {},
+		"poetry":        {},
+		"essay":         {},
+		"article":       {},
+		"graphic-novel": {},
+	}
+)
+
+func validateUniverseEnums(input models.CreateUniverseRequest) error {
+	if input.Genre != "" {
+		if _, ok := allowedGenres[input.Genre]; !ok {
+			return fmt.Errorf("invalid genre %q: must be one of %s", input.Genre, joinKeys(allowedGenres))
+		}
+	}
+	if input.Format != "" {
+		if _, ok := allowedFormats[input.Format]; !ok {
+			return fmt.Errorf("invalid format %q: must be one of %s", input.Format, joinKeys(allowedFormats))
+		}
+	}
+	return nil
+}
+
+func joinKeys(m map[string]struct{}) string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return strings.Join(keys, ", ")
+}
 
 type UniverseService struct {
 	pool         *pgxpool.Pool
@@ -29,6 +78,9 @@ func (s *UniverseService) Create(ctx context.Context, userID uuid.UUID, input mo
 	}
 	if input.Format == "" {
 		return nil, fmt.Errorf("universe format is required")
+	}
+	if err := validateUniverseEnums(input); err != nil {
+		return nil, err
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -80,6 +132,10 @@ func (s *UniverseService) Update(ctx context.Context, id uuid.UUID, input models
 
 	u, err := s.universeRepo.FindByID(ctx, id)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := validateUniverseEnums(input); err != nil {
 		return nil, err
 	}
 
