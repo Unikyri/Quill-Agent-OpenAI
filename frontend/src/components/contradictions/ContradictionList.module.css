@@ -13,9 +13,9 @@
 }
 
 .filterBtn {
-  background: #1a1a2e;
-  border: 1px solid #333;
-  color: #888;
+  background: var(--paper);
+  border: 1px solid var(--ink-10);
+  color: var(--ink-60);
   padding: 4px 14px;
   border-radius: 20px;
   font-size: 12px;
@@ -24,21 +24,21 @@
 }
 
 .filterBtn:hover {
-  border-color: #6c5ce7;
-  color: #ccc;
+  border-color: var(--ink);
+  color: var(--ink);
 }
 
 .filterBtnActive {
-  background: rgba(108, 92, 231, 0.2);
-  border-color: #6c5ce7;
-  color: #6c5ce7;
+  background: var(--ink-10);
+  border-color: var(--ink);
+  color: var(--ink);
 }
 
 /* Cards */
 .card {
-  background: #16213e;
-  border: 1px solid #333;
-  border-radius: 8px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
   padding: 14px 16px;
   transition: opacity 0.3s;
 }
@@ -56,7 +56,7 @@
 
 .cardMessage {
   font-size: 14px;
-  color: #e0e0e0;
+  color: var(--ink);
   margin: 0 0 8px 0;
   line-height: 1.4;
 }
@@ -70,31 +70,31 @@
 
 .entityTag {
   font-size: 11px;
-  color: #888;
-  background: #1a1a2e;
+  color: var(--ink-60);
+  background: var(--paper-warm);
   padding: 2px 8px;
   border-radius: 4px;
 }
 
 .resolveBtn {
   background: transparent;
-  border: 1px solid #444;
-  color: #888;
+  border: 1px solid var(--ink-20);
+  color: var(--ink-60);
   padding: 4px 12px;
-  border-radius: 6px;
+  border-radius: 4px;
   font-size: 12px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .resolveBtn:hover {
-  border-color: #00b894;
-  color: #00b894;
+  border-color: var(--success);
+  color: var(--success);
 }
 
 .resolvedLabel {
   font-size: 12px;
-  color: #00b894;
+  color: var(--success);
   font-weight: 600;
 }
 
@@ -109,16 +109,16 @@
 }
 
 .severityLow {
-  background: rgba(0, 184, 148, 0.15);
-  color: #00b894;
+  background: rgba(46, 90, 46, 0.15);
+  color: var(--success);
 }
 
 .severityMedium {
-  background: rgba(253, 203, 110, 0.15);
-  color: #fdcb6e;
+  background: rgba(184, 134, 11, 0.15);
+  color: var(--warning);
 }
 
 .severityHigh {
-  background: rgba(255, 107, 107, 0.15);
-  color: #ff6b6b;
+  background: rgba(139, 0, 0, 0.15);
+  color: var(--danger);
 }

@@ -11,8 +11,8 @@
 .spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid #333;
-  border-top-color: #6c5ce7;
+  border: 3px solid var(--ink-10);
+  border-top-color: var(--ink);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   margin-bottom: 16px;
@@ -23,27 +23,27 @@
 }
 
 .loadingText {
-  color: #888;
+  color: var(--ink-60);
   font-size: 14px;
   margin: 0;
 }
 
 .errorText {
-  color: #ff6b6b;
+  color: var(--danger);
   font-size: 14px;
   margin: 0 0 16px 0;
 }
 
 .retryBtn {
-  background: #6c5ce7;
-  color: white;
+  background: var(--ink);
+  color: var(--paper);
   padding: 8px 20px;
-  border-radius: 6px;
+  border-radius: 4px;
   font-size: 14px;
   cursor: pointer;
   border: none;
 }
 
 .retryBtn:hover {
-  background: #5a4bd1;
+  background: var(--ink-80);
 }

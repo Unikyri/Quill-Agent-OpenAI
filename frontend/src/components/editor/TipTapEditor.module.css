@@ -16,7 +16,7 @@
   min-height: 100%;
   font-size: 16px;
   line-height: 1.8;
-  color: #e0e0e0;
+  color: var(--ink);
 }
 
 .editorContent :global(.ProseMirror p) {
@@ -26,19 +26,19 @@
 .editorContent :global(.ProseMirror p.is-editor-empty:first-child::before) {
   content: attr(data-placeholder);
   float: left;
-  color: #555;
+  color: var(--ink-40);
   pointer-events: none;
   height: 0;
 }
 
 .editorContent :global(.ProseMirror a) {
-  color: #6c5ce7;
+  color: var(--ink);
   text-decoration: underline;
 }
 
 .editorContent :global(.ProseMirror mark) {
-  background: rgba(108, 92, 231, 0.3);
-  color: #e0e0e0;
+  background: var(--ink-10);
+  color: var(--ink);
   border-radius: 2px;
   padding: 0 2px;
 }
