@@ -2,6 +2,10 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import LoginPage from '../LoginPage'
+
+// CSS module mock
+vi.mock('../LoginPage.module.css', () => ({ default: new Proxy({}, { get: (_, k) => k }) }))
+
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
@@ -13,10 +17,12 @@ vi.mock('react-router-dom', async () => {
 
 const mockLogin = vi.fn()
 const mockRegister = vi.fn()
+const mockDemoLogin = vi.fn()
 
 const authStoreState = {
   login: mockLogin,
   register: mockRegister,
+  demoLogin: mockDemoLogin,
   isAuthenticated: false,
 }
 
@@ -42,7 +48,13 @@ describe('LoginPage', () => {
     expect(screen.getByRole('heading', { name: /quill/i })).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/email/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/password/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /login/i })).toBeInTheDocument()
+    // Both tab and submit button say "Sign In" — at least one must be present
+    expect(screen.getAllByRole('button', { name: /sign in/i }).length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('renders demo button', () => {
+    renderPage()
+    expect(screen.getByRole('button', { name: /try the demo/i })).toBeInTheDocument()
   })
 
   it('submits login and navigates to dashboard', async () => {
@@ -51,7 +63,10 @@ describe('LoginPage', () => {
 
     fireEvent.change(screen.getByPlaceholderText(/email/i), { target: { value: 'test@example.com' } })
     fireEvent.change(screen.getByPlaceholderText(/password/i), { target: { value: 'password123' } })
-    fireEvent.click(screen.getByRole('button', { name: /login/i }))
+    // Target the submit button inside the form, not the tab
+    const form = document.querySelector('form')!
+    const submitBtn = form.querySelector('button[type="submit"]') as HTMLButtonElement
+    fireEvent.click(submitBtn)
 
     await waitFor(() => {
       expect(mockLogin).toHaveBeenCalledWith('test@example.com', 'password123')
@@ -63,6 +78,28 @@ describe('LoginPage', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: /register/i }))
     expect(screen.getByPlaceholderText(/display name/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /register/i, hidden: true })).toBeInTheDocument()
+  })
+
+  it('handles demo flow: login → clone → navigate', async () => {
+    mockDemoLogin.mockResolvedValueOnce('demo-universe-42')
+    renderPage()
+
+    fireEvent.click(screen.getByRole('button', { name: /try the demo/i }))
+
+    await waitFor(() => {
+      expect(mockDemoLogin).toHaveBeenCalled()
+      expect(mockNavigate).toHaveBeenCalledWith('/universe/demo-universe-42')
+    })
+  })
+
+  it('shows error when demo flow fails', async () => {
+    mockDemoLogin.mockRejectedValueOnce(new Error('Demo unavailable'))
+    renderPage()
+
+    fireEvent.click(screen.getByRole('button', { name: /try the demo/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Demo unavailable')).toBeInTheDocument()
+    })
   })
 })

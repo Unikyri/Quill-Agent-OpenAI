@@ -39,6 +39,19 @@ export const api = {
     request<{ user: any; token: string }>('/auth/login', { method: 'POST', json: data }),
   me: () => request<{ user: any }>('/auth/me'),
 
+  // Demo
+  demoClone: (sessionId: string) =>
+    request<{ universe_id: string }>('/demo/clone', {
+      method: 'POST',
+      headers: { 'X-Session-ID': sessionId } as Record<string, string>,
+    }),
+
+  demoReset: (sessionId: string) =>
+    request<{ ok: boolean }>('/demo/reset', {
+      method: 'POST',
+      headers: { 'X-Session-ID': sessionId } as Record<string, string>,
+    }),
+
   // Universes
   listUniverses: (page = 1, limit = 20) =>
     request<{ universes: any[]; pagination: any }>(`/universes?page=${page}&limit=${limit}`),

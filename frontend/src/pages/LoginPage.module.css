@@ -1,0 +1,182 @@
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: var(--paper-warm);
+  /* ponytail: paper grain via CSS gradient until real textures arrive */
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(41, 41, 25, 0.02) 2px,
+      rgba(41, 41, 25, 0.02) 4px
+    );
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  padding: 48px 40px 36px;
+  width: 420px;
+  max-width: 90vw;
+  box-shadow: 0 1px 4px var(--ink-10);
+}
+
+.heading {
+  font-family: var(--serif);
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 4px;
+  letter-spacing: -0.5px;
+}
+
+.subheading {
+  font-family: var(--micro);
+  font-size: 15px;
+  color: var(--ink-60);
+  margin: 0 0 28px;
+  font-style: italic;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--ink-20);
+}
+
+.tab {
+  flex: 1;
+  padding: 10px 0;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-60);
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.tab:hover {
+  color: var(--ink-80);
+}
+
+.tabActive {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
+/* Form */
+.form {
+  display: flex;
+  flex-direction: column;
+}
+
+.field {
+  margin-bottom: 18px;
+}
+
+.field input {
+  font-family: var(--sans);
+  font-size: 15px;
+  padding: 10px 4px;
+}
+
+.errorMsg {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--danger);
+  margin-bottom: 14px;
+}
+
+.submitBtn {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 16px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: var(--ink);
+  color: var(--paper);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.submitBtn:hover:not(:disabled) {
+  background: var(--ink-80);
+}
+
+.submitBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Demo button */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dividerLine {
+  flex: 1;
+  height: 1px;
+  background: var(--ink-20);
+}
+
+.dividerText {
+  font-family: var(--micro);
+  font-size: 12px;
+  color: var(--ink-40);
+  font-style: italic;
+}
+
+.demoBtn {
+  width: 100%;
+  padding: 10px;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--ink-40);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.demoBtn:hover:not(:disabled) {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.demoBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Decorative quote */
+.quote {
+  margin-top: 32px;
+  text-align: center;
+  font-family: var(--micro);
+  font-size: 13px;
+  color: var(--ink-40);
+  font-style: italic;
+  line-height: 1.6;
+}

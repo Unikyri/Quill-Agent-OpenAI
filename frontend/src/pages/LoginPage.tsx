@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
+import styles from './LoginPage.module.css'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('demo@quill.ai')
-  const [password, setPassword] = useState('demo1234')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [isRegister, setIsRegister] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { login, register } = useAuthStore()
+  const { login, register, demoLogin } = useAuthStore()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,15 +31,43 @@ export default function LoginPage() {
     }
   }
 
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-      <div className="card" style={{ width: 400 }}>
-        <h1 style={{ marginBottom: 24, fontSize: 24 }}>Quill</h1>
-        <p style={{ marginBottom: 16, color: '#888' }}>AI Writing IDE for Creative Writers</p>
+  const handleDemo = async () => {
+    setError('')
+    setLoading(true)
+    try {
+      const universeId = await demoLogin()
+      navigate(`/universe/${universeId}`)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
-        <form onSubmit={handleSubmit}>
+  return (
+    <div className={styles.container}>
+      <div className={styles.card}>
+        <h1 className={styles.heading}>Quill</h1>
+        <p className={styles.subheading}>Write worlds into existence</p>
+
+        <div className={styles.tabs}>
+          <button
+            className={`${styles.tab} ${!isRegister ? styles.tabActive : ''}`}
+            onClick={() => setIsRegister(false)}
+          >
+            Sign In
+          </button>
+          <button
+            className={`${styles.tab} ${isRegister ? styles.tabActive : ''}`}
+            onClick={() => setIsRegister(true)}
+          >
+            Register
+          </button>
+        </div>
+
+        <form className={styles.form} onSubmit={handleSubmit}>
           {isRegister && (
-            <div style={{ marginBottom: 12 }}>
+            <div className={styles.field}>
               <input
                 placeholder="Display Name"
                 value={displayName}
@@ -47,7 +76,7 @@ export default function LoginPage() {
               />
             </div>
           )}
-          <div style={{ marginBottom: 12 }}>
+          <div className={styles.field}>
             <input
               type="email"
               placeholder="Email"
@@ -56,7 +85,7 @@ export default function LoginPage() {
               required
             />
           </div>
-          <div style={{ marginBottom: 12 }}>
+          <div className={styles.field}>
             <input
               type="password"
               placeholder="Password"
@@ -65,14 +94,25 @@ export default function LoginPage() {
               required
             />
           </div>
-          {error && <p className="error" style={{ marginBottom: 12 }}>{error}</p>}
-          <button type="submit" className="primary" style={{ width: '100%', marginBottom: 12 }} disabled={loading}>
-            {loading ? 'Loading...' : isRegister ? 'Register' : 'Login'}
+          {error && <p className={styles.errorMsg}>{error}</p>}
+          <button type="submit" className={styles.submitBtn} disabled={loading}>
+            {loading ? 'Loading…' : isRegister ? 'Create Account' : 'Sign In'}
           </button>
         </form>
-        <button onClick={() => setIsRegister(!isRegister)} style={{ background: 'transparent', color: '#6c5ce7', width: '100%' }}>
-          {isRegister ? 'Already have an account? Login' : "Don't have an account? Register"}
+
+        <div className={styles.divider}>
+          <span className={styles.dividerLine} />
+          <span className={styles.dividerText}>or</span>
+          <span className={styles.dividerLine} />
+        </div>
+
+        <button className={styles.demoBtn} onClick={handleDemo} disabled={loading}>
+          Try the Demo
         </button>
+
+        <p className={styles.quote}>
+          "A writer is a world trapped in a person."<br />— Victor Hugo
+        </p>
       </div>
     </div>
   )

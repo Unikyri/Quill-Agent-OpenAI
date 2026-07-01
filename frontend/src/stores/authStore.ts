@@ -13,11 +13,12 @@ interface AuthState {
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, displayName: string) => Promise<void>
+  demoLogin: () => Promise<string>
   logout: () => void
   init: () => Promise<void>
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   token: localStorage.getItem('token'),
   isAuthenticated: !!localStorage.getItem('token'),
@@ -32,6 +33,16 @@ export const useAuthStore = create<AuthState>((set) => ({
     const { user, token } = await api.register({ email, password, display_name: displayName })
     localStorage.setItem('token', token)
     set({ user, token, isAuthenticated: true })
+  },
+
+  demoLogin: async () => {
+    // ponytail: sequential — login first, then clone with session token
+    const { token } = await api.login({ email: 'demo@quill.ai', password: 'demo1234' })
+    localStorage.setItem('token', token)
+    const me = await api.me()
+    set({ user: me.user, token, isAuthenticated: true })
+    const { universe_id } = await api.demoClone(token)
+    return universe_id
   },
 
   logout: () => {
