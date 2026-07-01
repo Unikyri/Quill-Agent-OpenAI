@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './stores/authStore'
 import LoginPage from './pages/LoginPage'
@@ -11,6 +12,9 @@ import PlotHolesPage from './pages/PlotHolesPage'
 import EditorPage from './pages/EditorPage'
 import WorkPage from './pages/WorkPage'
 
+// ponytail: lazy-loaded — GSAP stays in this chunk, not the main bundle
+const LandingPage = lazy(() => import('./pages/LandingPage'))
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" />
@@ -19,7 +23,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <BrowserRouter>
+      <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--paper)' }} />}>
       <Routes>
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
         <Route path="/universe/:universeId" element={<ProtectedRoute><UniverseLayout /></ProtectedRoute>}>
@@ -34,6 +40,7 @@ export default function App() {
         <Route path="/editor/:chapterId" element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }

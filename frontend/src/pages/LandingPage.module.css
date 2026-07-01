@@ -1,0 +1,291 @@
+/* ========================================
+   LandingPage — Manuscript theme
+   ======================================== */
+
+.page {
+  min-height: 100vh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  overflow-x: hidden;
+}
+
+/* ---- Navbar ---- */
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 48px;
+  background: rgba(247, 247, 238, 0.92);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--ink-10);
+}
+
+.logo {
+  font-family: var(--serif);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.5px;
+}
+
+.navLinks {
+  display: flex;
+  gap: 32px;
+  align-items: center;
+}
+
+.navLink {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-60);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.navLink:hover {
+  color: var(--ink);
+}
+
+.navCta {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 8px 20px;
+  background: var(--ink);
+  color: var(--paper);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.navCta:hover {
+  background: var(--ink-80);
+}
+
+/* ---- Hero ---- */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 120px 48px 80px;
+  text-align: center;
+  position: relative;
+}
+
+.heroTagline {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: var(--ink-60);
+  margin: 0 0 24px;
+}
+
+.heroTitle {
+  font-family: var(--serif);
+  font-size: clamp(42px, 7vw, 80px);
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.15;
+  max-width: 720px;
+  margin: 0 0 28px;
+  letter-spacing: -1px;
+}
+
+.heroSubtitle {
+  font-family: var(--micro);
+  font-size: clamp(17px, 2.5vw, 22px);
+  color: var(--ink-60);
+  font-style: italic;
+  line-height: 1.6;
+  max-width: 580px;
+  margin: 0 0 44px;
+}
+
+.heroCta {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  padding: 14px 40px;
+  background: var(--ink);
+  color: var(--paper);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.heroCta:hover {
+  background: var(--ink-80);
+  transform: translateY(-1px);
+}
+
+/* Decorative ink stroke */
+.heroOrnament {
+  width: 60px;
+  height: 2px;
+  background: var(--ink-40);
+  margin: 56px auto 0;
+  position: relative;
+}
+
+.heroOrnament::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  background: var(--ink-40);
+  border-radius: 50%;
+}
+
+/* ---- Features ---- */
+.features {
+  padding: 80px 48px 60px;
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.featuresLabel {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: var(--ink-40);
+  text-align: center;
+  margin: 0 0 16px;
+}
+
+.featuresTitle {
+  font-family: var(--serif);
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 700;
+  color: var(--ink);
+  text-align: center;
+  margin: 0 0 56px;
+  letter-spacing: -0.5px;
+}
+
+.featureGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 28px;
+}
+
+.featureCard {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  padding: 36px 32px;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.featureCard:hover {
+  border-color: var(--ink-40);
+  box-shadow: 0 2px 12px var(--ink-10);
+}
+
+.featureIcon {
+  font-size: 28px;
+  margin-bottom: 20px;
+  opacity: 0.7;
+}
+
+.featureCardTitle {
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+
+.featureCardText {
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--ink-60);
+  margin: 0;
+}
+
+/* ---- Quote / Closing ---- */
+.closing {
+  padding: 80px 48px 100px;
+  text-align: center;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.closingQuote {
+  font-family: var(--micro);
+  font-size: clamp(18px, 2.5vw, 24px);
+  font-style: italic;
+  color: var(--ink-60);
+  line-height: 1.7;
+  margin: 0 0 16px;
+}
+
+.closingAuthor {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--ink-40);
+  margin: 0 0 48px;
+}
+
+.closingCta {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  padding: 12px 36px;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--ink-40);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.closingCta:hover {
+  border-color: var(--ink);
+}
+
+/* ---- Footer ---- */
+.footer {
+  padding: 32px 48px;
+  border-top: 1px solid var(--ink-10);
+  text-align: center;
+}
+
+.footerText {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-40);
+  margin: 0;
+}
