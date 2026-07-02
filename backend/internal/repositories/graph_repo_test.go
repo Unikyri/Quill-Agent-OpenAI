@@ -214,3 +214,34 @@ func TestGraphRepoEdgeCRUD(t *testing.T) {
 		t.Errorf("expected 1 edge after recreate, got %d", len(edges2))
 	}
 }
+
+// TestEscapeCypherString verifies that the escapeCypherString helper
+// correctly escapes single quotes and backslashes for safe Cypher interpolation.
+//
+// RED: escapeCypherString does not exist yet — compilation will fail until
+// the production code is added.
+func TestEscapeCypherString(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"single_quote", "O'Brien", "O\\'Brien"},
+		{"backslash", "path\\to\\file", "path\\\\to\\\\file"},
+		{"normal", "Alice", "Alice"},
+		{"empty", "", ""},
+		{"mixed", "O'Brien\\Jr", "O\\'Brien\\\\Jr"},
+		{"only_quote", "'", "\\'"},
+		{"only_backslash", "\\", "\\\\"},
+		{"already_escaped", "already\\'safe", "already\\\\\\'safe"}, // ponytail: double-escape is harmless — better safe than injection
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := escapeCypherString(tt.input)
+			if got != tt.want {
+				t.Errorf("escapeCypherString(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}

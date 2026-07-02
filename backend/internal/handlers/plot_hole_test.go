@@ -17,10 +17,10 @@ func TestPlotHolesHandlerList(t *testing.T) {
 	}})
 
 	h := NewPlotHoleHandler(nil)
-	app.Get("/api/v1/plot-holes", h.ListByUniverse)
+	app.Get("/api/v1/universes/:universe_id/plot-holes", h.ListByUniverse)
 
 	universeID := uuid.New()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/plot-holes?universe_id="+universeID.String(), nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/universes/"+universeID.String()+"/plot-holes", nil)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test: %v", err)
@@ -34,9 +34,9 @@ func TestPlotHolesHandlerList(t *testing.T) {
 func TestPlotHolesHandlerListInvalidID(t *testing.T) {
 	app := fiber.New()
 	h := NewPlotHoleHandler(nil)
-	app.Get("/api/v1/plot-holes", h.ListByUniverse)
+	app.Get("/api/v1/universes/:universe_id/plot-holes", h.ListByUniverse)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/plot-holes?universe_id=bad", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/universes/bad/plot-holes", nil)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test: %v", err)

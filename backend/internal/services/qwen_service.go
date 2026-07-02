@@ -58,20 +58,57 @@ func (s *QwenService) HealthCheck(ctx context.Context) error {
 }
 
 type QwenRequest struct {
-	Model    string        `json:"model"`
-	Messages []QwenMessage `json:"messages"`
-	Format   interface{}   `json:"format,omitempty"`
+	Model      string        `json:"model"`
+	Messages   []QwenMessage `json:"messages"`
+	Format     interface{}   `json:"format,omitempty"`
+	Tools      []QwenTool    `json:"tools,omitempty"`
+	ToolChoice interface{}   `json:"tool_choice,omitempty"`
 }
 
 type QwenMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string         `json:"role"`
+	Content    string         `json:"content,omitempty"`
+	ToolCalls  []QwenToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string         `json:"tool_call_id,omitempty"`
+}
+
+type QwenTool struct {
+	Type     string           `json:"type"`
+	Function QwenToolFunction `json:"function"`
+}
+
+// QwenToolFunction defines a function callable by the model.
+type QwenToolFunction struct {
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Parameters  map[string]interface{} `json:"parameters"`
+}
+
+// QwenToolCall represents a tool call requested by the model in a response.
+type QwenToolCall struct {
+	ID       string                   `json:"id"`
+	Type     string                   `json:"type"`
+	Function QwenToolCallFunction     `json:"function"`
+}
+
+// QwenToolCallFunction holds the function name and JSON-encoded arguments
+// for a tool call.
+type QwenToolCallFunction struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
+// ToolExecutor dispatches tool calls by name. Implementations handle the
+// argument parsing and execution for each registered tool.
+type ToolExecutor interface {
+	ExecuteTool(name string, argsJSON string) (string, error)
 }
 
 type QwenResponse struct {
 	Choices []struct {
 		Message struct {
-			Content string `json:"content"`
+			Content   string         `json:"content"`
+			ToolCalls []QwenToolCall `json:"tool_calls,omitempty"`
 		} `json:"message"`
 	} `json:"choices"`
 	Usage struct {
@@ -203,7 +240,7 @@ Respond with ONLY valid JSON in this format:
 }`, universeContext, text)
 
 	payload := QwenRequest{
-		Model: "qwen-turbo-latest",
+		Model: "qwen-turbo",
 		Messages: []QwenMessage{
 			{Role: "system", Content: "You extract narrative entities. Return only JSON."},
 			{Role: "user", Content: prompt},
@@ -299,7 +336,7 @@ Return JSON array of relationships:
 [{"source": "entity1", "target": "entity2", "type": "ALLY_OF|ENEMY_OF|LOCATED_AT|MEMBER_OF", "properties": {}}]`, text, entityList)
 
 	payload := QwenRequest{
-		Model: "qwen-turbo-latest",
+		Model: "qwen-turbo",
 		Messages: []QwenMessage{
 			{Role: "system", Content: "You analyze narrative relationships. Return only JSON."},
 			{Role: "user", Content: prompt},
@@ -356,7 +393,7 @@ func (s *QwenService) CheckContradictions(ctx context.Context, candidates []Cont
 	prompt += "\nReturn: [{\"has_contradiction\": true/false, \"entity_index\": int, \"description\": \"...\", \"severity\": \"low|medium|high\", \"suggestion\": \"...\"}]"
 
 	payload := QwenRequest{
-		Model: "qwen-max-latest",
+		Model: "qwen-max",
 		Messages: []QwenMessage{
 			{Role: "system", Content: "You detect narrative contradictions. Return only JSON."},
 			{Role: "user", Content: prompt},
@@ -428,4 +465,100 @@ func parseContradictionResults(raw []byte, candidates []ContradictionCandidate) 
 		return nil, err
 	}
 	return results, nil
+}
+
+// RunAgentLoop executes a ReAct loop with function calling. It sends messages
+// and tools to the Qwen API, executes tool calls via the executor, and loops
+// until a final answer is returned or maxDepth is exhausted.
+//
+// If tools is nil or empty, RunAgentLoop falls back to a single chat completion
+// without the tool-calling loop.
+//
+// ponytail: single method on QwenService reusing callWithSemaphore + maxSem.
+func (s *QwenService) RunAgentLoop(ctx context.Context, messages []QwenMessage, tools []QwenTool, executor ToolExecutor, maxDepth int) (string, error) {
+	if maxDepth <= 0 {
+		maxDepth = 5
+	}
+
+	// Empty tools fallback — single chat completion
+	if len(tools) == 0 {
+		payload := QwenRequest{
+			Model:    "qwen-max",
+			Messages: messages,
+		}
+		respBody, err := s.callWithSemaphore(ctx, s.maxSem, "qwen-max", payload)
+		if err != nil {
+			return "", fmt.Errorf("run agent loop: %w", err)
+		}
+		var qwenResp QwenResponse
+		if err := json.Unmarshal(respBody, &qwenResp); err != nil {
+			return "", fmt.Errorf("unmarshal response: %w", err)
+		}
+		if len(qwenResp.Choices) == 0 {
+			return "", nil
+		}
+		return qwenResp.Choices[0].Message.Content, nil
+	}
+
+	// ponytail: copy messages to avoid mutating caller's slice
+	msgs := make([]QwenMessage, len(messages))
+	copy(msgs, messages)
+
+	for depth := 0; depth < maxDepth; depth++ {
+		payload := QwenRequest{
+			Model:      "qwen-max",
+			Messages:   msgs,
+			Tools:      tools,
+			ToolChoice: "auto",
+		}
+
+		respBody, err := s.callWithSemaphore(ctx, s.maxSem, "qwen-max", payload)
+		if err != nil {
+			return "", fmt.Errorf("run agent loop: %w", err)
+		}
+
+		var qwenResp QwenResponse
+		if err := json.Unmarshal(respBody, &qwenResp); err != nil {
+			return "", fmt.Errorf("unmarshal response: %w", err)
+		}
+		if len(qwenResp.Choices) == 0 {
+			return "", nil
+		}
+
+		choice := qwenResp.Choices[0]
+		msg := choice.Message
+
+		// No tool calls → final answer
+		if len(msg.ToolCalls) == 0 {
+			return msg.Content, nil
+		}
+
+		// Append assistant message with tool calls
+		msgs = append(msgs, QwenMessage{
+			Role:      "assistant",
+			Content:   msg.Content,
+			ToolCalls: msg.ToolCalls,
+		})
+
+		// Execute each tool and append results
+		for _, tc := range msg.ToolCalls {
+			result, execErr := executor.ExecuteTool(tc.Function.Name, tc.Function.Arguments)
+			if execErr != nil {
+				result = fmt.Sprintf("error: %v", execErr)
+			}
+			msgs = append(msgs, QwenMessage{
+				Role:       "tool",
+				ToolCallID: tc.ID,
+				Content:    result,
+			})
+		}
+	}
+
+	// Depth exhausted — return the last assistant message content if any
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == "assistant" && msgs[i].Content != "" {
+			return msgs[i].Content, nil
+		}
+	}
+	return "", nil
 }

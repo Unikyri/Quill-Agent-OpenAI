@@ -28,9 +28,9 @@ func (h *PlotHoleHandler) WithRepo(repo *repositories.PlotHoleRepo) *PlotHoleHan
 }
 
 // ListByUniverse returns all plot holes for a universe.
-// GET /api/v1/plot-holes?universe_id=X
+// GET /api/v1/universes/:universe_id/plot-holes
 func (h *PlotHoleHandler) ListByUniverse(c *fiber.Ctx) error {
-	universeID, err := uuid.Parse(c.Query("universe_id"))
+	universeID, err := uuid.Parse(c.Params("universe_id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fiber.Map{"code": "VALIDATION_ERROR", "message": "Invalid universe_id"},

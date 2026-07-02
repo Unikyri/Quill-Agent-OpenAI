@@ -28,20 +28,20 @@ export const useUniverseStore = create<UniverseState>((set) => ({
 
   fetchUniverses: async () => {
     const { universes } = await api.listUniverses()
-    set({ universes })
+    set({ universes: universes || [] })
   },
 
   selectUniverse: async (id) => {
     const { universe } = await api.getUniverse(id)
     const { works } = await api.listWorks(id)
-    set({ currentUniverse: universe, works, currentWork: null, currentChapter: null })
+    set({ currentUniverse: universe, works: works || [], currentWork: null, currentChapter: null })
   },
 
   selectWork: async (id) => {
     const work = useUniverseStore.getState().works.find((w) => w.id === id) || null
     if (work && useUniverseStore.getState().currentUniverse) {
       const { chapters } = await api.listChapters(id)
-      set({ currentWork: work, chapters, currentChapter: null })
+      set({ currentWork: work, chapters: chapters || [], currentChapter: null })
     }
   },
 

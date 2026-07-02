@@ -62,7 +62,7 @@ func (r *WorkRepo) ListByUniverse(ctx context.Context, universeID uuid.UUID) ([]
 	}
 	defer rows.Close()
 
-	var works []models.Work
+	works := []models.Work{}
 	for rows.Next() {
 		var w models.Work
 		if err := rows.Scan(

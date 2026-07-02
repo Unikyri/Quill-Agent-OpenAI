@@ -18,10 +18,10 @@ func TestContradictionsHandlerList(t *testing.T) {
 	}})
 
 	h := NewContradictionHandler(nil, nil)
-	app.Get("/api/v1/contradictions", h.ListByUniverse)
+	app.Get("/api/v1/universes/:universe_id/contradictions", h.ListByUniverse)
 
 	universeID := uuid.New()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/contradictions?universe_id="+universeID.String(), nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/universes/"+universeID.String()+"/contradictions", nil)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test: %v", err)
@@ -40,9 +40,9 @@ func TestContradictionsHandlerListInvalidID(t *testing.T) {
 	}})
 
 	h := NewContradictionHandler(nil, nil)
-	app.Get("/api/v1/contradictions", h.ListByUniverse)
+	app.Get("/api/v1/universes/:universe_id/contradictions", h.ListByUniverse)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/contradictions?universe_id=not-a-uuid", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/universes/not-a-uuid/contradictions", nil)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test: %v", err)
@@ -60,9 +60,9 @@ func TestContradictionsHandlerResolve(t *testing.T) {
 	}})
 
 	h := NewContradictionHandler(nil, nil)
-	app.Put("/api/v1/contradictions/:id/resolve", h.Resolve)
+	app.Put("/api/v1/universes/:universe_id/contradictions/:id/resolve", h.Resolve)
 
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/contradictions/"+uuid.New().String()+"/resolve", nil)
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/universes/"+uuid.New().String()+"/contradictions/"+uuid.New().String()+"/resolve", nil)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test: %v", err)
@@ -80,9 +80,9 @@ func TestContradictionsHandlerResolveInvalidID(t *testing.T) {
 	}})
 
 	h := NewContradictionHandler(nil, nil)
-	app.Put("/api/v1/contradictions/:id/resolve", h.Resolve)
+	app.Put("/api/v1/universes/:universe_id/contradictions/:id/resolve", h.Resolve)
 
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/contradictions/not-a-uuid/resolve", nil)
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/universes/"+uuid.New().String()+"/contradictions/not-a-uuid/resolve", nil)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test: %v", err)

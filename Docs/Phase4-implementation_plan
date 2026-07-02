@@ -1,0 +1,595 @@
+# Phase 4: Manuscript UI Redesign & Demo Flow
+
+> **Goal:** Transform Quill from the current dark SaaS theme into the editorial, manuscript-inspired design system defined in [design.md](file:///home/daikyri/Workspace/Hackathon-QwenCloud/design.md) — matching your mockup examples exactly.
+
+---
+
+## Design System Summary (from design.md)
+
+| Token | Value |
+|---|---|
+| **Ink** | `#292919` |
+| **Paper** | `#F7F7EE` |
+| **Typography** | Serif titles (editorial), clean body, marginal notes for microcopy |
+| **Surfaces** | Paper textures with subtle grain, cards as manuscript pages, sidebar as ink/leather |
+| **Buttons** | Outline or ink-filled, hover = "inking" effect |
+| **Inputs** | Underlined style, writing animation on focus |
+| **Animations** | GSAP + ScrollTrigger, slow/organic, fade + vertical reveal, SVG ink drawing |
+| **Illustrations** | Black & white, engraving/sketch style, no color |
+| **Rule** | No new colors — use opacity variations of Ink and Paper only |
+
+---
+
+## Visual References (Your Mockups)
+
+````carousel
+![01 — Landing Page](/home/daikyri/.gemini/antigravity-ide/brain/b0d6a7d7-f2a1-4701-81a7-932818a046ac/01-landing.png)
+<!-- slide -->
+![02 — Login / Register](/home/daikyri/.gemini/antigravity-ide/brain/b0d6a7d7-f2a1-4701-81a7-932818a046ac/02-login.png)
+<!-- slide -->
+![03 — Dashboard](/home/daikyri/.gemini/antigravity-ide/brain/b0d6a7d7-f2a1-4701-81a7-932818a046ac/03-dashboard.png)
+<!-- slide -->
+![04 — Universe Layout (Navbar + Tabs)](/home/daikyri/.gemini/antigravity-ide/brain/b0d6a7d7-f2a1-4701-81a7-932818a046ac/04-universe.png)
+<!-- slide -->
+![04a — Works Tab](/home/daikyri/.gemini/antigravity-ide/brain/b0d6a7d7-f2a1-4701-81a7-932818a046ac/04a-works.png)
+<!-- slide -->
+![05 — Work Page (Chapters)](/home/daikyri/.gemini/antigravity-ide/brain/b0d6a7d7-f2a1-4701-81a7-932818a046ac/05-work.png)
+<!-- slide -->
+![06 — Editor Page](/home/daikyri/.gemini/antigravity-ide/brain/b0d6a7d7-f2a1-4701-81a7-932818a046ac/06-editor.png)
+<!-- slide -->
+![07 — Knowledge Graph](/home/daikyri/.gemini/antigravity-ide/brain/b0d6a7d7-f2a1-4701-81a7-932818a046ac/07-graph.png)
+<!-- slide -->
+![08 — Timeline](/home/daikyri/.gemini/antigravity-ide/brain/b0d6a7d7-f2a1-4701-81a7-932818a046ac/08-timeline.png)
+<!-- slide -->
+![09 — Contradictions](/home/daikyri/.gemini/antigravity-ide/brain/b0d6a7d7-f2a1-4701-81a7-932818a046ac/09-contradictions.png)
+<!-- slide -->
+![10 — Plot Holes](/home/daikyri/.gemini/antigravity-ide/brain/b0d6a7d7-f2a1-4701-81a7-932818a046ac/10-plotholes.png)
+<!-- slide -->
+![11 — Entity Card](/home/daikyri/.gemini/antigravity-ide/brain/b0d6a7d7-f2a1-4701-81a7-932818a046ac/11-entity.png)
+````
+
+---
+
+## ASCII Wireframes
+
+### Page 1 — Landing Page (NEW)
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  🪶 Quill           Features  For Writers  Pricing  [Start Writing]│
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Every great                          ┌─────────────────────┐      │
+│  story begins                         │                     │      │
+│  with /a world./                      │   🐉 Hero Image     │      │
+│  ──✦──                                │   (knight+dragon)   │      │
+│                                       │                     │      │
+│  Quill is the IDE for writers         └─────────────────────┘      │
+│  and world builders...                                              │
+│                                                                     │
+│  [Start Your Universe]  Explore Features →                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  From any world         ┌─────────────────────┐                    │
+│  to every               │  🧑‍🚀 Astronaut       │                    │
+│  /possibility./         │  Image              │                    │
+│  ──✦──                  └─────────────────────┘                    │
+│                                                                     │
+│  ⟡ Smart Connections  │  ⟡ Consistency Alerts                     │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Your story.            ┌─────────────────────┐                    │
+│  Your rules.            │  🏰 Steampunk        │                    │
+│  Your /legacy./         │  couple Image        │                    │
+│                         └─────────────────────┘                    │
+│  ⟡ Persistent Memory  │  ⟡ Focus Mode                            │
+│                                                                     │
+│  [Get Started — Free]                                               │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Page 2 — Login / Register
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  🪶 Quill                                                           │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  bg: paper texture (#F7F7EE)                                        │
+│                                                                     │
+│  🪶 inkwell            ✦                        🕯️ candle          │
+│  illustration       Welcome to Quill            illustration       │
+│                  AI Writing IDE with                                │
+│                  Persistent Memory                                  │
+│                                                                     │
+│              ┌──────────────────────────┐                           │
+│              │  [Log in]  │  Register   │  ← tab toggle             │
+│              ├──────────────────────────┤                           │
+│              │                          │                           │
+│              │  Email                   │                           │
+│              │  ________________________│                           │
+│              │  demo@quill.ai        ✉  │                           │
+│              │                          │                           │
+│              │  Password                │                           │
+│              │  ________________________│                           │
+│              │  ••••••••             👁  │                           │
+│              │                          │                           │
+│              │  ▶ [████ Log In ████]    │                           │
+│              │         — or —           │                           │
+│              │  ✦ Try Demo (no account) │                           │
+│              │                          │                           │
+│              └──────────────────────────┘                           │
+│              🔒 Your stories are private                            │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Page 3 — Dashboard
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  🪶 Quill                          Elena Velasco ▾  [+ New Universe]│
+├──────────┬──────────────────────────────────────────────────────────┤
+│ SIDEBAR  │                                                          │
+│──────────│  Your Universes  🪶         🔍 Search universes...       │
+│ Dashboard│                                                          │
+│ Universes│  ┌─────────────────────┐  ┌─────────────────────┐       │
+│ Works    │  │ ✦ Los Reinos de     │  │ ✦ Echoes of         │       │
+│ Timeline │  │   Aether     ···    │  │   Eternity (demo)   │       │
+│ Entities │  │ Fantasy · Novel     │  │ Sci-Fi · Novel      │       │
+│ Connects.│  │                     │  │                     │       │
+│ Notes    │  │ 📖 3 works 📄 42 ch │  │ 📖 2 works 📄 18 ch │       │
+│ AI Asst. │  │ 👤 85 ent ⟡ 142 con│  │ 👤 34 ent ⟡ 67 con  │       │
+│ Settings │  │                     │  │                     │       │
+│          │  │ Memory ████████░ 87%│  │ Memory █████░░░ 65% │       │
+│──────────│  │ 2h ago              │  │ 1d ago              │       │
+│          │  │ [Open →] [··· More] │  │ [Open →] [··· More] │       │
+│ quote    │  └─────────────────────┘  └─────────────────────┘       │
+│ from a   │                                                          │
+│ writer   │  ┌─────────────────────────────────────────────┐        │
+│          │  │  + New Universe                              │        │
+│  «       │  │  🏰 illustration  Start a new story universe │        │
+│          │  │                   [Create Universe]           │        │
+│          │  └─────────────────────────────────────────────┘        │
+└──────────┴──────────────────────────────────────────────────────────┘
+```
+
+### Page 4 — Universe Layout (Navbar + Tabs)
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  🪶 Quill  /  Los Reinos de Aether     [↻ Reset Demo] ⚙ 👤        │
+├─────────────────────────────────────────────────────────────────────┤
+│  📖 Works │ ⟡ Knowledge Graph │ 📅 Timeline │ ⚠ Contradictions │ ◉ Plot Holes │
+│  ─────────┴────────────────────┴─────────────┴──────────────────┴───│
+│                                                                     │
+│                     (content from active tab)                       │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Page 4a — Works Tab (inside Universe)
+```
+│  Works in this Universe                           [+ New Work]      │
+│  ──✦──                                                              │
+│                                                                     │
+│  #1  ┌────┐  📖 El Despertar de Aether              [Book]         │
+│      │ 🧭 │  📄 15 chapters · 48,320 words · 34 entities           │
+│      │img │  ████████████████████░░  100% analyzed                  │
+│      └────┘                            [Open Work →]  [··· More]    │
+│  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─  │
+│  #2  ┌────┐  📖 La Traición de Solaria               [Book]        │
+│      │ 🦁 │  📄 12 chapters · 36,100 words · 28 entities           │
+│      │img │  ██████████████████░░░░  83% analyzed                   │
+│      └────┘                            [Open Work →]  [··· More]    │
+│  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─  │
+│  ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐   │
+│  │  + Add New Work          or        ↑ Import Doc (PDF·DOCX·MD)│   │
+│  └─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘   │
+```
+
+### Page 5 — Work Page (Chapters list + sidebar)
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  🪶 Quill  > Los Reinos de Aether > El Despertar de Aether  ⚙ 👤  │
+├──────────┬──────────────────────────────────────────────────────────┤
+│ SIDEBAR  │  ┌────┐                                                  │
+│──────────│  │ 🧭 │  El Despertar de Aether         [↓ Import]      │
+│ Works    │  └────┘  📄 48,320 words · 📖 15 ch · 👤 34 entities    │
+│ Know.Grph│                                                          │
+│ Timeline │  ┌────────────────────────────────────────────────────┐  │
+│ Contradi.│  │ ┌────┐ Chapter 1: The Awakening         Open → │  │
+│ Orphaned │  │ │ 🌅 │ 📄 3,200 words · ✅ Analyzed               │  │
+│──────────│  │ └────┘ 👤 8 entities · ✅ 0 contradictions         │  │
+│ Settings │  └────────────────────────────────────────────────────┘  │
+│ Templates│  ┌────────────────────────────────────────────────────┐  │
+│ Trash    │  │ ┌────┐ Chapter 2: The Shadow Council    Open → │  │
+│──────────│  │ │ 🌙 │ 📄 4,100 words · ✅ Analyzed               │  │
+│ PROJECT  │  │ └────┘ 👤 11 entities · ⚠ 1 contradiction         │  │
+│ STATS    │  └────────────────────────────────────────────────────┘  │
+│ Words:   │  ┌────────────────────────────────────────────────────┐  │
+│  48,320  │  │ ┌────┐ Chapter 3: Exile                 Open → │  │
+│ Chapters:│  │ │ 🏰 │ 📄 2,900 words · ⟳ Analyzing...           │  │
+│  15      │  │ └────┘ 👤 6 entities                               │  │
+│ Entities:│  └────────────────────────────────────────────────────┘  │
+│  34      │  ┌────────────────────────────────────────────────────┐  │
+│ Contrad.:│  │ ┌────┐ Chapter 4: [Untitled]            Open → │  │
+│  2       │  │ │ ?  │ 📄 0 words · ○ Draft                       │  │
+│ Last: 2m │  │ └────┘                                             │  │
+│          │  └────────────────────────────────────────────────────┘  │
+│          │  ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐                              │
+│          │  │  + New Chapter          │                              │
+│          │  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘                              │
+└──────────┴──────────────────────────────────────────────────────────┘
+```
+
+### Page 6 — Editor Page
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  🪶 Quill │ Aether > El Despertar > Ch.3: Exile  │ 🟢 WS Connected│
+├─────────────────────────────────────┬───────────────────────────────┤
+│ B  I  U   H1 H2 H3  —  «» ::: 🖨  │  QUILL MEMORY PANEL      📌  │
+├─────────────────────────────────────┤  🔍 Search entities...       │
+│                                     │───────────────────────────────│
+│  Chapter 3: Exile                   │  ⚡ RELEVANT NOW              │
+│                                     │  ┌───────────────────────┐   │
+│  The morning mist still clung       │  │ 👤 Lord Vareth    0.78│   │
+│  to the walls of [Lord Vareth]      │  │ ─ ─ ─ ─ ─ ─ ─ ─     │   │
+│  as he descended into the harbor    │  │ Status: EXILED        │   │
+│  of [Solaria]. Three years had      │  │ Last: Ch.2, Thendar   │   │
+│  passed since [King Aldric] had     │  │ Relation: Enemy of    │   │
+│  signed the decree—three years      │  │ King Aldric           │   │
+│  of wandering through               │  └───────────────────────┘   │
+│  [Thendar Forest].                  │  ┌───────────────────────┐   │
+│                                     │  │ 🏰 Solaria       0.65│   │
+│  ⚠ [Solaria] ← entity highlight    │  │ Controlled by:        │   │
+│                                     │  │ King Aldric           │   │
+│  He reached for the                 │  │ Rule: Exiles may not  │   │
+│  [Sword of Dawn], feeling its       │  │ enter the city        │   │
+│  familiar weight. A mistake—        │  └───────────────────────┘   │
+│  [Kael] would be watching the       │───────────────────────────────│
+│  gates.                             │  ⚠ CONTRADICTIONS            │
+│                                     │  ┌───────────────────────┐   │
+│  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·    │  │ 🔴 CRITICAL           │   │
+│                                     │  │ Lord Vareth enters    │   │
+│        ▏  ← quill cursor            │  │ Solaria but was       │   │
+│                                     │  │ exiled in Ch.5 B2     │   │
+│                                     │  │ [Dismiss] [Fix]       │   │
+│                                     │  └───────────────────────┘   │
+│                                     │───────────────────────────────│
+│                                     │  ✦ NEW ENTITIES              │
+│                                     │  ┌───────────────────────┐   │
+│                                     │  │ ⚔ Sword of Dawn  1.0 │   │
+│                                     │  │ Object · NEW          │   │
+│                                     │  │ [View Card]           │   │
+│                                     │  └───────────────────────┘   │
+│                                     │───────────────────────────────│
+│                                     │  💤 ARCHIVED (collapsed)  >  │
+├─────────────────────────────────────┴───────────────────────────────┤
+│  4,100 words  ·  Saving...  ·  🟢 AI analyzing ✦                   │
+│                        ↻ Reset Demo                                 │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Page 7 — Knowledge Graph
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  🪶 Quill  /  Los Reinos de Aether      🟢 WS  (?)  ⚙  👤        │
+│  📖 Works │ ⟡ Knowledge Graph │ 📅 Timeline │ ⚠ Contrad. │ ◉ Plot │
+├──────────┬──────────────────────────────────────────────────────────┤
+│ Filters  │  [+] [−] [↻ Reset]                     [⛶ Fullscreen]  │
+│  ▼       │                                                          │
+│ Type:    │           👑 Lord Aldric                                  │
+│ ☑ Char 34│            (King)                                        │
+│ ☑ Place18│    ENEMY_OF ╲        ╲ CONTROLS                         │
+│ ☑ Event12│              ╲        ╲                                  │
+│ ☑ Fac.  8│     👤 Lord ──── ← ──── 🏰 Solaria                     │
+│ ☑ Rule  6│     Vareth  ─ ─ ─ → ─ ─ (City)                         │
+│ ☑ Plot  7│     (exiled)                                             │
+│          │       │  MENTOR_OF         OCCURRED_AT                   │
+│ Relevance│       ▼                    ╱                              │
+│ ○ All    │     👤 ──── ⚔ Battle ─── 🌲 Thendar                     │
+│ ● Active │     Kael    of Solaria    Forest                         │
+│          │       │                                                   │
+│──────────│     ALLY   ENEMY                    ●─ Character         │
+│ Selected:│       ╲      ╱                      ●─ Place             │
+│ ┌──────┐ │        ╲    ╱                       ●─ Event             │
+│ │👤    │ │     👤 Elder                        ●─ Faction           │
+│ │Lord  │ │     Mora                            ●─ WorldRule         │
+│ │Vareth│ │                                     ●─ PlotArc           │
+│ │ 0.78 │ │                                     ○─ Archived          │
+│ │Status│ │                                                          │
+│ │Exiled│ │                                                          │
+│ │Loc:  │ │                                                          │
+│ │Thend.│ │                                                          │
+│ │Rel: 6│ │                                                          │
+│ │Men:23│ │                                                          │
+│ │[Card]│ │                                                          │
+│ └──────┘ │                                                          │
+├──────────┴──────────────────────────────────────────────────────────┤
+│  ⟡ 85 nodes · 142 edges · 🟢 Showing: Active only  [↓ Export]     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Page 8 — Timeline
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  🪶 Quill  /  Los Reinos de Aether          [↻ Reset Demo] ⚙ 👤   │
+│  📖 Works │ ⟡ Graph │ 📅 Timeline │ ⚠ Contrad. │ ◉ Plot Holes     │
+├─────────────────────────────────────────────────────────────────────┤
+│  Filter: [All works ▾]  [All characters ▾]    Zoom: ── ●──── [+]  │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Year 1 ──┬──────────┬──────────┬──────────┬──────── Year 4        │
+│           ·          ·          ·          ·                        │
+│          ⚔         ⚠         👤        👤         ✦               │
+│      Awakening   Battle    Lyra's    Vareth's   The Final          │
+│      of Lyra    of Solaria Training   Exile    Prophecy            │
+│      Ch.1 B1    Ch.8 B1   Ch.3 B2   Ch.5 B2   Ch.12 B3            │
+│                                                                     │
+│  ●══════ Book 1 ══════●  ●══════ Book 2 ══════●  ●══ Book 3 ══    │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│  ⚠ Battle of Solaria — Timeline Inconsistency                      │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │ 📖 Ch.3: Thendar → Solaria = 30 days on horseback          │   │
+│  │ 📖 Ch.8: Lord Vareth arrives at Solaria 2 days later       │   │
+│  │ ⚠ → Impossible travel time.                                 │   │
+│  │                              [Dismiss]  [View Chapter]      │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Page 9 — Contradictions
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  🪶 Quill  /  Los Reinos de Aether          [↻ Reset Demo] ⚙ 👤   │
+│  📖 Works │ ⟡ Graph │ 📅 Timeline │ ⚠ Contradictions │ ◉ Plot     │
+├─────────────────────────────────────────────────────────────────────┤
+│  ⚠ 3 Contradictions           Filter: [All ▾] [Critical ▾] [Open ▾]│
+├─────────────────────────────────────────────────────────────────────┤
+│  ┌───────────────────────────────────────────────────────────────┐ │
+│  │ 🔴 CRITICAL                              Ch.15 B3  [OPEN]  ▴ │ │
+│  │ Lord Vareth enters Solaria gates                              │ │
+│  │ 👤 Lord Vareth · 🏰 Solaria                                  │ │
+│  │                                                               │ │
+│  │ ┌─ Evidence A ─────────┐  ┌─ Evidence B ─────────┐          │ │
+│  │ │ 📖 Ch.5, Book 2      │  │ 📖 Ch.15, Book 3     │          │ │
+│  │ │ "By decree of King   │  │ "Lord Vareth drew     │          │ │
+│  │ │ Aldric, Lord Vareth  │  │ the Sword of Dawn     │          │ │
+│  │ │ was banished..."     │  │ and stepped through   │          │ │
+│  │ │ [Go to →]            │  │ the gates..."         │          │ │
+│  │ └─────────────────────┘  └─────────────────────┘          │ │
+│  │                                                               │ │
+│  │ 💡 Consider: disguise, pardon, or forceful entry              │ │
+│  │                      [Dismiss — intentional]  [Mark Resolved] │ │
+│  └───────────────────────────────────────────────────────────────┘ │
+│  ┌───────────────────────────────────────────────────────────────┐ │
+│  │ ⚠ WARNING                                Ch.7 B2  [OPEN]  ▾ │ │
+│  │ Lyra uses fire magic inside the Ice Cathedral                 │ │
+│  └───────────────────────────────────────────────────────────────┘ │
+│  ┌───────────────────────────────────────────────────────────────┐ │
+│  │ ✅ LOW — Resolved                        Ch.3 B1  [RESOLVED] │ │
+│  │ Kael's age inconsistency — [resolved by author note]          │ │
+│  └───────────────────────────────────────────────────────────────┘ │
+│                                                                     │
+│  ⓘ Contradictions are detected by AI and may not always be true.   │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Page 10 — Plot Holes
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  🪶 Quill  /  Los Reinos de Aether          [↻ Reset Demo] ⚙ 👤   │
+│  📖 Works │ ⟡ Graph │ 📅 Timeline │ ⚠ Contrad. │ ◉ Plot Holes     │
+├─────────────────────────────────────────────────────────────────────┤
+│  ◉ 2 Open Plot Holes                        Filter: [Open ▾]      │
+├─────────────────────────────────────────────────────────────────────┤
+│  ┌───────────────────────────────────────────────────────────────┐ │
+│  │ 📖 The Oracle's Prophecy              ⏰ 15 chapters w/o dev │ │
+│  │                                                               │ │
+│  │ Related: [👤 The Oracle] [👤 Lyra Ashveil]                   │ │
+│  │                                                               │ │
+│  │ Introduced in Chapter 3, Book 1 — 15 chapters have passed    │ │
+│  │ with no development or resolution of this story thread.       │ │
+│  │                                                               │ │
+│  │ ┌─────────────────────────────────────────────────────────┐  │ │
+│  │ │ "The prophecy of the Oracle announced that a chosen one │  │ │
+│  │ │ would destroy the Crystal of the Ages..."               │  │ │
+│  │ │                                        [Go to Ch.3 →]   │  │ │
+│  │ └─────────────────────────────────────────────────────────┘  │ │
+│  │                                                               │ │
+│  │ 💡 Consider advancing or resolving this arc soon.             │ │
+│  │                              [Dismiss]  [Mark Resolved]       │ │
+│  └───────────────────────────────────────────────────────────────┘ │
+│  ┌───────────────────────────────────────────────────────────────┐ │
+│  │ 📖 The Missing Amulet                ⏰ 8 chapters w/o dev  │ │
+│  │ Related: [👤 Lyra Ashveil] [⚔ Amulet of Aether]             │ │
+│  │ "...found a mysterious amulet that 'held the key'..."        │ │
+│  │                              [Dismiss]  [Mark Resolved]       │ │
+│  └───────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Page 11 — Entity Card
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  🪶 Quill  /  Aether  /  Entities  /  Lord Vareth      [← Back]   │
+├────────────────────────────────┬────────────────────────────────────┤
+│                                │                                    │
+│  👤                            │  ⏰ Mentions Timeline              │
+│  ┌──────────┐                  │  B1  ●─────────────────────       │
+│  │          │  Lord Vareth     │  B2  ●──●────●──●────●──●─        │
+│  │  portrait│  👤 Character    │  B3  ●──────────────────●─        │
+│  │  image   │                  │  (23 total mentions)               │
+│  │          │  Status: EXILED 🔴│                                   │
+│  └──────────┘  Relevance:      │  🔗 Relationships                  │
+│     █████████░  0.78           │  ┌────────────────────────────┐   │
+│     Location: Thendar Forest   │  │ ⚔ ENEMY_OF  →  King Aldric│   │
+│     Role: Antagonist           │  ├────────────────────────────┤   │
+│                                │  │ 📖 MENTOR_OF → Lyra       │   │
+│  ✍ Aliases                     │  ├────────────────────────────┤   │
+│  · "The Exiled Lord"           │  │ ⚔ ENEMY_OF  ← Kael       │   │
+│  · "Vareth the Betrayed"      │  ├────────────────────────────┤   │
+│                                │  │ 🏠 LOCATED_AT → Thendar   │   │
+│  👁 Appearance                 │  └────────────────────────────┘   │
+│  Tall, silver-haired, scar     │                                    │
+│  across left eye. Worn leather │  🛡 Factions                       │
+│  armor, no house sigil.        │  (none currently)                  │
+│                                │                                    │
+│  ⚔ Abilities                   │  ┌─────────────┬──────────────┐  │
+│  · Swordsmanship               │  │ First Mention│ Last Mention │  │
+│  · Tactical brilliance         │  │ Ch.1 · B1    │ Ch.15 · B3  │  │
+│                                │  │ "...Lord     │ (2 days ago) │  │
+│  [✏ Edit manually]             │  │ Vareth had   │              │  │
+│                                │  │ once ruled..."│             │  │
+│                                │  └─────────────┴──────────────┘  │
+└────────────────────────────────┴────────────────────────────────────┘
+```
+
+---
+
+## Proposed Changes
+
+### Phase 4A — Foundation & Core Pages
+
+> [!IMPORTANT]
+> This sub-phase establishes the design system and rewrites the 4 most critical pages.
+
+---
+
+#### [MODIFY] [index.css](file:///home/daikyri/Workspace/Hackathon-QwenCloud/frontend/src/index.css)
+- **Complete rewrite.** Replace dark SaaS theme with manuscript design system.
+- Import Google Fonts: `Playfair Display` (serif titles), `Source Sans 3` (body), `Cormorant Garant` (microcopy/quotes).
+- CSS custom properties: `--ink: #292919`, `--paper: #F7F7EE`, opacity variants.
+- Paper texture background via subtle CSS gradient or repeating pattern.
+- Global component styles: buttons (outline/ink-filled), inputs (underlined), cards (manuscript pages with subtle border), scrollbars.
+
+---
+
+#### [NEW] [LandingPage.tsx](file:///home/daikyri/Workspace/Hackathon-QwenCloud/frontend/src/pages/LandingPage.tsx) + LandingPage.module.css
+- Full-width hero sections with your images (knight+dragon, astronaut, steampunk couple).
+- GSAP ScrollTrigger for fade+reveal animations, text writing effect, SVG ink dividers.
+- Navbar: `🪶 Quill | Features | For Writers | Pricing | [Start Writing]`.
+- Feature cards at bottom of each section.
+- Footer with CTA `[Get Started — Free]`.
+
+#### [MODIFY] [App.tsx](file:///home/daikyri/Workspace/Hackathon-QwenCloud/frontend/src/App.tsx)
+- Add route `/` → `LandingPage`.
+- Add route `/login` → `LoginPage`.
+
+---
+
+#### [MODIFY] [LoginPage.tsx](file:///home/daikyri/Workspace/Hackathon-QwenCloud/frontend/src/pages/LoginPage.tsx) + [NEW] LoginPage.module.css
+- Paper background with decorative illustrations (inkwell left, candle right — your PNGs).
+- Centered card with `Log in | Register` tab toggle.
+- Underlined inputs per design system.
+- Primary button `▶ Log In` (ink-filled, dark).
+- "Try Demo (no account needed)" button that calls the demo clone endpoint.
+
+---
+
+#### [MODIFY] [DashboardPage.tsx](file:///home/daikyri/Workspace/Hackathon-QwenCloud/frontend/src/pages/DashboardPage.tsx) + [NEW] DashboardPage.module.css
+- Left sidebar (ink/leather tone) with navigation: Dashboard, Universes, Works, Timeline, Entities, Connections, Notes, AI Assistant, Settings.
+- Writer quote at sidebar bottom.
+- Main area: "Your Universes 🪶" heading.
+- Universe cards as manuscript pages with: thumbnail illustration, title, genre, stats (works, chapters, entities, connections), memory coverage bar (ink-stroke style), "Open →" and "More" buttons.
+- "New Universe" card with illustration and `[Create Universe]` button.
+
+---
+
+### Phase 4B — Universe & Interactive Pages
+
+> [!IMPORTANT]
+> This sub-phase rewrites the universe-level pages and the editor.
+
+---
+
+#### [MODIFY] [UniverseLayout.tsx](file:///home/daikyri/Workspace/Hackathon-QwenCloud/frontend/src/pages/UniverseLayout.tsx) + [NEW] UniverseLayout.module.css
+- Top navbar: `🪶 Quill / {Universe Name}` + `[↻ Reset Demo]` + Settings + Avatar.
+- Tab bar below navbar with icons: `📖 Works | ⟡ Knowledge Graph | 📅 Timeline | ⚠ Contradictions | ◉ Plot Holes`.
+- Active tab: underline ink effect.
+
+#### [MODIFY] [UniverseWorksTab.tsx](file:///home/daikyri/Workspace/Hackathon-QwenCloud/frontend/src/pages/UniverseWorksTab.tsx) + [NEW] UniverseWorksTab.module.css
+- "Works in this Universe" heading with `[+ New Work]` button.
+- Work cards: thumbnail image, title, type badge (Book), stats (chapters, words, entities), ink-stroke progress bar (% analyzed), action buttons.
+- Bottom action bar: `+ Add New Work | or | ↑ Import Document (PDF·DOCX·MD)`.
+
+---
+
+#### [MODIFY] [WorkPage.tsx](file:///home/daikyri/Workspace/Hackathon-QwenCloud/frontend/src/pages/WorkPage.tsx) + [NEW] WorkPage.module.css
+- Left sidebar with nav links + project stats panel.
+- Work header with thumbnail + title + stats.
+- Chapter cards: illustration, title, word count, analysis status badge, entity count, contradiction count, `Open Editor →` button.
+- `+ New Chapter` dashed button at bottom.
+
+---
+
+#### [MODIFY] [EditorPage.tsx](file:///home/daikyri/Workspace/Hackathon-QwenCloud/frontend/src/pages/EditorPage.tsx) + Editor components
+- Two-panel layout: Editor (left ~60%) + Memory Panel (right ~40%).
+- Editor: TipTap toolbar (B, I, U, H1-H3, hr, blockquote, list, print), paper-like writing area.
+- Entity highlighting in text: purple for characters, emerald for places, gold for events (subtle underline marks, not colored backgrounds).
+- Memory Panel sections: Search bar, "Relevant Now" (entity cards with relevance score + dashed freshness bar), "Contradictions" (expandable alert cards), "New Entities" (with NEW badge), "Archived" (collapsed).
+- Footer: word count, saving status, AI analyzing indicator, Reset Demo button.
+
+---
+
+#### [MODIFY] [KnowledgeGraphPage.tsx](file:///home/daikyri/Workspace/Hackathon-QwenCloud/frontend/src/pages/KnowledgeGraphPage.tsx) + Graph components
+- Left sidebar: Filters panel (checkboxes by type with counts, relevance toggle).
+- Selected Node detail card at bottom of sidebar.
+- Main canvas: ReactFlow with custom nodes (circular with illustration icons), edge labels.
+- Paper-themed background instead of dark grid.
+- Legend in bottom-right corner.
+- Status bar: node count, edge count, filter status, Export Graph button.
+
+---
+
+#### [MODIFY] [TimelinePage.tsx](file:///home/daikyri/Workspace/Hackathon-QwenCloud/frontend/src/pages/TimelinePage.tsx) + Timeline components
+- Filter bar: work selector, character selector, zoom slider.
+- Horizontal timeline axis (Year 1 → Year N) with tick marks.
+- Event cards hanging below axis with circular icons, title, chapter reference.
+- Book span bars below timeline (colored lines).
+- Inconsistency alert cards at bottom (expandable with evidence + actions).
+
+---
+
+#### [MODIFY] [ContradictionsPage.tsx](file:///home/daikyri/Workspace/Hackathon-QwenCloud/frontend/src/pages/ContradictionsPage.tsx) + ContradictionList
+- Header: `⚠ N Contradictions` + filter dropdowns (severity, status).
+- Expandable contradiction cards: severity badge (🔴 CRITICAL, ⚠ WARNING, ✅ LOW), description, related entities as tags, Evidence A vs Evidence B panels with chapter links and quoted text, AI suggestion box, action buttons (Dismiss, Mark Resolved).
+- Resolved cards shown with green checkmark and collapsed state.
+- Footer note: "Contradictions are detected by AI and may not always be true errors."
+
+---
+
+#### [MODIFY] [PlotHolesPage.tsx](file:///home/daikyri/Workspace/Hackathon-QwenCloud/frontend/src/pages/PlotHolesPage.tsx) + PlotHoleList
+- Header: `◉ N Open Plot Holes` + filter dropdown.
+- Plot hole cards: title, "N chapters without development" badge, related entity tags, description, quoted original text in manuscript-style blockquote with "Go to Ch.N →", AI suggestion, action buttons (Dismiss, Mark Resolved).
+
+---
+
+#### [NEW] [EntityCardPage.tsx](file:///home/daikyri/Workspace/Hackathon-QwenCloud/frontend/src/pages/EntityCardPage.tsx) + EntityCardPage.module.css
+- Two-column layout.
+- Left: Portrait area, name, type, status badge, relevance bar, location, role, aliases list, appearance text, abilities list, Edit manually button.
+- Right: Mentions Timeline (horizontal dots per book), Relationships list (type → target), Factions, First/Last Mention cards with quoted text.
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> 1. **Images/illustrations:** You mentioned you're preparing PNG images without backgrounds. Where will these be stored? I suggest `frontend/public/images/` with subfolders: `landing/`, `entities/`, `decorative/`. Does that work?
+> 2. **GSAP:** The design.md specifies GSAP + ScrollTrigger. Should I install it (`npm install gsap`) and use it primarily on the Landing Page? Or do you want GSAP animations across all pages?
+> 3. **Demo flow endpoint:** The backend already has `POST /api/v1/demo/clone`. Should the "Try Demo" button on the Login page auto-login as `demo@quill.ai` AND clone the universe, or just auto-login (assuming the demo universe already exists)?
+
+---
+
+## Verification Plan
+
+### Automated Tests
+```bash
+cd frontend && npm run build
+```
+
+### Manual Verification
+1. **Landing Page:** Open `/` — verify scroll animations, hero images, and CTA buttons.
+2. **Login:** Open `/login` — verify paper theme, tab toggle, demo button.
+3. **Dashboard:** Verify sidebar, universe cards with stats and coverage bar.
+4. **Universe tabs:** Navigate all 5 tabs, verify consistent header.
+5. **Editor:** Open a chapter, write text, verify entity highlighting and memory panel.
+6. **Graph:** Verify nodes render with circular icons and filter sidebar.
+7. **All pages:** Verify no trace of the old dark SaaS theme remains.

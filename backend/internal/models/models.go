@@ -17,16 +17,16 @@ type User struct {
 }
 
 type Universe struct {
-	ID             uuid.UUID `json:"id"`
-	UserID         uuid.UUID `json:"user_id"`
-	Name           string    `json:"name"`
-	Description    string    `json:"description,omitempty"`
-	Genre          string    `json:"genre,omitempty"`
-	Format         string    `json:"format"`
-	SessionID      string    `json:"session_id,omitempty"`
-	IsDemoTemplate bool      `json:"is_demo_template"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID             uuid.UUID  `json:"id"`
+	UserID         uuid.UUID  `json:"user_id"`
+	Name           string     `json:"name"`
+	Description    string     `json:"description,omitempty"`
+	Genre          string     `json:"genre,omitempty"`
+	Format         string     `json:"format"`
+	SessionID      *string    `json:"session_id,omitempty"`
+	IsDemoTemplate bool       `json:"is_demo_template"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 type Work struct {
@@ -44,6 +44,7 @@ type Work struct {
 type Chapter struct {
 	ID          uuid.UUID  `json:"id"`
 	WorkID      uuid.UUID  `json:"work_id"`
+	UniverseID  uuid.UUID  `json:"universe_id"`
 	Title       string     `json:"title"`
 	OrderIndex  int        `json:"order_index"`
 	Content     string     `json:"content"`

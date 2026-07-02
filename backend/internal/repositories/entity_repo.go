@@ -164,7 +164,7 @@ func (r *EntityRepo) ListByUniverse(ctx context.Context, universeID uuid.UUID, f
 	}
 	defer rows.Close()
 
-	var entities []models.Entity
+	entities := []models.Entity{}
 	for rows.Next() {
 		var e models.Entity
 		if err := rows.Scan(
@@ -219,7 +219,7 @@ func (r *EntityRepo) GetMentionsByEntity(ctx context.Context, entityID uuid.UUID
 	}
 	defer rows.Close()
 
-	var mentions []models.EntityMention
+	mentions := []models.EntityMention{}
 	for rows.Next() {
 		var m models.EntityMention
 		if err := rows.Scan(
@@ -308,7 +308,7 @@ func (r *EntityRepo) ListByUniverseActive(ctx context.Context, universeID uuid.U
 	}
 	defer rows.Close()
 
-	var entities []models.Entity
+	entities := []models.Entity{}
 	for rows.Next() {
 		var e models.Entity
 		if err := rows.Scan(

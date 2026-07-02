@@ -427,9 +427,9 @@ func (s *DemoService) cloneGraph(ctx context.Context, tx pgx.Tx, templateID, new
 
 	// 3. Create edges: query template graph for all relationships
 	templateGraphName := "universe_" + templateID
-	edgeRows, err := tx.Query(ctx, `
-		SELECT * FROM cypher($1, $$ MATCH (a)-[r]->(b) WHERE a.entity_id IS NOT NULL AND b.entity_id IS NOT NULL RETURN a.entity_id, type(r), b.entity_id $$) AS (src agtype, rel agtype, tgt agtype)`,
+	edgeQuery := fmt.Sprintf(`LOAD 'age'; SET search_path = ag_catalog, "$user", public; SELECT * FROM cypher('%s', $$ MATCH (a)-[r]->(b) WHERE a.entity_id IS NOT NULL AND b.entity_id IS NOT NULL RETURN a.entity_id, type(r), b.entity_id $$) AS (src agtype, rel agtype, tgt agtype)`,
 		templateGraphName)
+	edgeRows, err := tx.Query(ctx, edgeQuery, pgx.QueryExecModeSimpleProtocol)
 	if err != nil {
 		return fmt.Errorf("query graph edges: %w", err)
 	}

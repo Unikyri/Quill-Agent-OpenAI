@@ -2,7 +2,11 @@ package services
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -24,7 +28,7 @@ func TestContradictionFingerprintDeterminism(t *testing.T) {
 	}
 
 	// Create service with nil dependencies — fingerprint is pure, needs no DB
-	svc := NewContradictionService(nil, nil, nil, nil, 3)
+	svc := NewContradictionService(nil, nil, nil, nil, nil, 3)
 
 	fp1 := svc.fingerprint(candidates[0])
 	fp2 := svc.fingerprint(candidates[0])
@@ -50,7 +54,7 @@ func TestContradictionFingerprintDeterminism(t *testing.T) {
 // affect the fingerprint — two candidates identical except for chapter fields
 // must produce different fingerprints.
 func TestContradictionFingerprintChaptersIncluded(t *testing.T) {
-	svc := NewContradictionService(nil, nil, nil, nil, 3)
+	svc := NewContradictionService(nil, nil, nil, nil, nil, 3)
 	entityID := uuid.New()
 	chA := uuid.New()
 	chB := uuid.New()
@@ -102,7 +106,7 @@ func TestContradictionFingerprintChaptersIncluded(t *testing.T) {
 // (64 chars for SHA-256).
 func TestContradictionFingerprintFormat(t *testing.T) {
 	cfg := &config.Config{MaxContradictionCandidates: 3}
-	svc := NewContradictionService(nil, nil, nil, nil, cfg.MaxContradictionCandidates)
+	svc := NewContradictionService(nil, nil, nil, nil, nil, cfg.MaxContradictionCandidates)
 
 	c := ContradictionCandidate{
 		EntityID:  uuid.New(),
@@ -146,7 +150,7 @@ func TestContradictionCheckDeterministicDeceasedAlive(t *testing.T) {
 	entityRepo := repositories.NewEntityRepo(pool)
 	contraRepo := repositories.NewContradictionRepo(pool)
 	cfg := config.Config{MaxContradictionCandidates: 3}
-	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, cfg.MaxContradictionCandidates) // nil qwenSvc
+	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates) // nil qwenSvc
 
 	// Pass an entity marked as "alive" but the DB says "deceased"
 	entities := []ResolvedEntity{
@@ -190,7 +194,7 @@ func TestContradictionCheckDeterministicNoIssues(t *testing.T) {
 	entityRepo := repositories.NewEntityRepo(pool)
 	contraRepo := repositories.NewContradictionRepo(pool)
 	cfg := config.Config{MaxContradictionCandidates: 3}
-	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, cfg.MaxContradictionCandidates)
+	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates)
 
 	entities := []ResolvedEntity{
 		{Entity: activeEntity, MentionText: "Alice walked to the store", IsNew: false},
@@ -232,7 +236,7 @@ func TestContradictionCheckDeterministicChapterThreaded(t *testing.T) {
 	entityRepo := repositories.NewEntityRepo(pool)
 	contraRepo := repositories.NewContradictionRepo(pool)
 	cfg := config.Config{MaxContradictionCandidates: 3}
-	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, cfg.MaxContradictionCandidates)
+	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates)
 
 	chapterID := uuid.New()
 
@@ -293,7 +297,7 @@ func TestContradictionCheckSemanticSignature(t *testing.T) {
 	qwenSvc := NewQwenService(&cfgQwen)
 
 	cfg := config.Config{MaxContradictionCandidates: 3}
-	svc := NewContradictionService(pool, contraRepo, entityRepo, qwenSvc, cfg.MaxContradictionCandidates)
+	svc := NewContradictionService(pool, contraRepo, entityRepo, qwenSvc, nil, cfg.MaxContradictionCandidates)
 
 	entities := []ResolvedEntity{
 		{Entity: models.Entity{ID: uuid.New(), Type: "character", Name: "Test"}, MentionText: "Test text", IsNew: false},
@@ -305,4 +309,145 @@ func TestContradictionCheckSemanticSignature(t *testing.T) {
 	if err == nil {
 		t.Log("Unexpected: CheckSemantic succeeded with dummy Qwen endpoint")
 	}
+}
+
+// TestCheckSemanticAgentLoop verifies that the agent-driven CheckSemantic correctly
+// parses a JSON contradiction array returned by the LLM and populates the model fields.
+//
+// RED: CheckSemantic still uses the batch CheckContradictions path. This test will
+// fail because the mock server is not configured for the old batch endpoint.
+func TestCheckSemanticAgentLoop(t *testing.T) {
+	// Mock server that returns a contradiction JSON array as the agent's final answer
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]interface{}{
+			"choices": []map[string]interface{}{
+				{
+					"message": map[string]interface{}{
+						"role":    "assistant",
+						"content": `[{"type":"status_contradiction","description":"Bob was described as both alive and dead","evidence_a":"Bob walked into the room in chapter 1","evidence_b":"Bob died in chapter 3","severity":"critical"},{"type":"timeline_mismatch","description":"Alice appears before her birth","evidence_a":"Alice was born in chapter 4","evidence_b":"Alice appears in chapter 2","severity":"high"}]`,
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	qwenSvc := NewQwenService(&config.Config{
+		QwenBaseURL:          srv.URL,
+		QwenAPIKey:           "test",
+		QwenMaxConcurrency:   1,
+		QwenTurboConcurrency: 1,
+	})
+	qwenSvc.client.Timeout = 5 * time.Second
+
+	exec := &mockExecutor{}
+
+	cfg := config.Config{MaxContradictionCandidates: 5}
+	svc := NewContradictionService(nil, nil, nil, qwenSvc, exec, cfg.MaxContradictionCandidates)
+
+	entityID := uuid.New()
+	entities := []ResolvedEntity{
+		{
+			Entity:      models.Entity{ID: entityID, Type: "character", Name: "Test Entity", Description: "A test character"},
+			MentionText: "Test mention text",
+			IsNew:       false,
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	contradictions, err := svc.CheckSemantic(ctx, uuid.New(), uuid.New(), "test text", entities)
+	if err != nil {
+		t.Fatalf("CheckSemantic: %v", err)
+	}
+
+	if len(contradictions) != 2 {
+		t.Fatalf("expected 2 contradictions, got %d", len(contradictions))
+	}
+
+	// Verify first contradiction
+	if contradictions[0].Description != "Bob was described as both alive and dead" {
+		t.Errorf("unexpected description: %q", contradictions[0].Description)
+	}
+	if contradictions[0].Severity != "critical" {
+		t.Errorf("unexpected severity: %q", contradictions[0].Severity)
+	}
+
+	// Verify second contradiction
+	if contradictions[1].Description != "Alice appears before her birth" {
+		t.Errorf("unexpected description: %q", contradictions[1].Description)
+	}
+	if contradictions[1].Severity != "high" {
+		t.Errorf("unexpected severity: %q", contradictions[1].Severity)
+	}
+}
+
+// TestCheckSemanticEmptyContradiction verifies that CheckSemantic returns
+// an empty slice (not nil) when the agent finds no contradictions.
+// Triangulates: tests both empty JSON array and the actual return value properties.
+func TestCheckSemanticEmptyContradiction(t *testing.T) {
+	// Mock server returns empty JSON array as the agent's final answer
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]interface{}{
+			"choices": []map[string]interface{}{
+				{
+					"message": map[string]interface{}{
+						"role":    "assistant",
+						"content": "[]",
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	qwenSvc := NewQwenService(&config.Config{
+		QwenBaseURL:          srv.URL,
+		QwenAPIKey:           "test",
+		QwenMaxConcurrency:   1,
+		QwenTurboConcurrency: 1,
+	})
+	qwenSvc.client.Timeout = 5 * time.Second
+
+	exec := &mockExecutor{}
+
+	cfg := config.Config{MaxContradictionCandidates: 5}
+	svc := NewContradictionService(nil, nil, nil, qwenSvc, exec, cfg.MaxContradictionCandidates)
+
+	entityID := uuid.New()
+	entities := []ResolvedEntity{
+		{
+			Entity:      models.Entity{ID: entityID, Type: "character", Name: "Clean Entity", Description: "No issues here"},
+			MentionText: "Everything is consistent",
+			IsNew:       false,
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	contradictions, err := svc.CheckSemantic(ctx, uuid.New(), uuid.New(), "consistent text", entities)
+	if err != nil {
+		t.Fatalf("CheckSemantic: %v", err)
+	}
+
+	// Must be non-nil — per Go convention, return empty slice, not nil, for "no results"
+	if contradictions == nil {
+		t.Error("CheckSemantic should return empty slice, not nil, for no contradictions")
+	}
+	if len(contradictions) != 0 {
+		t.Errorf("expected 0 contradictions for empty response, got %d", len(contradictions))
+	}
+}
+
+// mockExecutor implements ToolExecutor for testing.
+type mockExecutor struct{}
+
+func (m *mockExecutor) ExecuteTool(name string, argsJSON string) (string, error) {
+	return "mock tool result", nil
 }

@@ -21,9 +21,9 @@ func NewGraphHandler(graphRepo *repositories.GraphRepo, memorySvc *services.Memo
 }
 
 // FullGraph returns all nodes and edges for a universe's graph.
-// GET /api/v1/graph?universe_id=X
+// GET /api/v1/universes/:universe_id/graph
 func (h *GraphHandler) FullGraph(c *fiber.Ctx) error {
-	universeID, err := uuid.Parse(c.Query("universe_id"))
+	universeID, err := uuid.Parse(c.Params("universe_id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fiber.Map{"code": "VALIDATION_ERROR", "message": "Invalid universe_id"},

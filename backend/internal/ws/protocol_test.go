@@ -95,11 +95,53 @@ func TestAllMessageTypeConstants(t *testing.T) {
 		{"TypeContextualRecall", TypeContextualRecall},
 		{"TypeEntityDiscovered", TypeEntityDiscovered},
 		{"TypeGraphUpdated", TypeGraphUpdated},
+		{"TypeIngestionProgress", TypeIngestionProgress},
 	}
 	for _, r := range response {
 		if r.val == "" {
 			t.Errorf("%s should not be empty", r.name)
 		}
+	}
+}
+
+// TestIngestionProgressMessage verifies the ingestion_progress type constant
+// and round-trips an ingestion progress payload through WSMessage.
+func TestIngestionProgressMessage(t *testing.T) {
+	if TypeIngestionProgress != "ingestion_progress" {
+		t.Errorf("TypeIngestionProgress = %q, want %q", TypeIngestionProgress, "ingestion_progress")
+	}
+
+	payload := map[string]any{
+		"job_id":             uuid.New().String(),
+		"status":             "running",
+		"chapters_processed": 3,
+		"total_chapters":     10,
+	}
+	payloadBytes, _ := json.Marshal(payload)
+	msg := WSMessage{Type: TypeIngestionProgress, Payload: payloadBytes}
+
+	encoded, err := json.Marshal(msg)
+	if err != nil {
+		t.Fatalf("marshal ingestion_progress: %v", err)
+	}
+
+	var decoded WSMessage
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatalf("unmarshal round-trip: %v", err)
+	}
+	if decoded.Type != TypeIngestionProgress {
+		t.Errorf("round-trip type: got %q, want %q", decoded.Type, TypeIngestionProgress)
+	}
+
+	var recovered map[string]any
+	if err := json.Unmarshal(decoded.Payload, &recovered); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if recovered["status"] != "running" {
+		t.Errorf("recovered status: %v", recovered["status"])
+	}
+	if ch := recovered["chapters_processed"]; ch != float64(3) {
+		t.Errorf("recovered chapters_processed: %v", ch)
 	}
 }
 

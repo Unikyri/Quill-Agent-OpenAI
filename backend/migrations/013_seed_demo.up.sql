@@ -3,7 +3,7 @@ INSERT INTO users (id, email, password_hash, display_name, created_at, updated_a
 VALUES (
     '00000000-0000-0000-0000-000000000001',
     'demo@quill.ai',
-    '$2a$12$LJ3m4ys3Lz0QqVqBvQz5YOXZKQxH5tXVYR5Z6b7c8d9e0f1g2h3i4j',
+    '$2a$12$S0AJJxJbSguEh6wjh66IFOchI3klGxKghe7C0IsSRk.vCgOCS0.dO',
     'Demo Writer',
     NOW(),
     NOW()

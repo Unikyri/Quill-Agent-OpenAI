@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/google/uuid"
@@ -63,12 +64,14 @@ func joinKeys(m map[string]struct{}) string {
 type UniverseService struct {
 	pool         *pgxpool.Pool
 	universeRepo *repositories.UniverseRepo
+	graphRepo    *repositories.GraphRepo
 }
 
-func NewUniverseService(pool *pgxpool.Pool, universeRepo *repositories.UniverseRepo) *UniverseService {
+func NewUniverseService(pool *pgxpool.Pool, universeRepo *repositories.UniverseRepo, graphRepo *repositories.GraphRepo) *UniverseService {
 	return &UniverseService{
 		pool:         pool,
 		universeRepo: universeRepo,
+		graphRepo:    graphRepo,
 	}
 }
 
@@ -104,6 +107,14 @@ func (s *UniverseService) Create(ctx context.Context, userID uuid.UUID, input mo
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	// Create AGE graph for the new universe
+	if s.graphRepo != nil {
+		if err := s.graphRepo.CreateGraph(ctx, u.ID.String()); err != nil {
+			log.Printf("[universe] create AGE graph for %s: %v", u.ID, err)
+			// non-fatal — the graph can be created later
+		}
 	}
 
 	return u, nil

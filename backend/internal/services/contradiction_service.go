@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,17 +25,20 @@ type ContradictionService struct {
 	contraRepo    *repositories.ContradictionRepo
 	entityRepo    *repositories.EntityRepo
 	qwenSvc       *QwenService
+	executor      ToolExecutor
 	maxCandidates int
 }
 
 // NewContradictionService creates a contradiction service.
 // qwenSvc may be nil — CheckSemantic will be a no-op in that case.
-func NewContradictionService(pool *pgxpool.Pool, contraRepo *repositories.ContradictionRepo, entityRepo *repositories.EntityRepo, qwenSvc *QwenService, maxCandidates int) *ContradictionService {
+// executor may be nil — CheckSemantic falls back to batch mode without agent loop.
+func NewContradictionService(pool *pgxpool.Pool, contraRepo *repositories.ContradictionRepo, entityRepo *repositories.EntityRepo, qwenSvc *QwenService, executor ToolExecutor, maxCandidates int) *ContradictionService {
 	return &ContradictionService{
 		pool:          pool,
 		contraRepo:    contraRepo,
 		entityRepo:    entityRepo,
 		qwenSvc:       qwenSvc,
+		executor:      executor,
 		maxCandidates: maxCandidates,
 	}
 }
@@ -104,64 +109,157 @@ func (s *ContradictionService) CheckDeterministic(ctx context.Context, universeI
 	return results, nil
 }
 
-// CheckSemantic sends batched contradiction candidates to Qwen-Max.
-// Returns only the contradictions that Qwen flags as confirmed.
-// Batches up to maxCandidates per call.
+// CheckSemantic uses an agent loop with tool access to detect narrative contradictions.
+// The agent is instructed to use search_vector_memory and query_entity_graph tools
+// before making a decision. The final answer is parsed as a JSON contradiction array.
+//
+// Falls back to no-op when qwenSvc or executor is nil.
 //
 // chapterID is threaded into the candidate fingerprint so contradictions are
 // scoped to the originating chapter context.
-//
-// ponytail: single batch call per invocation — capped at maxCandidates.
 func (s *ContradictionService) CheckSemantic(ctx context.Context, universeID uuid.UUID, chapterID uuid.UUID, text string, entities []ResolvedEntity) ([]models.Contradiction, error) {
-	if s.qwenSvc == nil {
+	if s.qwenSvc == nil || s.executor == nil {
 		return nil, nil
 	}
 
-	// Build candidates from entities that aren't already caught by deterministic rules
-	var candidates []ContradictionCandidate
+	if len(entities) == 0 {
+		return nil, nil
+	}
+
+	// Build entity context for the user message
+	var entityLines string
 	for _, re := range entities {
-		if len(candidates) >= s.maxCandidates {
-			break
-		}
-		// Skip deceased entities (already caught by CheckDeterministic)
-		if re.Entity.Status == "deceased" {
-			continue
-		}
-		c := ContradictionCandidate{
-			EntityID:  re.Entity.ID,
-			Type:      "semantic",
-			EvidenceA: fmt.Sprintf("Entity %s characteristics from DB: %s", re.Entity.Name, re.Entity.Description),
-			EvidenceB: re.MentionText,
-			ChapterA:  chapterID,
-			ChapterB:  chapterID,
-		}
-		candidates = append(candidates, c)
+		entityLines += fmt.Sprintf("- %s (%s): %s\n", re.Entity.Name, re.Entity.Type, re.Entity.Description)
 	}
 
-	if len(candidates) == 0 {
-		return nil, nil
+	// ponytail: set UniverseID on the executor so tool calls resolve in the right universe.
+	// QuillExecutor has a public UniverseID field; other executors may ignore it.
+	if qe, ok := s.executor.(*QuillExecutor); ok {
+		qe.UniverseID = universeID
 	}
 
-	// Call QwenService batch
-	contradictions, err := s.qwenSvc.CheckContradictions(ctx, candidates)
+	systemPrompt := `You are a narrative consistency analyst. Your job is to detect contradictions in a story.
+
+You have access to these tools:
+- search_vector_memory: search the story's memory for contextual facts
+- query_entity_graph: explore how entities are connected in the knowledge graph
+
+For each contradiction you find, output a JSON array. Each contradiction must have:
+- "type": the category (e.g. "semantic", "status_contradiction", "timeline_mismatch")
+- "description": a human-readable explanation of the contradiction
+- "evidence_a": the first piece of conflicting evidence
+- "evidence_b": the second piece of conflicting evidence
+- "severity": "low", "medium", "high", or "critical"
+
+IMPORTANT: Use the tools to gather context BEFORE making your decision. Only return contradictions that are actually supported by the evidence. If no contradictions exist, return an empty array: []`
+
+	userMessage := fmt.Sprintf("Analyze the following new text for contradictions with existing story data:\n\nNew text: %s\n\nKnown entities:\n%s", text, entityLines)
+
+	messages := []QwenMessage{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: userMessage},
+	}
+
+	tools := []QwenTool{
+		{
+			Type: "function",
+			Function: QwenToolFunction{
+				Name:        "search_vector_memory",
+				Description: "Search the story's vector memory for facts related to a query. Returns relevant paragraphs with similarity scores.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"query": map[string]interface{}{
+							"type":        "string",
+							"description": "The search query to find relevant facts",
+						},
+					},
+					"required": []string{"query"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: QwenToolFunction{
+				Name:        "query_entity_graph",
+				Description: "Query the entity knowledge graph to find connections and neighbors of a named entity.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"entity_name": map[string]interface{}{
+							"type":        "string",
+							"description": "The exact name of the entity to look up",
+						},
+					},
+					"required": []string{"entity_name"},
+				},
+			},
+		},
+	}
+
+	answer, err := s.qwenSvc.RunAgentLoop(ctx, messages, tools, s.executor, 5)
 	if err != nil {
 		return nil, fmt.Errorf("check semantic: %w", err)
 	}
 
-	// Set universeID and persist each contradiction
-	for i := range contradictions {
-		contradictions[i].UniverseID = universeID
-		contradictions[i].ID = uuid.New()
-		contradictions[i].Fingerprint = s.fingerprint(candidates[i])
+	// Parse JSON contradiction array from final answer
+	type agentContradiction struct {
+		Type        string `json:"type"`
+		Description string `json:"description"`
+		EvidenceA   string `json:"evidence_a"`
+		EvidenceB   string `json:"evidence_b"`
+		Severity    string `json:"severity"`
+	}
 
-		// Deduplicate: skip if fingerprint already exists
-		existing, _ := s.contraRepo.FindByFingerprint(ctx, contradictions[i].Fingerprint)
-		if existing != nil {
-			continue
+	var agentContras []agentContradiction
+	if err := json.Unmarshal([]byte(answer), &agentContras); err != nil {
+		// ponytail: if JSON parse fails, strip markdown fences and retry
+		cleaned := strings.TrimSpace(answer)
+		cleaned = strings.TrimPrefix(cleaned, "```json")
+		cleaned = strings.TrimPrefix(cleaned, "```")
+		cleaned = strings.TrimSuffix(cleaned, "```")
+		cleaned = strings.TrimSpace(cleaned)
+		if err2 := json.Unmarshal([]byte(cleaned), &agentContras); err2 != nil {
+			return nil, fmt.Errorf("parse agent contradiction JSON: %w (original: %w)", err2, err)
 		}
-		if err := s.contraRepo.Create(ctx, &contradictions[i]); err != nil {
-			continue // best-effort persistence
+	}
+
+	contradictions := make([]models.Contradiction, 0, len(agentContras))
+	for _, ac := range agentContras {
+		c := models.Contradiction{
+			ID:          uuid.New(),
+			UniverseID:  universeID,
+			Severity:    ac.Severity,
+			Description: ac.Description,
+			EvidenceA:   ac.EvidenceA,
+			EvidenceB:   ac.EvidenceB,
+			Status:      "open",
 		}
+
+		// Compute fingerprint for dedup — use first entity ID when available
+		if len(entities) > 0 {
+			c.Fingerprint = s.fingerprint(ContradictionCandidate{
+				EntityID:  entities[0].Entity.ID,
+				Type:      ac.Type,
+				EvidenceA: ac.EvidenceA,
+				EvidenceB: ac.EvidenceB,
+				ChapterA:  chapterID,
+				ChapterB:  chapterID,
+			})
+		}
+
+		// Deduplicate and persist if repos are available
+		if s.contraRepo != nil && c.Fingerprint != "" {
+			existing, _ := s.contraRepo.FindByFingerprint(ctx, c.Fingerprint)
+			if existing != nil {
+				continue
+			}
+			if err := s.contraRepo.Create(ctx, &c); err != nil {
+				continue // best-effort persistence
+			}
+		}
+
+		contradictions = append(contradictions, c)
 	}
 
 	return contradictions, nil

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,14 +18,18 @@ type PlotHoleService struct {
 	plotHoleRepo *repositories.PlotHoleRepo
 	entityRepo   *repositories.EntityRepo
 	chapters     int // inactivity threshold
+	qwenSvc      *QwenService
+	executor     *QuillExecutor
 }
 
-func NewPlotHoleService(pool *pgxpool.Pool, plotHoleRepo *repositories.PlotHoleRepo, entityRepo *repositories.EntityRepo, chapters int) *PlotHoleService {
+func NewPlotHoleService(pool *pgxpool.Pool, plotHoleRepo *repositories.PlotHoleRepo, entityRepo *repositories.EntityRepo, chapters int, qwenSvc *QwenService, executor *QuillExecutor) *PlotHoleService {
 	return &PlotHoleService{
 		pool:         pool,
 		plotHoleRepo: plotHoleRepo,
 		entityRepo:   entityRepo,
 		chapters:     chapters,
+		qwenSvc:      qwenSvc,
+		executor:     executor,
 	}
 }
 
@@ -54,6 +59,12 @@ func (s *PlotHoleService) Scan(ctx context.Context, universeID, currentChapterID
 			continue // never mentioned → skip
 		}
 
+		// ponytail: relevance_score filter — low-relevance entities
+		// (<= 0.5) are background noise, skip agent evaluation.
+		if e.RelevanceScore <= 0.5 {
+			continue
+		}
+
 		// Get the last mentioned chapter's order_index
 		var lastOrder int
 		if err := s.pool.QueryRow(ctx, "SELECT order_index FROM chapters WHERE id = $1", *e.LastMentionedChapterID).Scan(&lastOrder); err != nil {
@@ -62,6 +73,18 @@ func (s *PlotHoleService) Scan(ctx context.Context, universeID, currentChapterID
 
 		gap := currentOrder - lastOrder
 		if gap >= s.chapters {
+			// ponytail: agent evaluation for semantic plot hole verdict.
+			// Skip if no qwenSvc — caller can pass nil for testing.
+			if s.qwenSvc != nil {
+				isPlotHole, err := s.evaluatePlotHole(ctx, e, gap)
+				if err != nil {
+					continue // agent call failed, skip gracefully
+				}
+				if !isPlotHole {
+					continue // agent says arc is naturally concluded
+				}
+			}
+
 			hole := models.PlotHole{
 				ID:                       uuid.New(),
 				UniverseID:               universeID,
@@ -79,4 +102,32 @@ func (s *PlotHoleService) Scan(ctx context.Context, universeID, currentChapterID
 	}
 
 	return holes, nil
+}
+
+// evaluatePlotHole calls the agent to determine if a stale entity's arc is
+// a forgotten plot thread or naturally concluded.
+//
+// ponytail: single chat completion (no tools) — simple yes/no verdict.
+func (s *PlotHoleService) evaluatePlotHole(ctx context.Context, e models.Entity, gap int) (bool, error) {
+	prompt := fmt.Sprintf(`You are a narrative analysis AI. Evaluate this entity's story arc:
+
+Entity: %s (type: %s, status: %s)
+Last mentioned %d chapters ago.
+
+Question: Is this entity's arc naturally concluded or a forgotten plot thread that the author should address?
+
+Answer with ONLY "YES" if this is a plot hole (forgotten/incomplete arc) or "NO" if the arc is naturally concluded.`, e.Name, e.Type, e.Status, gap)
+
+	messages := []QwenMessage{
+		{Role: "system", Content: "You evaluate narrative arcs. Answer only YES or NO."},
+		{Role: "user", Content: prompt},
+	}
+
+	result, err := s.qwenSvc.RunAgentLoop(ctx, messages, nil, nil, 1)
+	if err != nil {
+		return false, fmt.Errorf("agent evaluation: %w", err)
+	}
+
+	result = strings.TrimSpace(strings.ToUpper(result))
+	return strings.HasPrefix(result, "YES"), nil
 }

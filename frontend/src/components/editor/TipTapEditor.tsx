@@ -58,7 +58,7 @@ export default function TipTapEditor({
             },
           })
         }
-      }, 800)
+      }, 5000)
     },
   })
 

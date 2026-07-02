@@ -51,6 +51,7 @@ type AnalysisService struct {
 	plotHoleSvc *PlotHoleService
 	qwenSvc     *QwenService
 	hub         AnalysisHub
+	memorySvc   *MemoryService
 
 	queues  map[uuid.UUID]chan analysisJob
 	cancels map[uuid.UUID]context.CancelFunc
@@ -68,6 +69,7 @@ func NewAnalysisService(
 	plotHoleSvc *PlotHoleService,
 	qwenSvc *QwenService,
 	hub AnalysisHub,
+	memorySvc *MemoryService,
 ) *AnalysisService {
 	return &AnalysisService{
 		pool:        pool,
@@ -78,6 +80,7 @@ func NewAnalysisService(
 		plotHoleSvc: plotHoleSvc,
 		qwenSvc:     qwenSvc,
 		hub:         hub,
+		memorySvc:   memorySvc,
 		queues:      make(map[uuid.UUID]chan analysisJob),
 		cancels:     make(map[uuid.UUID]context.CancelFunc),
 	}
@@ -251,6 +254,78 @@ func (s *AnalysisService) processJob(ctx context.Context, job analysisJob) (*Ana
 		}
 	}
 
+	// 3b. Analyze relationships and create graph edges
+	if s.qwenSvc != nil && len(resolvedEntities) > 0 && s.pool != nil {
+		entityNames := make([]string, len(resolvedEntities))
+		for i, re := range resolvedEntities {
+			entityNames[i] = re.Entity.Name
+		}
+		relationships, err := s.qwenSvc.AnalyzeRelationships(ctx, job.Text, entityNames)
+		if err != nil {
+			log.Printf("[analysis] analyze relationships: %v", err)
+		} else if s.hub != nil {
+			graphName := "universe_" + job.UniverseID.String()
+			graphRepo := repositories.NewGraphRepo(s.pool)
+			for _, rel := range relationships {
+				source, _ := rel["source"].(string)
+				target, _ := rel["target"].(string)
+				relType, _ := rel["type"].(string)
+				if source == "" || target == "" || relType == "" {
+					continue
+				}
+				var sourceID, targetID *models.Entity
+				for _, re := range resolvedEntities {
+					if re.Entity.Name == source {
+						sourceID = &re.Entity
+					}
+					if re.Entity.Name == target {
+						targetID = &re.Entity
+					}
+				}
+				if sourceID != nil && targetID != nil {
+					if err := graphRepo.CreateEdge(ctx, graphName, sourceID.ID.String(), targetID.ID.String(), relType, nil); err != nil {
+						log.Printf("[analysis] create edge %s->%s: %v", source, target, err)
+					}
+				}
+			}
+		}
+	}
+
+	// 3c. Emit entity_discovered for each NEW entity
+	if s.hub != nil {
+		for _, re := range resolvedEntities {
+			if !re.IsNew {
+				continue
+			}
+			payloadBytes, _ := json.Marshal(models.EntityDiscoveredPayload{
+				Entity: re.Entity,
+				IsNew:  true,
+			})
+			wsMsg := models.WSMessage{
+				Type:    "entity_discovered",
+				Payload: payloadBytes,
+			}
+			if err := s.hub.SendToUser(job.UserID, wsMsg); err != nil {
+				log.Printf("[analysis] send entity_discovered: %v", err)
+			}
+		}
+	}
+
+	// 3d. Emit graph_updated
+	if s.hub != nil {
+		graphPayload, _ := json.Marshal(models.GraphUpdatedPayload{
+			UniverseID: job.UniverseID,
+			Action:     "relationships_added",
+		})
+		graphMsg := models.WSMessage{
+			Type:    "graph_updated",
+			Payload: graphPayload,
+		}
+		if err := s.hub.SendToUser(job.UserID, graphMsg); err != nil {
+			log.Printf("[analysis] send graph_updated: %v", err)
+		}
+	}
+
 	// ── Enrichment Pass (Qwen-Max) ──
 
 	// 4. Semantic contradiction checks via Qwen-Max
@@ -270,6 +345,26 @@ func (s *AnalysisService) processJob(ctx context.Context, job analysisJob) (*Ana
 			log.Printf("[analysis] plot hole scan: %v", err)
 		} else {
 			result.PlotHoles = holes
+		}
+	}
+
+	// 6. Contextual recall after analysis
+	if s.memorySvc != nil && len(resolvedEntities) > 0 {
+		items, err := s.memorySvc.Recall(ctx, job.UniverseID, nil, 5)
+		if err != nil {
+			log.Printf("[analysis] contextual recall: %v", err)
+		} else if s.hub != nil && len(items) > 0 {
+			recallPayload, _ := json.Marshal(map[string]interface{}{
+				"universe_id": job.UniverseID,
+				"items":       items,
+			})
+			recallMsg := models.WSMessage{
+				Type:    "contextual_recall",
+				Payload: recallPayload,
+			}
+			if err := s.hub.SendToUser(job.UserID, recallMsg); err != nil {
+				log.Printf("[analysis] send contextual_recall: %v", err)
+			}
 		}
 	}
 

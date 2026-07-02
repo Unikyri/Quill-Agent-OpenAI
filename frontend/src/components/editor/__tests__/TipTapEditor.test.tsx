@@ -103,20 +103,20 @@ describe('TipTapEditor — paragraph submit on idle', () => {
     expect(getByTitle('Bold (Ctrl+B)')).toBeInTheDocument()
   })
 
-  it('does NOT send paragraph_submit before 800ms idle', () => {
+  it('does NOT send paragraph_submit before 5000ms idle', () => {
     render(<TipTapEditor {...defaultProps} />)
 
     fireOnUpdate('Hello world')
-    vi.advanceTimersByTime(400)
+    vi.advanceTimersByTime(2500)
 
     expect(mockWSStoreSend).not.toHaveBeenCalled()
   })
 
-  it('sends paragraph_submit with correct payload after 800ms idle', () => {
+  it('sends paragraph_submit with correct payload after 5000ms idle', () => {
     render(<TipTapEditor {...defaultProps} />)
 
     fireOnUpdate('Hello world')
-    vi.advanceTimersByTime(800)
+    vi.advanceTimersByTime(5000)
 
     expect(mockWSStoreSend).toHaveBeenCalledTimes(1)
     expect(mockWSStoreSend).toHaveBeenCalledWith({
@@ -134,15 +134,15 @@ describe('TipTapEditor — paragraph submit on idle', () => {
     render(<TipTapEditor {...defaultProps} />)
 
     fireOnUpdate('Hello')
-    vi.advanceTimersByTime(400)
+    vi.advanceTimersByTime(2500)
 
     // New keystroke resets timer
     fireOnUpdate('Hello world')
-    vi.advanceTimersByTime(400)
+    vi.advanceTimersByTime(2500)
 
     expect(mockWSStoreSend).not.toHaveBeenCalled()
 
-    vi.advanceTimersByTime(400)
+    vi.advanceTimersByTime(2500)
     expect(mockWSStoreSend).toHaveBeenCalledTimes(1)
     expect(mockWSStoreSend).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -156,12 +156,12 @@ describe('TipTapEditor — paragraph submit on idle', () => {
     render(<TipTapEditor {...defaultProps} />)
 
     fireOnUpdate('Same text')
-    vi.advanceTimersByTime(800)
+    vi.advanceTimersByTime(5000)
     expect(mockWSStoreSend).toHaveBeenCalledTimes(1)
 
     // Fire again with same text, advance timer
     fireOnUpdate('Same text')
-    vi.advanceTimersByTime(800)
+    vi.advanceTimersByTime(5000)
     expect(mockWSStoreSend).toHaveBeenCalledTimes(1)
   })
 
@@ -169,11 +169,11 @@ describe('TipTapEditor — paragraph submit on idle', () => {
     render(<TipTapEditor {...defaultProps} />)
 
     fireOnUpdate('First paragraph')
-    vi.advanceTimersByTime(800)
+    vi.advanceTimersByTime(5000)
     expect(mockWSStoreSend).toHaveBeenCalledTimes(1)
 
     fireOnUpdate('Second paragraph')
-    vi.advanceTimersByTime(800)
+    vi.advanceTimersByTime(5000)
     expect(mockWSStoreSend).toHaveBeenCalledTimes(2)
     expect(mockWSStoreSend).toHaveBeenLastCalledWith(
       expect.objectContaining({

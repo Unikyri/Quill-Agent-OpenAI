@@ -73,7 +73,7 @@ func (r *ContradictionRepo) ListByUniverse(ctx context.Context, universeID uuid.
 	}
 	defer rows.Close()
 
-	var result []models.Contradiction
+	result := []models.Contradiction{}
 	for rows.Next() {
 		var c models.Contradiction
 		if err := rows.Scan(
@@ -93,6 +93,16 @@ func (r *ContradictionRepo) Resolve(ctx context.Context, id uuid.UUID, resolvedA
 	_, err := r.pool.Exec(ctx, query, id, resolvedAt)
 	if err != nil {
 		return fmt.Errorf("resolve contradiction: %w", err)
+	}
+	return nil
+}
+
+// Dismiss marks a contradiction as dismissed without resolving.
+func (r *ContradictionRepo) Dismiss(ctx context.Context, id uuid.UUID) error {
+	query := `UPDATE contradictions SET status = 'dismissed', resolved_at = NOW() WHERE id = $1`
+	_, err := r.pool.Exec(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("dismiss contradiction: %w", err)
 	}
 	return nil
 }

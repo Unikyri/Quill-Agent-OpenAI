@@ -47,7 +47,7 @@ func (r *PlotHoleRepo) ListByUniverse(ctx context.Context, universeID uuid.UUID)
 	}
 	defer rows.Close()
 
-	var result []models.PlotHole
+	result := []models.PlotHole{}
 	for rows.Next() {
 		var ph models.PlotHole
 		if err := rows.Scan(
@@ -74,7 +74,7 @@ func (r *PlotHoleRepo) FindOpenByArc(ctx context.Context, universeID uuid.UUID, 
 	}
 	defer rows.Close()
 
-	var result []models.PlotHole
+	result := []models.PlotHole{}
 	for rows.Next() {
 		var ph models.PlotHole
 		if err := rows.Scan(

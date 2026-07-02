@@ -17,7 +17,7 @@ import (
 
 // TestAnalysisServiceNew verifies construction doesn't panic.
 func TestAnalysisServiceNew(t *testing.T) {
-	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if svc == nil {
 		t.Fatal("NewAnalysisService returned nil")
 	}
@@ -32,7 +32,7 @@ func TestAnalysisServiceNew(t *testing.T) {
 // TestAnalysisServiceSubmit verifies that Submit enqueues a job
 // to the correct per-work channel.
 func TestAnalysisServiceSubmit(t *testing.T) {
-	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -76,7 +76,7 @@ func TestAnalysisServiceSubmit(t *testing.T) {
 // TestAnalysisServiceSubmitSecondJob verifies sequential queuing
 // for the same workID.
 func TestAnalysisServiceSubmitSecondJob(t *testing.T) {
-	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -118,7 +118,7 @@ func TestAnalysisServiceSubmitSecondJob(t *testing.T) {
 
 // TestAnalysisServiceCancel verifies Cancel removes queue and cancel func.
 func TestAnalysisServiceCancel(t *testing.T) {
-	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	workID := uuid.New()
 	svc.mu.Lock()
@@ -144,14 +144,14 @@ func TestAnalysisServiceCancel(t *testing.T) {
 // TestAnalysisServiceCancelNonexistent verifies Cancel is a no-op
 // for unknown work IDs.
 func TestAnalysisServiceCancelNonexistent(t *testing.T) {
-	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	// Should not panic
 	svc.Cancel(uuid.New())
 }
 
 // TestAnalysisServiceShutdown verifies Shutdown removes all workers.
 func TestAnalysisServiceShutdown(t *testing.T) {
-	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	workID1 := uuid.New()
 	workID2 := uuid.New()
@@ -208,7 +208,7 @@ func TestAnalysisServiceFullPipeline(t *testing.T) {
 
 	// Create AnalysisService with nil hub — we'll verify DB state not WS messages
 	analysisSvc := NewAnalysisService(pool, svcs.entitySvc, svcs.contraSvc,
-		svcs.relevSvc, svcs.timelineSvc, svcs.plotHoleSvc, svcs.qwenSvc, nil)
+		svcs.relevSvc, svcs.timelineSvc, svcs.plotHoleSvc, svcs.qwenSvc, nil, nil)
 
 	job := analysisJob{
 		WorkID:     work.ID,
@@ -255,7 +255,7 @@ func TestAnalysisServiceContextCancellation(t *testing.T) {
 	svcs := svcCreateAnalysisServices(pool, repos)
 
 	analysisSvc := NewAnalysisService(pool, svcs.entitySvc, svcs.contraSvc,
-		svcs.relevSvc, svcs.timelineSvc, svcs.plotHoleSvc, svcs.qwenSvc, nil)
+		svcs.relevSvc, svcs.timelineSvc, svcs.plotHoleSvc, svcs.qwenSvc, nil, nil)
 
 	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -320,10 +320,10 @@ func svcCreateAnalysisRepos(pool *pgxpool.Pool) analysisTestRepos {
 func svcCreateAnalysisServices(pool *pgxpool.Pool, repos analysisTestRepos) analysisTestServices {
 	qwenSvc := NewQwenService(nil) // nil config = no real API calls
 	entitySvc := NewEntityService(pool, repos.entity, repos.vector, qwenSvc)
-	contraSvc := NewContradictionService(pool, repos.contradiction, repos.entity, qwenSvc, 3)
+	contraSvc := NewContradictionService(pool, repos.contradiction, repos.entity, qwenSvc, nil, 3)
 	relevSvc := NewRelevanceService(pool, repos.entity, 0.1, 0.15)
-	timelineSvc := NewTimelineService(pool, repos.timeline)
-	plotHoleSvc := NewPlotHoleService(pool, repos.plotHole, repos.entity, 8)
+	timelineSvc := NewTimelineService(pool, repos.timeline, nil)
+	plotHoleSvc := NewPlotHoleService(pool, repos.plotHole, repos.entity, 8, nil, nil)
 
 	return analysisTestServices{
 		entitySvc:    entitySvc,

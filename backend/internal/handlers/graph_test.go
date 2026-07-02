@@ -17,10 +17,10 @@ func TestGraphHandlerFullGraph(t *testing.T) {
 	}})
 
 	h := NewGraphHandler(nil, nil, nil)
-	app.Get("/api/v1/graph", h.FullGraph)
+	app.Get("/api/v1/universes/:universe_id/graph", h.FullGraph)
 
 	universeID := uuid.New()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/graph?universe_id="+universeID.String(), nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/universes/"+universeID.String()+"/graph", nil)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test: %v", err)
@@ -34,9 +34,9 @@ func TestGraphHandlerFullGraph(t *testing.T) {
 func TestGraphHandlerFullGraphInvalidID(t *testing.T) {
 	app := fiber.New()
 	h := NewGraphHandler(nil, nil, nil)
-	app.Get("/api/v1/graph", h.FullGraph)
+	app.Get("/api/v1/universes/:universe_id/graph", h.FullGraph)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/graph?universe_id=bad", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/universes/bad/graph", nil)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test: %v", err)

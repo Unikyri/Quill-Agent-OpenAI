@@ -71,7 +71,7 @@ func (r *UniverseRepo) ListByUser(ctx context.Context, userID uuid.UUID, page, l
 	}
 	defer rows.Close()
 
-	var universes []models.Universe
+	universes := []models.Universe{}
 	for rows.Next() {
 		var u models.Universe
 		if err := rows.Scan(

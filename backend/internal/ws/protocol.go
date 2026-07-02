@@ -19,9 +19,10 @@ const (
 	TypeAnalysisResult    = "analysis_result"
 	TypeContradictionAlert = "contradiction_alert"
 	TypeContextualRecall  = "contextual_recall"
-	TypeEntityDiscovered  = "entity_discovered"
-	TypeGraphUpdated      = "graph_updated"
-	TypeError             = "error"
+	TypeEntityDiscovered   = "entity_discovered"
+	TypeGraphUpdated       = "graph_updated"
+	TypeIngestionProgress  = "ingestion_progress"
+	TypeError              = "error"
 )
 
 // WSMessage is the envelope for all WebSocket communication.

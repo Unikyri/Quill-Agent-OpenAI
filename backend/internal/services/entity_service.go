@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -155,6 +156,31 @@ func (s *EntityService) ResolveOrCreate(ctx context.Context, universeID uuid.UUI
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, false, err
+	}
+
+	// Create node in AGE graph
+	if s.pool != nil {
+		graphRepo := repositories.NewGraphRepo(s.pool)
+		props := map[string]interface{}{
+			"entity_id":       newEntity.ID.String(),
+			"name":            newEntity.Name,
+			"status":          newEntity.Status,
+			"relevance_score": newEntity.RelevanceScore,
+		}
+		graphName := "universe_" + newEntity.UniverseID.String()
+		if err := graphRepo.CreateNode(ctx, graphName, newEntity.Type, props); err != nil {
+			log.Printf("[entity] create node in graph for %s: %v", newEntity.Name, err)
+		}
+	}
+
+	// Save embedding for new entity
+	if s.vectorRepo != nil && s.qwenSvc != nil {
+		emb, err := s.qwenSvc.GenerateEmbedding(ctx, data.Name)
+		if err == nil {
+			if saveErr := s.vectorRepo.SaveEntityEmbedding(ctx, newEntity.ID, emb); saveErr != nil {
+				log.Printf("[entity] save embedding for %s: %v", newEntity.Name, saveErr)
+			}
+		}
 	}
 
 	return newEntity, true, nil

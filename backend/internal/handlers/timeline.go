@@ -21,9 +21,9 @@ func NewTimelineHandler(timelineSvc *services.TimelineService, timelineRepo *rep
 }
 
 // ListByUniverse returns all timeline events for a universe.
-// GET /api/v1/timeline?universe_id=X
+// GET /api/v1/universes/:universe_id/timeline
 func (h *TimelineHandler) ListByUniverse(c *fiber.Ctx) error {
-	universeID, err := uuid.Parse(c.Query("universe_id"))
+	universeID, err := uuid.Parse(c.Params("universe_id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fiber.Map{"code": "VALIDATION_ERROR", "message": "Invalid universe_id"},
@@ -49,14 +49,23 @@ func (h *TimelineHandler) ListByUniverse(c *fiber.Ctx) error {
 }
 
 // Create creates a new timeline event.
-// POST /api/v1/timeline
+// POST /api/v1/universes/:universe_id/timeline
 func (h *TimelineHandler) Create(c *fiber.Ctx) error {
+	universeID, err := uuid.Parse(c.Params("universe_id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fiber.Map{"code": "VALIDATION_ERROR", "message": "Invalid universe_id"},
+		})
+	}
+
 	var req models.TimelineEvent
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fiber.Map{"code": "VALIDATION_ERROR", "message": "Invalid request body"},
 		})
 	}
+
+	req.UniverseID = universeID
 
 	if h.timelineRepo == nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

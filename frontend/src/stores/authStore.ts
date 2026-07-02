@@ -18,7 +18,7 @@ interface AuthState {
   init: () => Promise<void>
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: localStorage.getItem('token'),
   isAuthenticated: !!localStorage.getItem('token'),

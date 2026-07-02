@@ -162,14 +162,14 @@ func setupE2EApp(t *testing.T) (*pgxpool.Pool, *fiber.App) {
 
 	qwenSvc := services.NewQwenService(cfg)
 	authSvc := services.NewAuthService(userRepo, cfg)
-	universeSvc := services.NewUniverseService(pool, universeRepo)
+	universeSvc := services.NewUniverseService(pool, universeRepo, graphRepo)
 	workSvc := services.NewWorkService(pool, workRepo)
 	_ = services.NewChapterService(pool, chapterRepo)
 	entitySvc := services.NewEntityService(pool, entityRepo, vectorRepo, qwenSvc)
 	_ = entitySvc
-	contraSvc := services.NewContradictionService(pool, contradictionRepo, entityRepo, qwenSvc, cfg.MaxContradictionCandidates)
-	timelineSvc := services.NewTimelineService(pool, timelineRepo)
-	plotHoleSvc := services.NewPlotHoleService(pool, plotHoleRepo, entityRepo, cfg.PlotHoleChapters)
+	contraSvc := services.NewContradictionService(pool, contradictionRepo, entityRepo, qwenSvc, nil, cfg.MaxContradictionCandidates)
+	timelineSvc := services.NewTimelineService(pool, timelineRepo, nil)
+	plotHoleSvc := services.NewPlotHoleService(pool, plotHoleRepo, entityRepo, cfg.PlotHoleChapters, nil, nil)
 	memorySvc := services.NewMemoryService(graphRepo, entityRepo, vectorRepo)
 	_ = services.NewRelevanceService(pool, entityRepo, cfg.DecayLambda, cfg.ArchiveThreshold)
 	_ = ws.NewHub(authSvc, nil, nil, nil)

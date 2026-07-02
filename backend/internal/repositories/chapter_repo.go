@@ -33,13 +33,18 @@ func (r *ChapterRepo) Create(ctx context.Context, tx pgx.Tx, c *models.Chapter) 
 
 func (r *ChapterRepo) FindByID(ctx context.Context, id uuid.UUID) (*models.Chapter, error) {
 	query := `
-		SELECT id, work_id, title, order_index, content, raw_text, word_count, status, analyzed_at, created_at, updated_at
-		FROM chapters WHERE id = $1
+		SELECT c.id, c.work_id, c.title, c.order_index, c.content, c.raw_text,
+		       c.word_count, c.status, c.analyzed_at, c.created_at, c.updated_at,
+		       w.universe_id
+		FROM chapters c
+		JOIN works w ON c.work_id = w.id
+		WHERE c.id = $1
 	`
 	c := &models.Chapter{}
 	err := r.pool.QueryRow(ctx, query, id).Scan(
 		&c.ID, &c.WorkID, &c.Title, &c.OrderIndex, &c.Content, &c.RawText,
 		&c.WordCount, &c.Status, &c.AnalyzedAt, &c.CreatedAt, &c.UpdatedAt,
+		&c.UniverseID,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, fmt.Errorf("chapter not found")
@@ -52,9 +57,13 @@ func (r *ChapterRepo) FindByID(ctx context.Context, id uuid.UUID) (*models.Chapt
 
 func (r *ChapterRepo) ListByWork(ctx context.Context, workID uuid.UUID) ([]models.Chapter, error) {
 	query := `
-		SELECT id, work_id, title, order_index, content, raw_text, word_count, status, analyzed_at, created_at, updated_at
-		FROM chapters WHERE work_id = $1
-		ORDER BY order_index ASC
+		SELECT c.id, c.work_id, c.title, c.order_index, c.content, c.raw_text,
+		       c.word_count, c.status, c.analyzed_at, c.created_at, c.updated_at,
+		       w.universe_id
+		FROM chapters c
+		JOIN works w ON c.work_id = w.id
+		WHERE c.work_id = $1
+		ORDER BY c.order_index ASC
 	`
 	rows, err := r.pool.Query(ctx, query, workID)
 	if err != nil {
@@ -62,12 +71,13 @@ func (r *ChapterRepo) ListByWork(ctx context.Context, workID uuid.UUID) ([]model
 	}
 	defer rows.Close()
 
-	var chapters []models.Chapter
+	chapters := []models.Chapter{}
 	for rows.Next() {
 		var c models.Chapter
 		if err := rows.Scan(
 			&c.ID, &c.WorkID, &c.Title, &c.OrderIndex, &c.Content, &c.RawText,
 			&c.WordCount, &c.Status, &c.AnalyzedAt, &c.CreatedAt, &c.UpdatedAt,
+			&c.UniverseID,
 		); err != nil {
 			return nil, fmt.Errorf("scan chapter: %w", err)
 		}

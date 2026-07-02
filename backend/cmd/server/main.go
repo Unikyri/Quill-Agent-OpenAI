@@ -12,6 +12,7 @@ import (
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/quill/backend/internal/config"
@@ -31,7 +32,23 @@ func main() {
 
 	// Connect to database
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("Failed to parse database config: %v", err)
+	}
+	poolCfg.MaxConns = int32(cfg.DBMaxConnections)
+	poolCfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, err := conn.Exec(ctx, "LOAD 'age'")
+		if err != nil {
+			return fmt.Errorf("load age: %w", err)
+		}
+		_, err = conn.Exec(ctx, "SET search_path = ag_catalog, \"$user\", public")
+		if err != nil {
+			return fmt.Errorf("set search_path: %w", err)
+		}
+		return nil
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
@@ -65,7 +82,7 @@ func main() {
 
 	qwenSvc := services.NewQwenService(cfg)
 	authSvc := services.NewAuthService(userRepo, cfg)
-	universeSvc := services.NewUniverseService(pool, universeRepo)
+	universeSvc := services.NewUniverseService(pool, universeRepo, graphRepo)
 	workSvc := services.NewWorkService(pool, workRepo)
 	chapterSvc := services.NewChapterService(pool, chapterRepo)
 	entitySvc := services.NewEntityService(pool, entityRepo, vectorRepo, qwenSvc)
@@ -73,19 +90,34 @@ func main() {
 
 	// Phase 2a services
 	relevSvc := services.NewRelevanceService(pool, entityRepo, cfg.DecayLambda, cfg.ArchiveThreshold)
-	contraSvc := services.NewContradictionService(pool, contradictionRepo, entityRepo, qwenSvc, cfg.MaxContradictionCandidates)
-	timelineSvc := services.NewTimelineService(pool, timelineRepo)
-	plotHoleSvc := services.NewPlotHoleService(pool, plotHoleRepo, entityRepo, cfg.PlotHoleChapters)
 	memorySvc := services.NewMemoryService(graphRepo, entityRepo, vectorRepo)
+
+	// QuillExecutor dispatches agent tool calls (vector search + graph queries)
+	// to the appropriate repos. UniverseID is set per-call by the agent loop.
+	executor := &services.QuillExecutor{
+		VectorRepo: vectorRepo,
+		GraphRepo:  graphRepo,
+		EntityRepo: entityRepo,
+		MemorySvc:  memorySvc,
+		QwenSvc:    qwenSvc,
+	}
+
+	timelineSvc := services.NewTimelineService(pool, timelineRepo, qwenSvc)
+	plotHoleSvc := services.NewPlotHoleService(pool, plotHoleRepo, entityRepo, cfg.PlotHoleChapters, qwenSvc, executor)
+
+	contraSvc := services.NewContradictionService(pool, contradictionRepo, entityRepo, qwenSvc, executor, cfg.MaxContradictionCandidates)
 
 	// WebSocket Hub (created first with nil submitter/recaller — set later to avoid circular init)
 	hub := ws.NewHub(authSvc, nil, memorySvc, qwenSvc)
 
 	// AnalysisService (depends on all other services and the hub)
-	analysisSvc := services.NewAnalysisService(pool, entitySvc, contraSvc, relevSvc, timelineSvc, plotHoleSvc, qwenSvc, hub)
+	analysisSvc := services.NewAnalysisService(pool, entitySvc, contraSvc, relevSvc, timelineSvc, plotHoleSvc, qwenSvc, hub, memorySvc)
 
 	// Wire the analysis service into the hub (now both exist)
 	hub.SetSubmitter(analysisSvc)
+
+	// Ingestion service (async document upload pipeline)
+	ingestionSvc := services.NewIngestionService(pool, entitySvc, vectorRepo, graphRepo, qwenSvc, hub)
 
 	// ── Handlers ──
 
@@ -103,6 +135,7 @@ func main() {
 	timelineH := handlers.NewTimelineHandler(timelineSvc, timelineRepo)
 	plotHoleH := handlers.NewPlotHoleHandler(plotHoleSvc).WithRepo(plotHoleRepo)
 	graphH := handlers.NewGraphHandler(graphRepo, memorySvc, entityRepo)
+	ingestionH := handlers.NewIngestionHandler(ingestionSvc)
 
 	// ── Fiber App ──
 
@@ -156,14 +189,16 @@ func main() {
 	api.Put("/entities/:id", entityH.Update)
 
 	// Phase 2a REST routes
-	api.Get("/contradictions", contradictionH.ListByUniverse)
-	api.Put("/contradictions/:id/resolve", contradictionH.Resolve)
-	api.Get("/timeline", timelineH.ListByUniverse)
-	api.Post("/timeline", timelineH.Create)
-	api.Get("/plot-holes", plotHoleH.ListByUniverse)
-	api.Get("/graph", graphH.FullGraph)
+	api.Get("/universes/:universe_id/contradictions", contradictionH.ListByUniverse)
+	api.Put("/universes/:universe_id/contradictions/:id/resolve", contradictionH.Resolve)
+	api.Put("/universes/:universe_id/contradictions/:id/dismiss", contradictionH.Dismiss)
+	api.Get("/universes/:universe_id/timeline", timelineH.ListByUniverse)
+	api.Post("/universes/:universe_id/timeline", timelineH.Create)
+	api.Get("/universes/:universe_id/plot-holes", plotHoleH.ListByUniverse)
+	api.Get("/universes/:universe_id/graph", graphH.FullGraph)
 	api.Get("/entities/:id/neighbors", graphH.Neighbors)
 	api.Post("/universes/:id/recall", graphH.Recall)
+	api.Post("/universes/:id/ingest", ingestionH.Ingest)
 
 	// WebSocket route (gated by config)
 	if cfg.WSEnabled {

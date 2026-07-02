@@ -2,11 +2,16 @@ package services
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/quill/backend/internal/config"
 	"github.com/quill/backend/internal/models"
 	"github.com/quill/backend/internal/repositories"
 	"github.com/quill/backend/internal/testutil"
@@ -22,7 +27,7 @@ func TestTimelineServiceValidateFuture(t *testing.T) {
 	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
 	work, ch1, ch2 := svcCreateWorkAndChapters(t, ctx, pool, universe, 2)
 
-	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool))
+	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), nil)
 
 	// event tied to chapter 2, but we're validating against chapter 1
 	event := models.TimelineEvent{
@@ -49,7 +54,7 @@ func TestTimelineServiceValidatePresent(t *testing.T) {
 	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
 	_, ch1, _ := svcCreateWorkAndChapters(t, ctx, pool, universe, 2)
 
-	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool))
+	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), nil)
 
 	event := models.TimelineEvent{
 		ID:         uuid.New(),
@@ -73,7 +78,7 @@ func TestTimelineServiceValidatePast(t *testing.T) {
 	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
 	_, ch1, ch2 := svcCreateWorkAndChapters(t, ctx, pool, universe, 2)
 
-	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool))
+	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), nil)
 
 	event := models.TimelineEvent{
 		ID:         uuid.New(),
@@ -97,7 +102,7 @@ func TestTimelineServiceValidateNoChapter(t *testing.T) {
 	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
 	_, ch1, _ := svcCreateWorkAndChapters(t, ctx, pool, universe, 1)
 
-	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool))
+	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), nil)
 
 	event := models.TimelineEvent{
 		ID:         uuid.New(),
@@ -112,6 +117,119 @@ func TestTimelineServiceValidateNoChapter(t *testing.T) {
 }
 
 // helpers
+
+// TestTimelineServiceValidateAmbiguousAgentFallback verifies that when
+// eventOrder == presentOrder (ambiguous case), the agent is called for
+// temporal reasoning instead of blindly accepting.
+//
+// RED: Needs NewTimelineService with qwenSvc param (task 3.3).
+func TestTimelineServiceValidateAmbiguousAgentFallback(t *testing.T) {
+	// Mock Qwen server: agent says position IS consistent
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]interface{}{
+			"choices": []map[string]interface{}{
+				{
+					"message": map[string]interface{}{
+						"role":    "assistant",
+						"content": "CONSISTENT",
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	qwenSvc := NewQwenService(&config.Config{
+		QwenBaseURL:          srv.URL,
+		QwenAPIKey:           "test",
+		QwenMaxConcurrency:   1,
+		QwenTurboConcurrency: 1,
+	})
+	qwenSvc.client.Timeout = 5 * time.Second
+
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "010")
+	ctx := context.Background()
+
+	user := svcCreateTestUser(t, ctx, pool)
+	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
+	_, ch1, _ := svcCreateWorkAndChapters(t, ctx, pool, universe, 2)
+
+	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), qwenSvc)
+
+	event := models.TimelineEvent{
+		ID:         uuid.New(),
+		UniverseID: universe.ID,
+		Title:      "Ambiguous Event",
+		ChapterID:  &ch1.ID,
+	}
+
+	ctx2, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	err := svc.ValidatePosition(ctx2, event, ch1.ID)
+	if err != nil {
+		t.Errorf("expected no error for agent-validated same-chapter event, got: %v", err)
+	}
+}
+
+// TestTimelineServiceValidateAmbiguousAgentReject verifies that when the
+// agent says the position is INCONSISTENT, ValidatePosition returns an error.
+//
+// RED: Needs task 3.3 implementation.
+func TestTimelineServiceValidateAmbiguousAgentReject(t *testing.T) {
+	// Mock Qwen server: agent says position is INCONSISTENT
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]interface{}{
+			"choices": []map[string]interface{}{
+				{
+					"message": map[string]interface{}{
+						"role":    "assistant",
+						"content": "INCONSISTENT: Event references events that haven't happened yet",
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	qwenSvc := NewQwenService(&config.Config{
+		QwenBaseURL:          srv.URL,
+		QwenAPIKey:           "test",
+		QwenMaxConcurrency:   1,
+		QwenTurboConcurrency: 1,
+	})
+	qwenSvc.client.Timeout = 5 * time.Second
+
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "010")
+	ctx := context.Background()
+
+	user := svcCreateTestUser(t, ctx, pool)
+	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
+	_, ch1, _ := svcCreateWorkAndChapters(t, ctx, pool, universe, 2)
+
+	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), qwenSvc)
+
+	event := models.TimelineEvent{
+		ID:         uuid.New(),
+		UniverseID: universe.ID,
+		Title:      "Inconsistent Event",
+		ChapterID:  &ch1.ID,
+	}
+
+	ctx2, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	err := svc.ValidatePosition(ctx2, event, ch1.ID)
+	if err == nil {
+		t.Error("expected error for agent-rejected timeline position, got nil")
+	}
+}
 
 func svcCreateWorkAndChapters(t *testing.T, ctx context.Context, pool *pgxpool.Pool, universe models.Universe, n int) (models.Work, models.Chapter, models.Chapter) {
 	t.Helper()

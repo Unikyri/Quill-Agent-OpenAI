@@ -22,9 +22,9 @@ func NewContradictionHandler(contraSvc *services.ContradictionService, contradic
 }
 
 // ListByUniverse returns all contradictions for a universe.
-// GET /api/v1/contradictions?universe_id=X
+// GET /api/v1/universes/:universe_id/contradictions
 func (h *ContradictionHandler) ListByUniverse(c *fiber.Ctx) error {
-	universeID, err := uuid.Parse(c.Query("universe_id"))
+	universeID, err := uuid.Parse(c.Params("universe_id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fiber.Map{"code": "VALIDATION_ERROR", "message": "Invalid universe_id"},
@@ -49,8 +49,33 @@ func (h *ContradictionHandler) ListByUniverse(c *fiber.Ctx) error {
 	})
 }
 
+// Dismiss marks a contradiction as dismissed without resolving.
+// PUT /api/v1/universes/:universe_id/contradictions/:id/dismiss
+func (h *ContradictionHandler) Dismiss(c *fiber.Ctx) error {
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fiber.Map{"code": "VALIDATION_ERROR", "message": "Invalid contradiction ID"},
+		})
+	}
+
+	if h.contradictionRepo == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fiber.Map{"code": "INTERNAL_ERROR", "message": "ContradictionRepo not initialized"},
+		})
+	}
+
+	if err := h.contradictionRepo.Dismiss(c.Context(), id); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fiber.Map{"code": "INTERNAL_ERROR", "message": err.Error()},
+		})
+	}
+
+	return c.JSON(fiber.Map{"status": "dismissed"})
+}
+
 // Resolve marks a contradiction as resolved.
-// PUT /api/v1/contradictions/:id/resolve
+// PUT /api/v1/universes/:universe_id/contradictions/:id/resolve
 func (h *ContradictionHandler) Resolve(c *fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {

@@ -68,7 +68,7 @@ func (r *TimelineRepo) ListByUniverse(ctx context.Context, universeID uuid.UUID)
 	}
 	defer rows.Close()
 
-	var result []models.TimelineEvent
+	result := []models.TimelineEvent{}
 	for rows.Next() {
 		var evt models.TimelineEvent
 		if err := rows.Scan(
