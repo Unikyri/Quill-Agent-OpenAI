@@ -76,7 +76,7 @@ func (s *PlotHoleService) Scan(ctx context.Context, universeID, currentChapterID
 			// ponytail: agent evaluation for semantic plot hole verdict.
 			// Skip if no qwenSvc — caller can pass nil for testing.
 			if s.qwenSvc != nil {
-				isPlotHole, err := s.evaluatePlotHole(ctx, e, gap)
+				isPlotHole, err := s.evaluatePlotHole(ctx, universeID, e, gap)
 				if err != nil {
 					continue // agent call failed, skip gracefully
 				}
@@ -86,13 +86,13 @@ func (s *PlotHoleService) Scan(ctx context.Context, universeID, currentChapterID
 			}
 
 			hole := models.PlotHole{
-				ID:                       uuid.New(),
-				UniverseID:               universeID,
-				Title:                    fmt.Sprintf("Stale arc: %s (gap %d chapters)", e.Name, gap),
-				Description:              fmt.Sprintf("Entity '%s' has not been mentioned for %d chapters (last seen in chapter %d, currently at chapter %d)", e.Name, gap, lastOrder, currentOrder),
-				RelatedEntityIDs:         []uuid.UUID{e.ID},
-				FirstMentionedChapterID:  e.LastMentionedChapterID,
-				Status:                   "open",
+				ID:                      uuid.New(),
+				UniverseID:              universeID,
+				Title:                   fmt.Sprintf("Stale arc: %s (gap %d chapters)", e.Name, gap),
+				Description:             fmt.Sprintf("Entity '%s' has not been mentioned for %d chapters (last seen in chapter %d, currently at chapter %d)", e.Name, gap, lastOrder, currentOrder),
+				RelatedEntityIDs:        []uuid.UUID{e.ID},
+				FirstMentionedChapterID: e.LastMentionedChapterID,
+				Status:                  "open",
 			}
 			if err := s.plotHoleRepo.Create(ctx, &hole); err != nil {
 				return nil, fmt.Errorf("create plot hole: %w", err)
@@ -107,23 +107,57 @@ func (s *PlotHoleService) Scan(ctx context.Context, universeID, currentChapterID
 // evaluatePlotHole calls the agent to determine if a stale entity's arc is
 // a forgotten plot thread or naturally concluded.
 //
-// ponytail: single chat completion (no tools) — simple yes/no verdict.
-func (s *PlotHoleService) evaluatePlotHole(ctx context.Context, e models.Entity, gap int) (bool, error) {
-	prompt := fmt.Sprintf(`You are a narrative analysis AI. Evaluate this entity's story arc:
-
-Entity: %s (type: %s, status: %s)
-Last mentioned %d chapters ago.
-
-Question: Is this entity's arc naturally concluded or a forgotten plot thread that the author should address?
-
-Answer with ONLY "YES" if this is a plot hole (forgotten/incomplete arc) or "NO" if the arc is naturally concluded.`, e.Name, e.Type, e.Status, gap)
-
-	messages := []QwenMessage{
-		{Role: "system", Content: "You evaluate narrative arcs. Answer only YES or NO."},
-		{Role: "user", Content: prompt},
+// The agent uses search_vector_memory to find contextual information about the
+// entity before making its verdict.
+func (s *PlotHoleService) evaluatePlotHole(ctx context.Context, universeID uuid.UUID, e models.Entity, gap int) (bool, error) {
+	// ponytail: set UniverseID on the executor so tool calls resolve in the right universe.
+	if s.executor != nil {
+		s.executor.UniverseID = universeID
 	}
 
-	result, err := s.qwenSvc.RunAgentLoop(ctx, messages, nil, nil, 1)
+	systemPrompt := `You are a narrative analysis AI. Evaluate whether this entity's story arc is a plot hole.
+
+You have access to search_vector_memory to look up contextual facts about this entity in the story.
+
+Determine if the arc is naturally concluded or a forgotten plot thread that the author should address.
+Answer with ONLY "YES" if this is a plot hole (forgotten/incomplete arc) or "NO" if the arc is naturally concluded.`
+
+	userPrompt := fmt.Sprintf(`Entity: %s (type: %s, status: %s)
+Last mentioned %d chapters ago.
+
+Use search_vector_memory to find relevant context before making your decision.`, e.Name, e.Type, e.Status, gap)
+
+	messages := []QwenMessage{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: userPrompt},
+	}
+
+	tools := []QwenTool{
+		{
+			Type: "function",
+			Function: QwenToolFunction{
+				Name:        "search_vector_memory",
+				Description: "Search the story's vector memory for facts related to a query. Returns relevant paragraphs with similarity scores.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"query": map[string]interface{}{
+							"type":        "string",
+							"description": "The search query to find relevant facts",
+						},
+					},
+					"required": []string{"query"},
+				},
+			},
+		},
+	}
+
+	var exec ToolExecutor
+	if s.executor != nil {
+		exec = s.executor
+	}
+
+	result, err := s.qwenSvc.RunAgentLoop(ctx, messages, tools, exec, 3)
 	if err != nil {
 		return false, fmt.Errorf("agent evaluation: %w", err)
 	}

@@ -126,6 +126,27 @@ func (s *IngestionService) runWorker(jobID, universeID, workID uuid.UUID, reader
 			s.resolveAndBuildGraph(ctx, universeID, extracted)
 		}
 
+		// ponytail: split chunk content into paragraphs and embed each one.
+		// chapterID uses uuid.Nil as placeholder — should map to real chapter IDs
+		// once chapter creation is implemented in the ingestion pipeline.
+		if s.qwenSvc != nil && s.vectorRepo != nil {
+			paragraphs := strings.Split(ch.content, "\n\n")
+			for pIdx, p := range paragraphs {
+				p = strings.TrimSpace(p)
+				if p == "" {
+					continue
+				}
+				embedding, err := s.qwenSvc.GenerateEmbedding(ctx, p)
+				if err != nil {
+					log.Printf("[ingestion] embed paragraph chunk %d para %d: %v", i, pIdx, err)
+					continue
+				}
+				if err := s.vectorRepo.SaveParagraphEmbedding(ctx, uuid.Nil, i*1000+pIdx, ch.title, p, embedding); err != nil {
+					log.Printf("[ingestion] save paragraph embedding chunk %d para %d: %v", i, pIdx, err)
+				}
+			}
+		}
+
 		s.emitProgress(jobID, "running", i+1, len(chunks))
 	}
 

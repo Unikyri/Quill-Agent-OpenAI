@@ -289,12 +289,12 @@ func TestAnalysisServiceContextCancellation(t *testing.T) {
 // ── Helpers ──
 
 type analysisTestServices struct {
-	entitySvc    *EntityService
-	contraSvc    *ContradictionService
-	relevSvc     *RelevanceService
-	timelineSvc  *TimelineService
-	plotHoleSvc  *PlotHoleService
-	qwenSvc      *QwenService
+	entitySvc   *EntityService
+	contraSvc   *ContradictionService
+	relevSvc    *RelevanceService
+	timelineSvc *TimelineService
+	plotHoleSvc *PlotHoleService
+	qwenSvc     *QwenService
 }
 
 type analysisTestRepos struct {
@@ -322,16 +322,16 @@ func svcCreateAnalysisServices(pool *pgxpool.Pool, repos analysisTestRepos) anal
 	entitySvc := NewEntityService(pool, repos.entity, repos.vector, qwenSvc)
 	contraSvc := NewContradictionService(pool, repos.contradiction, repos.entity, qwenSvc, nil, 3)
 	relevSvc := NewRelevanceService(pool, repos.entity, 0.1, 0.15)
-	timelineSvc := NewTimelineService(pool, repos.timeline, nil)
+	timelineSvc := NewTimelineService(pool, repos.timeline, nil, nil)
 	plotHoleSvc := NewPlotHoleService(pool, repos.plotHole, repos.entity, 8, nil, nil)
 
 	return analysisTestServices{
-		entitySvc:    entitySvc,
-		contraSvc:    contraSvc,
-		relevSvc:     relevSvc,
-		timelineSvc:  timelineSvc,
-		plotHoleSvc:  plotHoleSvc,
-		qwenSvc:      qwenSvc,
+		entitySvc:   entitySvc,
+		contraSvc:   contraSvc,
+		relevSvc:    relevSvc,
+		timelineSvc: timelineSvc,
+		plotHoleSvc: plotHoleSvc,
+		qwenSvc:     qwenSvc,
 	}
 }
 

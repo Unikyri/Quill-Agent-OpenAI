@@ -102,7 +102,7 @@ func main() {
 		QwenSvc:    qwenSvc,
 	}
 
-	timelineSvc := services.NewTimelineService(pool, timelineRepo, qwenSvc)
+	timelineSvc := services.NewTimelineService(pool, timelineRepo, qwenSvc, executor)
 	plotHoleSvc := services.NewPlotHoleService(pool, plotHoleRepo, entityRepo, cfg.PlotHoleChapters, qwenSvc, executor)
 
 	contraSvc := services.NewContradictionService(pool, contradictionRepo, entityRepo, qwenSvc, executor, cfg.MaxContradictionCandidates)

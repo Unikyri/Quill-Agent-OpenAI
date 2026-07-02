@@ -17,10 +17,11 @@ type TimelineService struct {
 	pool         *pgxpool.Pool
 	timelineRepo *repositories.TimelineRepo
 	qwenSvc      *QwenService
+	executor     ToolExecutor
 }
 
-func NewTimelineService(pool *pgxpool.Pool, timelineRepo *repositories.TimelineRepo, qwenSvc *QwenService) *TimelineService {
-	return &TimelineService{pool: pool, timelineRepo: timelineRepo, qwenSvc: qwenSvc}
+func NewTimelineService(pool *pgxpool.Pool, timelineRepo *repositories.TimelineRepo, qwenSvc *QwenService, executor ToolExecutor) *TimelineService {
+	return &TimelineService{pool: pool, timelineRepo: timelineRepo, qwenSvc: qwenSvc, executor: executor}
 }
 
 // ValidatePosition checks whether the event's chapter is chronologically before or
@@ -58,26 +59,46 @@ func (s *TimelineService) ValidatePosition(ctx context.Context, event models.Tim
 }
 
 // validateWithAgent calls the LLM to evaluate if this timeline position is
-// chronologically consistent.
-//
-// ponytail: single chat completion — yes/no consistency verdict.
+// chronologically consistent using vector memory search for context.
 func (s *TimelineService) validateWithAgent(ctx context.Context, event models.TimelineEvent) error {
-	prompt := fmt.Sprintf(`You are a narrative timeline validator. Evaluate this event's temporal position:
+	systemPrompt := `You are a narrative timeline validator. Use search_vector_memory to find chronological context about the story.
 
-Event: %s
+Evaluate whether this event's temporal position is chronologically consistent with the narrative flow.
+
+Answer with ONLY "CONSISTENT" if the position makes chronological sense, or "INCONSISTENT: <reason>" if it does not.`
+
+	userPrompt := fmt.Sprintf(`Event: %s
 %s
 
-Based on the text context, is this timeline position chronologically consistent with the narrative flow?
-
-Answer with ONLY "CONSISTENT" if the position makes chronological sense, or "INCONSISTENT: <reason>" if it does not.`,
+Use search_vector_memory to find relevant chronological context before making your decision.`,
 		event.Title, event.Description)
 
 	messages := []QwenMessage{
-		{Role: "system", Content: "You validate narrative timeline consistency. Answer CONSIStent or INCONSISTENT."},
-		{Role: "user", Content: prompt},
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: userPrompt},
 	}
 
-	result, err := s.qwenSvc.RunAgentLoop(ctx, messages, nil, nil, 1)
+	tools := []QwenTool{
+		{
+			Type: "function",
+			Function: QwenToolFunction{
+				Name:        "search_vector_memory",
+				Description: "Search the story's vector memory for facts related to a query. Returns relevant paragraphs with similarity scores.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"query": map[string]interface{}{
+							"type":        "string",
+							"description": "The search query to find relevant facts",
+						},
+					},
+					"required": []string{"query"},
+				},
+			},
+		},
+	}
+
+	result, err := s.qwenSvc.RunAgentLoop(ctx, messages, tools, s.executor, 2)
 	if err != nil {
 		return fmt.Errorf("agent validation: %w", err)
 	}

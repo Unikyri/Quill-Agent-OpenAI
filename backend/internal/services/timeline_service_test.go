@@ -27,7 +27,7 @@ func TestTimelineServiceValidateFuture(t *testing.T) {
 	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
 	work, ch1, ch2 := svcCreateWorkAndChapters(t, ctx, pool, universe, 2)
 
-	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), nil)
+	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), nil, nil)
 
 	// event tied to chapter 2, but we're validating against chapter 1
 	event := models.TimelineEvent{
@@ -54,7 +54,7 @@ func TestTimelineServiceValidatePresent(t *testing.T) {
 	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
 	_, ch1, _ := svcCreateWorkAndChapters(t, ctx, pool, universe, 2)
 
-	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), nil)
+	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), nil, nil)
 
 	event := models.TimelineEvent{
 		ID:         uuid.New(),
@@ -78,7 +78,7 @@ func TestTimelineServiceValidatePast(t *testing.T) {
 	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
 	_, ch1, ch2 := svcCreateWorkAndChapters(t, ctx, pool, universe, 2)
 
-	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), nil)
+	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), nil, nil)
 
 	event := models.TimelineEvent{
 		ID:         uuid.New(),
@@ -102,7 +102,7 @@ func TestTimelineServiceValidateNoChapter(t *testing.T) {
 	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
 	_, ch1, _ := svcCreateWorkAndChapters(t, ctx, pool, universe, 1)
 
-	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), nil)
+	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), nil, nil)
 
 	event := models.TimelineEvent{
 		ID:         uuid.New(),
@@ -157,7 +157,7 @@ func TestTimelineServiceValidateAmbiguousAgentFallback(t *testing.T) {
 	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
 	_, ch1, _ := svcCreateWorkAndChapters(t, ctx, pool, universe, 2)
 
-	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), qwenSvc)
+	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), qwenSvc, nil)
 
 	event := models.TimelineEvent{
 		ID:         uuid.New(),
@@ -213,7 +213,7 @@ func TestTimelineServiceValidateAmbiguousAgentReject(t *testing.T) {
 	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
 	_, ch1, _ := svcCreateWorkAndChapters(t, ctx, pool, universe, 2)
 
-	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), qwenSvc)
+	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), qwenSvc, nil)
 
 	event := models.TimelineEvent{
 		ID:         uuid.New(),
