@@ -13,14 +13,15 @@ function getStore() {
   return useGraphStore.getState()
 }
 
-const mockNodes = [
-  { id: 'n1', type: 'character', position: { x: 0, y: 0 }, data: { label: 'Alice' } },
-  { id: 'n2', type: 'location', position: { x: 100, y: 0 }, data: { label: 'Castle' } },
-  { id: 'n3', type: 'concept', position: { x: 200, y: 0 }, data: { label: 'Magic' } },
+// Backend returns {id, labels, properties} — store transforms to {id, type, position, data}
+const mockBackendNodes = [
+  { id: 'n1', labels: ['Character'], properties: { raw: "n1:Character {entity_id: 'n1', name: 'Alice', status: 'active'}", entity_id: 'n1' } },
+  { id: 'n2', labels: ['Location'], properties: { raw: "n2:Location {entity_id: 'n2', name: 'Castle', status: 'active'}", entity_id: 'n2' } },
+  { id: 'n3', labels: ['Concept'], properties: { raw: "n3:Concept {entity_id: 'n3', name: 'Magic', status: 'active'}", entity_id: 'n3' } },
 ]
 
-const mockEdges = [
-  { id: 'e1', source: 'n1', target: 'n2', label: 'lives in' },
+const mockBackendEdges = [
+  { id: 'e1', type: 'lives_in', properties: { raw: "{source: 'n1', target: 'n2'}" } },
 ]
 
 beforeEach(() => {
@@ -64,14 +65,22 @@ describe('graphStore', () => {
 
   describe('fetchGraph', () => {
     it('sets loading true and populates nodes/edges on success', async () => {
-      mockGetGraph.mockResolvedValue({ nodes: mockNodes, edges: mockEdges })
+      mockGetGraph.mockResolvedValue({ nodes: mockBackendNodes, edges: mockBackendEdges })
 
       const promise = getStore().fetchGraph('uni-1')
       expect(getStore().loading).toBe(true)
 
       await promise
-      expect(getStore().nodes).toEqual(mockNodes)
-      expect(getStore().edges).toEqual(mockEdges)
+      const nodes = getStore().nodes
+      expect(nodes).toHaveLength(3)
+      expect(nodes[0].id).toBe('n1')
+      expect(nodes[0].type).toBe('character')
+      expect(nodes[0].data.label).toBe('Alice')
+      expect(nodes[0].position).toHaveProperty('x')
+      expect(nodes[0].position).toHaveProperty('y')
+      expect(getStore().edges).toHaveLength(1)
+      expect(getStore().edges[0].source).toBe('n1')
+      expect(getStore().edges[0].target).toBe('n2')
       expect(getStore().loading).toBe(false)
       expect(getStore().error).toBeNull()
       expect(getStore()._universeId).toBe('uni-1')
@@ -89,16 +98,17 @@ describe('graphStore', () => {
 
   describe('refresh', () => {
     it('refetches using stored universeId', async () => {
-      mockGetGraph.mockResolvedValueOnce({ nodes: mockNodes, edges: mockEdges })
+      mockGetGraph.mockResolvedValueOnce({ nodes: mockBackendNodes, edges: mockBackendEdges })
       await getStore().fetchGraph('uni-1')
       vi.clearAllMocks()
 
-      const updatedNodes = [{ ...mockNodes[0], data: { label: 'Alice Updated' } }]
+      const updatedNodes = [{ ...mockBackendNodes[0], properties: { ...mockBackendNodes[0].properties, raw: "n1:Character {entity_id: 'n1', name: 'Alice Updated', status: 'active'}" } }]
       mockGetGraph.mockResolvedValueOnce({ nodes: updatedNodes, edges: [] })
 
       await getStore().refresh()
       expect(mockGetGraph).toHaveBeenCalledWith('uni-1')
-      expect(getStore().nodes).toEqual(updatedNodes)
+      expect(getStore().nodes).toHaveLength(1)
+      expect(getStore().nodes[0].data.label).toBe('Alice Updated')
       expect(getStore().edges).toEqual([])
     })
 

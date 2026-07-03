@@ -90,9 +90,8 @@ func (r *GraphRepo) withAgeConn(ctx context.Context, fn func(conn *pgx.Conn) err
 func (r *GraphRepo) CreateGraph(ctx context.Context, universeID string) error {
 	graphName := "universe_" + universeID
 	return r.withAgeConn(ctx, func(c *pgx.Conn) error {
-		query := fmt.Sprintf(`SELECT * FROM cypher(%s, $$ CREATE (g:Graph {name: '%s'}) RETURN g $$) AS (g agtype)`,
-			quoteGraph(graphName), graphName)
-		_, err := c.Exec(ctx, query)
+		// AGE requires create_graph() before running Cypher against the graph.
+		_, err := c.Exec(ctx, fmt.Sprintf(`SELECT create_graph('%s')`, graphName))
 		return err
 	})
 }

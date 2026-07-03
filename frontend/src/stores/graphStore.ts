@@ -32,6 +32,19 @@ interface GraphState {
 
 const ALL_TYPES = ['character', 'location', 'item', 'event', 'concept']
 
+// ponytail: extract source/target from raw AGE edge strings like
+// [:KNOWS {source: 'id1', target: 'id2'}]
+function extractEdgeSource(e: any): string {
+  const raw: string = e.properties?.raw || e.id || ''
+  const m = raw.match(/source:\s*'([^']*)'/)
+  return m?.[1] || e.source || ''
+}
+function extractEdgeTarget(e: any): string {
+  const raw: string = e.properties?.raw || e.id || ''
+  const m = raw.match(/target:\s*'([^']*)'/)
+  return m?.[1] || e.target || ''
+}
+
 export const useGraphStore = create<GraphState>((set, get) => ({
   nodes: [],
   edges: [],
@@ -44,8 +57,35 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   fetchGraph: async (universeId) => {
     set({ loading: true, error: null, _universeId: universeId })
     try {
-      const { nodes, edges } = await api.getGraph(universeId)
-      set({ nodes: nodes as GraphNode[], edges, loading: false })
+      const { nodes: rawNodes, edges: rawEdges } = await api.getGraph(universeId)
+      // Transform backend {id, labels, properties} → frontend {id, type, position, data}
+      // ponytail: auto-layout with circle packing; no layout lib needed for hackathon
+      const total = (rawNodes as any[]).length || 1
+      const nodes: GraphNode[] = (rawNodes as any[]).map((n: any, i: number) => {
+        const angle = (2 * Math.PI * i) / total
+        const radius = Math.max(100, total * 30)
+        const props = n.properties || {}
+        const raw: string = props.raw || ''
+        // Extract fields from raw agtype string like: {entity_id: "...", name: "...", status: "..."}
+        const nameMatch = raw.match(/name:\s*'([^']*)'/)
+        const typeMatch = raw.match(/:\s*(\w+)\s*\{/)
+        const entityID = props.entity_id || n.id || String(i)
+        const name = nameMatch?.[1] || props.name || entityID.slice(0, 8)
+        const nodeType = (typeMatch?.[1]?.toLowerCase() || n.labels?.[0]?.toLowerCase() || 'concept') as GraphNode['type']
+        return {
+          id: entityID,
+          type: nodeType,
+          position: { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius },
+          data: { label: name, description: props.description },
+        }
+      })
+      const edges: GraphEdge[] = (rawEdges as any[]).map((e: any) => ({
+        id: e.id || `${e.source}-${e.target}`,
+        source: extractEdgeSource(e),
+        target: extractEdgeTarget(e),
+        label: e.type || e.label || '',
+      }))
+      set({ nodes, edges, loading: false })
     } catch (err) {
       set({ error: (err as Error).message, loading: false })
     }
@@ -55,8 +95,32 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const { _universeId } = get()
     if (_universeId) {
       try {
-        const { nodes, edges } = await api.getGraph(_universeId)
-        set({ nodes: nodes as GraphNode[], edges, error: null })
+        const { nodes: rawNodes, edges: rawEdges } = await api.getGraph(_universeId)
+        const total = (rawNodes as any[]).length || 1
+        const nodes: GraphNode[] = (rawNodes as any[]).map((n: any, i: number) => {
+          const angle = (2 * Math.PI * i) / total
+          const radius = Math.max(100, total * 30)
+          const props = n.properties || {}
+          const raw: string = props.raw || ''
+          const nameMatch = raw.match(/name:\s*'([^']*)'/)
+          const typeMatch = raw.match(/:\s*(\w+)\s*\{/)
+          const entityID = props.entity_id || n.id || String(i)
+          const name = nameMatch?.[1] || props.name || entityID.slice(0, 8)
+          const nodeType = (typeMatch?.[1]?.toLowerCase() || n.labels?.[0]?.toLowerCase() || 'concept') as GraphNode['type']
+          return {
+            id: entityID,
+            type: nodeType,
+            position: { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius },
+            data: { label: name, description: props.description },
+          }
+        })
+        const edges: GraphEdge[] = (rawEdges as any[]).map((e: any) => ({
+          id: e.id || `${e.source}-${e.target}`,
+          source: extractEdgeSource(e),
+          target: extractEdgeTarget(e),
+          label: e.type || e.label || '',
+        }))
+        set({ nodes, edges, error: null })
       } catch (err) {
         set({ error: (err as Error).message })
       }
