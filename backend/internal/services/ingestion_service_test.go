@@ -13,6 +13,7 @@ import (
 
 	"github.com/quill/backend/internal/models"
 	"github.com/quill/backend/internal/repositories"
+	"github.com/quill/backend/internal/testutil"
 )
 
 // ── Mocks ──
@@ -21,12 +22,14 @@ import (
 type mockIngestionHub struct {
 	mu       sync.Mutex
 	messages []models.WSMessage
+	userIDs  []uuid.UUID
 }
 
 func (m *mockIngestionHub) SendToUser(userID uuid.UUID, msg models.WSMessage) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.messages = append(m.messages, msg)
+	m.userIDs = append(m.userIDs, userID)
 	return nil
 }
 
@@ -35,6 +38,14 @@ func (m *mockIngestionHub) popMessages() []models.WSMessage {
 	defer m.mu.Unlock()
 	out := m.messages
 	m.messages = nil
+	return out
+}
+
+func (m *mockIngestionHub) popUserIDs() []uuid.UUID {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := m.userIDs
+	m.userIDs = nil
 	return out
 }
 
@@ -205,6 +216,58 @@ func TestIngestionServiceNilDeps(t *testing.T) {
 		t.Logf("Start with nil deps: jobID=%s err=%v", jobID, err)
 	} else if jobID == uuid.Nil {
 		t.Error("expected non-nil job ID even with nil deps")
+	}
+}
+
+// TestIngestionProgressDeliveredToUniverseOwner is a DB-backed regression test
+// proving ingestion_progress events are routed to the real universe owner,
+// not uuid.Nil (see sdd/fix-ingestion-progress-delivery).
+func TestIngestionProgressDeliveredToUniverseOwner(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "012")
+	ctx := context.Background()
+
+	user := svcCreateTestUser(t, ctx, pool)
+	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
+	work := svcCreateTestWork(t, ctx, pool, universe.ID)
+
+	hub := &mockIngestionHub{}
+	svc := &IngestionService{
+		pool:       pool,
+		entitySvc:  nil,
+		vectorRepo: nil,
+		graphRepo:  nil,
+		qwenSvc:    nil,
+		hub:        hub,
+	}
+
+	docContent := "# Chapter 1\n\nBody text."
+
+	_, err := svc.Start(ctx, universe.ID, work.ID, strings.NewReader(docContent), "t.md")
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+
+	msgs := hub.popMessages()
+	userIDs := hub.popUserIDs()
+
+	foundProgress := false
+	for i, msg := range msgs {
+		if msg.Type != "ingestion_progress" {
+			continue
+		}
+		foundProgress = true
+		if userIDs[i] == uuid.Nil {
+			t.Errorf("ingestion_progress message %d delivered to uuid.Nil, want universe owner %s", i, universe.UserID)
+		}
+		if userIDs[i] != universe.UserID {
+			t.Errorf("ingestion_progress message %d userID = %s, want %s", i, userIDs[i], universe.UserID)
+		}
+	}
+	if !foundProgress {
+		t.Fatal("expected at least one ingestion_progress message")
 	}
 }
 

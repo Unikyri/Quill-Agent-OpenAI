@@ -98,6 +98,19 @@ func (s *IngestionService) runWorker(jobID, universeID, workID uuid.UUID, reader
 
 	s.updateJobStatus(ctx, jobID, "running", "")
 
+	// Resolve the universe owner once per job — this never changes during a
+	// job's lifetime, so N+1 identical lookups per emit would be wasteful.
+	// Failure (deleted universe, or pool==nil in unit tests) degrades to
+	// best-effort: ownerID stays uuid.Nil and progress simply won't be routed.
+	var ownerID uuid.UUID
+	if s.pool != nil {
+		if u, err := repositories.NewUniverseRepo(s.pool).FindByID(ctx, universeID); err != nil {
+			log.Printf("[ingestion] resolve universe owner %s: %v (progress events will not be delivered)", universeID, err)
+		} else {
+			ownerID = u.UserID
+		}
+	}
+
 	// Split content by markdown headers
 	chunks := s.splitChunks(string(content))
 	if len(chunks) == 0 {
@@ -105,7 +118,7 @@ func (s *IngestionService) runWorker(jobID, universeID, workID uuid.UUID, reader
 		return
 	}
 
-	s.emitProgress(jobID, "running", 0, len(chunks))
+	s.emitProgress(jobID, ownerID, "running", 0, len(chunks))
 
 	for i, ch := range chunks {
 		select {
@@ -120,7 +133,7 @@ func (s *IngestionService) runWorker(jobID, universeID, workID uuid.UUID, reader
 			extracted, err := s.qwenSvc.ExtractEntities(ctx, ch.content, "")
 			if err != nil {
 				log.Printf("[ingestion] extract entities chunk %d: %v", i, err)
-				s.emitProgress(jobID, "running", i+1, len(chunks))
+				s.emitProgress(jobID, ownerID, "running", i+1, len(chunks))
 				continue
 			}
 			s.resolveAndBuildGraph(ctx, universeID, extracted)
@@ -147,7 +160,7 @@ func (s *IngestionService) runWorker(jobID, universeID, workID uuid.UUID, reader
 			}
 		}
 
-		s.emitProgress(jobID, "running", i+1, len(chunks))
+		s.emitProgress(jobID, ownerID, "running", i+1, len(chunks))
 	}
 
 	s.updateJobStatus(ctx, jobID, "completed", "")
@@ -234,14 +247,15 @@ func (s *IngestionService) resolveAndBuildGraph(ctx context.Context, universeID 
 	}
 
 	for _, ee := range allEntities {
-		if _, _, err := s.entitySvc.ResolveOrCreate(ctx, universeID, ee); err != nil {
+		if _, _, _, err := s.entitySvc.ResolveOrCreate(ctx, universeID, ee); err != nil {
 			log.Printf("[ingestion] resolve entity %s: %v", ee.Name, err)
 		}
 	}
 }
 
-// emitProgress sends an ingestion_progress WebSocket event.
-func (s *IngestionService) emitProgress(jobID uuid.UUID, status string, processed, total int) {
+// emitProgress sends an ingestion_progress WebSocket event to the resolved
+// universe owner.
+func (s *IngestionService) emitProgress(jobID, userID uuid.UUID, status string, processed, total int) {
 	if s.hub == nil {
 		return
 	}
@@ -255,10 +269,10 @@ func (s *IngestionService) emitProgress(jobID uuid.UUID, status string, processe
 		Type:    "ingestion_progress",
 		Payload: payload,
 	}
-	// ponytail: hub.SendToUser requires userID. Ingestion is system-initiated,
-	// so userID is empty (uuid.Nil). The hub stores conns by userID.
-	// Progress broadcasts are best-effort — we log when no connection found.
-	_ = s.hub.SendToUser(uuid.Nil, msg)
+	// ponytail: userID is the universe owner resolved once in runWorker.
+	// Delivery remains best-effort — SendToUser's error is discarded because
+	// an offline/missing WS connection is expected and non-fatal.
+	_ = s.hub.SendToUser(userID, msg)
 }
 
 // updateJobStatus persists a status change to the ingestion_jobs table.

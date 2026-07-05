@@ -157,10 +157,10 @@ func svcCreateTestUser(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *m
 
 func svcCreateTestUniverse(t *testing.T, ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID) models.Universe {
 	t.Helper()
-	u := models.Universe{ID: uuid.New(), UserID: userID, Name: "Test Universe", Format: "novel"}
+	u := models.Universe{ID: uuid.New(), UserID: userID, Name: "Test Universe", Description: "", Genre: "", Format: "novel"}
 	if _, err := pool.Exec(ctx,
-		"INSERT INTO universes (id, user_id, name, format) VALUES ($1, $2, $3, $4)",
-		u.ID, u.UserID, u.Name, u.Format); err != nil {
+		"INSERT INTO universes (id, user_id, name, description, genre, format) VALUES ($1, $2, $3, $4, $5, $6)",
+		u.ID, u.UserID, u.Name, u.Description, u.Genre, u.Format); err != nil {
 		t.Fatalf("create universe: %v", err)
 	}
 	return u
