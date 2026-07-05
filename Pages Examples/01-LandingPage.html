@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quill - The Intelligent IDE for Creators</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ink: '#292919',
+                        paper: '#F7F7EE',
+                    },
+                    fontFamily: {
+                        serif: ['"Playfair Display"', 'serif'],
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background-color: #292919; 
+            color: #F7F7EE; 
+            scroll-behavior: smooth;
+        }
+        /* Custom text shadows to guarantee perfect contrast without hard boxes */
+        .text-shadow-sm { text-shadow: 0 1px 3px rgba(11, 17, 32, 0.8); }
+        .text-shadow-md { text-shadow: 0 2px 6px rgba(11, 17, 32, 0.9); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        function Navbar() {
+            return (
+                <nav className="absolute top-0 w-full z-50 px-6 py-6 md:px-12 flex justify-between items-center text-paper">
+                    <div className="flex items-center gap-3">
+                        <img src="Recursos/LandingPage/Logo-Color.png" alt="Quill Logo" className="h-12 w-auto object-contain" />
+                        <span className="font-serif text-2xl font-bold tracking-wider">Quill</span>
+                    </div>
+                    <div className="hidden md:flex gap-8 font-sans text-sm tracking-wide font-medium">
+                        <a href="#features" className="hover:text-cyan-400 transition-colors drop-shadow-md">Features</a>
+                        <a href="#formats" className="hover:text-cyan-400 transition-colors drop-shadow-md">Formats</a>
+                    </div>
+
+                </nav>
+            );
+        }
+
+        function Section1() {
+            return (
+                <section className="relative h-screen min-h-[800px] w-full flex items-center bg-ink overflow-hidden">
+                    <div 
+                        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+                        style={{ backgroundImage: "url('Recursos/LandingPage/Section01-KightAndDragon.png')" }}
+                    />
+                    {/* Linear gradient overlay (scrim) coming from the left to guarantee WCAG AA without ruining aesthetic */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-ink/90 via-ink/40 to-transparent w-full md:w-3/4"></div>
+                    
+                    <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-12 w-full">
+                        <div className="max-w-2xl mt-16">
+                            <h1 className="font-serif text-5xl md:text-6xl lg:text-7xl font-bold leading-tight mb-6 text-paper text-shadow-md">
+                                Every epic saga begins with a <span className="text-amber-500">world.</span>
+                            </h1>
+                            <p className="font-sans text-lg md:text-xl text-paper/90 mb-10 leading-relaxed text-shadow-sm max-w-xl">
+                                Quill is the intelligent IDE for creators, mythmakers, and screenwriters. Write your manuscript naturally while our cognitive memory engine cross-references characters, kingdoms, and lore in the background—ensuring you never lose the thread of your lore.
+                            </p>
+                            <div className="flex flex-col sm:flex-row gap-4">
+                                <button className="bg-paper text-ink px-8 py-4 rounded-full font-sans text-base font-semibold hover:bg-cyan-400 transition-all shadow-xl hover:-translate-y-0.5">
+                                    Start Your Universe
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            );
+        }
+
+        function Section2() {
+            return (
+                <section id="features" className="relative min-h-screen w-full flex flex-col justify-center bg-ink overflow-hidden py-24">
+                    <div 
+                        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+                        style={{ backgroundImage: "url('Recursos/LandingPage/Section02-Heroe.png')" }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-r from-ink/95 via-ink/60 to-transparent w-full md:w-3/4"></div>
+                    
+                    <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-12 w-full flex-grow flex flex-col justify-center">
+                        <div className="max-w-2xl mb-12 mt-8">
+                            <h2 className="font-serif text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6 text-paper text-shadow-md">
+                                Complex plots.<br /><span className="text-orange-600">Flawless continuity.</span>
+                            </h2>
+                            <p className="font-sans text-lg text-paper/90 leading-relaxed text-shadow-sm">
+                                Whether you are structuralizing a multi-arc manga, a non-linear script, or an intricate thriller, Quill tracks entity states dynamically so your narrative logic remains bulletproof.
+                            </p>
+                        </div>
+                        
+                        <div className="grid md:grid-cols-2 gap-8 max-w-3xl">
+                            {/* Feature list without background cards, utilizing icons and strong text shadows for visibility */}
+                            <div className="flex gap-4 items-start">
+                                <div className="flex-shrink-0 text-cyan-400 drop-shadow-md mt-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 className="font-sans text-xl font-semibold text-paper mb-2 text-shadow-md">Smart Connections</h3>
+                                    <p className="font-sans text-paper/90 leading-relaxed text-sm text-shadow-sm">
+                                        Visualize plot dependencies and track character ripples in real-time.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex gap-4 items-start">
+                                <div className="flex-shrink-0 text-cyan-400 drop-shadow-md mt-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 className="font-sans text-xl font-semibold text-paper mb-2 text-shadow-md">Consistency Alerts</h3>
+                                    <p className="font-sans text-paper/90 leading-relaxed text-sm text-shadow-sm">
+                                        Instantly flag contradictions and logic gaps before your readers do.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            );
+        }
+
+        function Section3() {
+            return (
+                <section id="formats" className="relative min-h-screen w-full flex flex-col justify-center bg-ink overflow-hidden py-24">
+                    <div 
+                        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+                        style={{ backgroundImage: "url('Recursos/LandingPage/Section03-Astronaut.png')" }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-r from-ink/95 via-ink/60 to-transparent w-full md:w-3/4"></div>
+                    
+                    <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-12 w-full flex-grow flex flex-col justify-center">
+                        <div className="max-w-2xl mb-12 mt-8">
+                            <h2 className="font-serif text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6 text-paper text-shadow-md">
+                                Massive lore.<br /><span className="text-cyan-400">Infinite focus.</span>
+                            </h2>
+                            <p className="font-sans text-lg text-paper/90 leading-relaxed text-shadow-sm">
+                                Organize star-systems, timelines, and technology trees natively. An editor built on graphs so your mind can remain in complete focus mode.
+                            </p>
+                        </div>
+                        
+                        <div className="grid md:grid-cols-2 gap-8 max-w-3xl">
+                            <div className="flex gap-4 items-start">
+                                <div className="flex-shrink-0 text-cyan-400 drop-shadow-md mt-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.118v0H5.622c-1.085-.082-1.872-1.024-1.872-2.118v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.018-.39.035-.586.051m.586-.051C19.26 14.08 18.25 14 17.25 14H6.75c-1.0 0-2.01.08-2.964.23m.586-.051C4.19 14.167 3.99 14.15 3.8 14.133m4.5 8.006a48.212 48.212 0 01-3.413-.387m15.65-11.45L15.34 3.013a2.25 2.25 0 00-1.637-.674H10.297c-.68 0-1.32.29-1.752.793L6.442 5.06M19.5 7.125c.162.247.316.502.46.764M4.04 7.89a48.51 48.51 0 00.46-.764M15 11.25V9m-6 2.25V9" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 className="font-sans text-xl font-semibold text-paper mb-2 text-shadow-md">Persistent Memory</h3>
+                                    <p className="font-sans text-paper/90 leading-relaxed text-sm text-shadow-sm">
+                                        Track relevance decay. Important lore stays active; forgotten subplots safely archive.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex gap-4 items-start">
+                                <div className="flex-shrink-0 text-cyan-400 drop-shadow-md mt-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 className="font-sans text-xl font-semibold text-paper mb-2 text-shadow-md">Focus Mode</h3>
+                                    <p className="font-sans text-paper/90 leading-relaxed text-sm text-shadow-sm">
+                                        Distraction-free environment with subtle, ambient highlighting of entities.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            );
+        }
+
+        function App() {
+            return (
+                <main className="min-h-screen bg-ink selection:bg-cyan-400/30 selection:text-paper">
+                    <Navbar />
+                    <Section1 />
+                    <Section2 />
+                    <Section3 />
+                </main>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

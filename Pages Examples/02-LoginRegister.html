@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quill Login and Register</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&amp;family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&amp;family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&amp;display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ink: '#262522',
+            gold: '#BF9969',
+            sand: '#D9BD9C',
+            stone: '#D9D0C7',
+            paper: '#FBF6F1'
+          },
+          fontFamily: {
+            title: ['"EB Garamond"', 'serif'],
+            body: ['"Lora"', 'serif'],
+            micro: ['Caveat', 'cursive'],
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="font-body text-ink antialiased min-h-screen relative flex items-center justify-center bg-paper">
+  
+  <!-- Background Image -->
+  <div class="absolute inset-0 z-0 bg-[url('Recursos/Login-Register/BackgroundElements.png')] bg-cover bg-center bg-no-repeat opacity-100"></div>
+
+  <!-- Main Content -->
+  <div class="relative z-10 w-full max-w-md flex flex-col items-center">
+    
+    <!-- Header Text -->
+    <div class="text-center mb-6">
+      <img src="Recursos/Login-Register/LogoBN.png" alt="Quill Logo" class="h-12 mx-auto mb-4" style="width: 55px; height: 55px;">
+      <h1 class="font-title text-4xl mb-1 text-ink">Welcome to Quill</h1>
+      <p class="font-body text-ink/70 text-lg">A writing IDE with persistent memory</p>
+    </div>
+
+    <!-- The Card -->
+    <div class="w-full bg-white rounded-xl shadow-lg border border-gold/30 overflow-hidden">
+      
+      <!-- Tabs -->
+      <div class="flex border-b border-gold/20 relative">
+        <!-- Log In Tab -->
+        <button id="tab-login" class="flex-1 py-4 text-center font-title text-xl text-ink relative transition-colors" onclick="switchTab('login')">
+          Log In
+          <!-- Golden Triangle -->
+          <div id="triangle-login" class="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[1px] w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[6px] border-b-gold"></div>
+        </button>
+        
+        <!-- Divider -->
+        <div class="w-px bg-gold/20"></div>
+
+        <!-- Create Account Tab -->
+        <button id="tab-register" class="flex-1 py-4 text-center font-title text-xl text-ink/50 hover:text-ink relative transition-colors" onclick="switchTab('register')">
+          Create Account
+          <!-- Golden Triangle (Hidden by default) -->
+          <div id="triangle-register" class="hidden absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[1px] w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[6px] border-b-gold"></div>
+        </button>
+      </div>
+
+      <!-- Form Container -->
+      <div class="p-8">
+        
+        <!-- Login Form -->
+        <form id="form-login" class="space-y-5 block">
+          <div>
+            <label class="block text-sm font-medium mb-1 text-ink/80 font-body">Email</label>
+            <input type="email" class="w-full px-4 py-2.5 rounded bg-paper/50 border border-stone focus:outline-none focus:border-gold transition-colors font-body text-ink placeholder:text-stone/80" placeholder="writer@example.com">
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1 text-ink/80 font-body">Password</label>
+            <input type="password" class="w-full px-4 py-2.5 rounded bg-paper/50 border border-stone focus:outline-none focus:border-gold transition-colors font-body text-ink placeholder:text-stone/80" placeholder="••••••••">
+          </div>
+          <div class="flex justify-between items-center text-sm font-body">
+            
+            
+          </div>
+          <button type="button" class="w-full bg-ink text-paper py-3.5 rounded font-title text-xl mt-4 hover:bg-black transition-colors shadow-md">
+            Enter Quill
+          </button>
+        </form>
+
+        <!-- Register Form -->
+        <form id="form-register" class="space-y-5 hidden">
+          <div>
+            <label class="block text-sm font-medium mb-1 text-ink/80 font-body">Pen Name</label>
+            <input type="text" class="w-full px-4 py-2.5 rounded bg-paper/50 border border-stone focus:outline-none focus:border-gold transition-colors font-body text-ink placeholder:text-stone/80" placeholder="E.g. Arthur Conan Doyle">
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1 text-ink/80 font-body">Email</label>
+            <input type="email" class="w-full px-4 py-2.5 rounded bg-paper/50 border border-stone focus:outline-none focus:border-gold transition-colors font-body text-ink placeholder:text-stone/80" placeholder="writer@example.com">
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1 text-ink/80 font-body">Password</label>
+            <input type="password" class="w-full px-4 py-2.5 rounded bg-paper/50 border border-stone focus:outline-none focus:border-gold transition-colors font-body text-ink placeholder:text-stone/80" placeholder="••••••••">
+          </div>
+          <button type="button" class="w-full bg-ink text-paper py-3.5 rounded font-title text-xl mt-4 hover:bg-black transition-colors shadow-md">
+            Begin the Saga
+          </button>
+        </form>
+
+      </div>
+    </div>
+
+    <!-- Security Footer -->
+    <div class="mt-8 flex items-center justify-center space-x-2 text-ink/70 font-micro text-xl">
+      <i data-lucide="lock" class="w-5 h-5 mb-1"></i>
+      <span>Your stories are private and secure</span>
+    </div>
+
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    function switchTab(tab) {
+      const loginForm = document.getElementById('form-login');
+      const registerForm = document.getElementById('form-register');
+      const tabLogin = document.getElementById('tab-login');
+      const tabRegister = document.getElementById('tab-register');
+      const triLogin = document.getElementById('triangle-login');
+      const triRegister = document.getElementById('triangle-register');
+
+      if (tab === 'login') {
+        loginForm.classList.remove('hidden');
+        loginForm.classList.add('block');
+        registerForm.classList.remove('block');
+        registerForm.classList.add('hidden');
+
+        tabLogin.classList.remove('text-ink/50');
+        tabLogin.classList.add('text-ink');
+        tabRegister.classList.remove('text-ink');
+        tabRegister.classList.add('text-ink/50');
+
+        triLogin.classList.remove('hidden');
+        triRegister.classList.add('hidden');
+      } else {
+        registerForm.classList.remove('hidden');
+        registerForm.classList.add('block');
+        loginForm.classList.remove('block');
+        loginForm.classList.add('hidden');
+
+        tabRegister.classList.remove('text-ink/50');
+        tabRegister.classList.add('text-ink');
+        tabLogin.classList.remove('text-ink');
+        tabLogin.classList.add('text-ink/50');
+
+        triRegister.classList.remove('hidden');
+        triLogin.classList.add('hidden');
+      }
+    }
+  </script>
+
+
+</body></html>

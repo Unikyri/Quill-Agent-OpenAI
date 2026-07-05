@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quill Dashboard</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=Lora:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ink: '#262522',      // Deep manuscript ink
+            gold: '#BF9969',     // Subtle metallic accent
+            stone: '#D9D0C7',    // Light grey separator tone
+            paper: '#FBF6F1',    // Main ancient manuscript background
+            cardBg: '#EBE4D6',   // Warm background for the cards
+            workspaceBg: '#F1E5D1' // New sepia/warm tone for the main dashboard background
+          },
+          fontFamily: {
+            title: ['"EB Garamond"', 'serif'],
+            body: ['"Lora"', 'serif'],
+            marginal: ['"Caveat"', 'cursive']
+          }
+        }
+      }
+    }
+  </script>
+  
+  <style>
+    /* Ink hover animation mimicking writing on paper */
+    .hover-ink {
+      position: relative;
+    }
+    .hover-ink::after {
+      content: '';
+      position: absolute;
+      width: 0;
+      height: 1px;
+      bottom: -2px;
+      left: 0;
+      background-color: #262522; /* ink */
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .hover-ink:hover::after {
+      width: 100%;
+    }
+
+    /* Scrollbar design */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background-color: #D9D0C7; /* stone */
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background-color: #BF9969; /* gold */
+    }
+  </style>
+</head>
+<body class="bg-paper font-body text-ink h-screen overflow-hidden flex selection:bg-gold/30 selection:text-ink">
+
+  <!-- ASIDE SIDEBAR (Left Panel - Width: w-72, bg-ink) -->
+  <aside class="w-72 bg-ink text-paper flex flex-col justify-between border-r border-stone flex-shrink-0 relative z-20 shadow-xl">
+    <div>
+      <!-- Logo Area -->
+      <div class="h-24 flex items-center px-8 border-b border-white/5">
+        <div class="flex items-center gap-3 cursor-default">
+          <img src="Recursos/LandingPage/Logo-Color.png" alt="Quill Logo" class="h-12 w-auto object-contain" />
+          <span class="font-title text-3xl tracking-wider text-white">Quill</span>
+        </div>
+      </div>
+      
+      <!-- Main Navigation -->
+      <!-- REACT COMMENT: In React, split this sidebar into global navigation and contextual navigation.
+           If there is no active universe selected (activeUniverseId === null), only render "Dashboard" and "Universes".
+           Once a universe is opened/selected, expand this list to show the works, timeline, entities, and connections of that universe.
+      -->
+      <nav class="mt-8 px-6 flex flex-col gap-1.5">
+        <a href="#" class="flex items-center gap-4 px-4 py-2.5 bg-white/5 rounded-sm text-gold border-l-[3px] border-gold transition-colors duration-300">
+          <i data-lucide="layout-dashboard" class="w-4 h-4 text-gold"></i>
+          <span class="text-base font-body tracking-wide">Dashboard</span>
+        </a>
+        <a href="#" class="group flex items-center gap-4 px-4 py-2.5 text-stone hover:bg-white/5 hover:text-paper rounded-sm border-l-[3px] border-transparent hover:border-stone/30 transition-all duration-300">
+          <i data-lucide="globe" class="w-4 h-4 text-stone group-hover:text-gold transition-colors"></i>
+          <span class="text-base font-body tracking-wide">Universes</span>
+        </a>
+        
+        <!-- REACT COMMENT: The following links are universe-contextual. Render them ONLY when a universe is selected.
+             Use routes like `/universe/:universeId/works`, `/universe/:universeId/timeline`, etc. -->
+        <div class="border-t border-white/5 my-2 pt-2 flex flex-col gap-1.5">
+          <span class="px-4 text-[10px] uppercase tracking-widest text-stone/40 font-body">Universe Lore</span>
+          <a href="#" class="group flex items-center gap-4 px-4 py-2.5 text-stone hover:bg-white/5 hover:text-paper rounded-sm border-l-[3px] border-transparent hover:border-stone/30 transition-all duration-300">
+            <i data-lucide="book" class="w-4 h-4 text-stone group-hover:text-gold transition-colors"></i>
+            <span class="text-base font-body tracking-wide">Works</span>
+          </a>
+          <a href="#" class="group flex items-center gap-4 px-4 py-2.5 text-stone hover:bg-white/5 hover:text-paper rounded-sm border-l-[3px] border-transparent hover:border-stone/30 transition-all duration-300">
+            <i data-lucide="clock" class="w-4 h-4 text-stone group-hover:text-gold transition-colors"></i>
+            <span class="text-base font-body tracking-wide">Timeline</span>
+          </a>
+          <a href="#" class="group flex items-center gap-4 px-4 py-2.5 text-stone hover:bg-white/5 hover:text-paper rounded-sm border-l-[3px] border-transparent hover:border-stone/30 transition-all duration-300">
+            <i data-lucide="users" class="w-4 h-4 text-stone group-hover:text-gold transition-colors"></i>
+            <span class="text-base font-body tracking-wide">Entities</span>
+          </a>
+          <a href="#" class="group flex items-center gap-4 px-4 py-2.5 text-stone hover:bg-white/5 hover:text-paper rounded-sm border-l-[3px] border-transparent hover:border-stone/30 transition-all duration-300">
+            <i data-lucide="network" class="w-4 h-4 text-stone group-hover:text-gold transition-colors"></i>
+            <span class="text-base font-body tracking-wide">Connections (Graph)</span>
+          </a>
+          <a href="#" class="group flex items-center gap-4 px-4 py-2.5 text-stone hover:bg-white/5 hover:text-paper rounded-sm border-l-[3px] border-transparent hover:border-stone/30 transition-all duration-300">
+            <i data-lucide="alert-triangle" class="w-4 h-4 text-stone group-hover:text-gold transition-colors"></i>
+            <span class="text-base font-body tracking-wide">Contradictions</span>
+          </a>
+          <a href="#" class="group flex items-center gap-4 px-4 py-2.5 text-stone hover:bg-white/5 hover:text-paper rounded-sm border-l-[3px] border-transparent hover:border-stone/30 transition-all duration-300">
+            <i data-lucide="help-circle" class="w-4 h-4 text-stone group-hover:text-gold transition-colors"></i>
+            <span class="text-base font-body tracking-wide">Plot Holes</span>
+          </a>
+        </div>
+      </nav>
+    </div>
+
+    <!-- Quote aligned at the bottom -->
+    <div class="p-8 border-t border-white/5 flex flex-col gap-2">
+      <p class="font-body italic text-paper text-xs leading-relaxed opacity-70">
+        "We write to taste life twice, in the moment and in retrospect."
+      </p>
+      <p class="font-marginal text-gold text-lg self-end opacity-90">— Anaïs Nin</p>
+    </div>
+  </aside>
+
+  <!-- MAIN WORKSPACE (Right Area - bg-workspaceBg) -->
+  <main class="flex-1 bg-workspaceBg flex flex-col relative h-full overflow-hidden">
+    
+    <!-- Top Bar has been removed to avoid redundancy since "New Universe" is already a prominent card in the grid.
+         This gives more vertical canvas area to the workspace. -->
+
+    <!-- Main View Area -->
+    <!-- REACT COMMENT: Padding reduced from pt-16 pb-10 to pt-8 pb-4 to maximize vertical space -->
+    <div class="flex-1 overflow-y-auto px-12 pt-8 pb-4 z-10 relative">
+      
+      <!-- Hero Content Title Section -->
+      <!-- REACT COMMENT: Margin bottom reduced from mb-12 to mb-6 to avoid scroll issues -->
+      <div class="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-6 border-b border-stone/40 pb-4">
+        <div class="relative pb-4">
+          <h1 class="font-title text-5xl text-ink">Your Universes</h1>
+          <!-- SVG line-art quill graphic underneath -->
+          <svg class="absolute -bottom-1.5 left-0 w-32 h-6 text-gold/80" viewBox="0 0 100 20" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round">
+            <path d="M5 15 C 30 15, 60 12, 85 8 C 88 7.5, 91 6.5, 93 5 C 85 8, 70 12, 50 13" />
+            <path d="M93 5 L95 2 L91 4 Z" fill="currentColor" />
+          </svg>
+        </div>
+        
+        <!-- Elegant, minimalist borderless search input bar -->
+        <div class="relative group w-80">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink/40 group-focus-within:text-gold transition-colors"></i>
+          <input type="text" placeholder="Search universes..." class="bg-transparent border-b border-stone/80 py-2 pl-10 pr-4 font-body text-base text-ink focus:outline-none focus:border-ink placeholder:text-ink/40 w-full transition-colors">
+        </div>
+      </div>
+
+      <!-- SAGAS GRID (2-COLUMN layout with large watermark backgrounds) -->
+      <!-- REACT COMMENT: Card watermark images are now set to absolute positioning on the left, 
+           taking up the full height (h-full w-auto) to appear large and artistic. 
+           Their opacity is reduced to 20% (opacity-[0.20]) with mix-blend-multiply, ensuring they function 
+           as subtle watermarks. The text content runs on top (z-10 pl-6), guaranteeing perfect readability.
+      -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10 pl-6 pr-6">
+        
+        <!-- Card 1: New Universe Create State -->
+        <div onclick="openModal()" class="group relative bg-cardBg border border-stone rounded-sm p-5 hover:border-gold hover:shadow-md transition-all duration-300 cursor-pointer min-h-[215px] flex flex-col justify-between overflow-hidden">
+          <!-- Imperfect corner fold -->
+          <div class="absolute top-0 right-0 w-0 h-0 border-t-[16px] border-r-[16px] border-t-stone border-r-transparent group-hover:border-t-gold transition-colors duration-500 shadow-sm pointer-events-none z-20"></div>
+          
+          <!-- Background Watermark Image (Absolute left side, large & subtle) -->
+          <img src="Recursos/Dashboard/InkwellBN.png" class="absolute left-0 bottom-0 top-0 h-full w-auto object-contain mix-blend-multiply opacity-[0.20] pointer-events-none transition-all duration-500 group-hover:scale-105 group-hover:opacity-[0.28] z-0 select-none" alt="Inkwell">
+          
+          <!-- Content Area (Overlaid on top, z-10) -->
+          <div class="flex-grow flex flex-col justify-between relative z-10 pl-6">
+            <div>
+              <div class="flex items-center gap-2 mb-1.5 mt-1">
+                <span class="font-title text-3xl text-gold group-hover:scale-110 transition-transform duration-300">+</span>
+                <h3 class="font-title text-2xl text-ink leading-tight inline-block hover-ink">New Universe</h3>
+              </div>
+              <p class="font-body text-sm text-ink/70 leading-relaxed mb-3 max-w-[85%]">
+                Start a new story universe with AI memory from page 1.
+              </p>
+            </div>
+            
+            <div class="mt-auto">
+              <button class="bg-ink hover:bg-gold text-paper hover:text-ink px-4 py-2 text-xs font-body tracking-wider rounded-sm transition-all duration-300 border border-ink shadow-sm">
+                Create Universe
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: Los Reinos de Aether -->
+        <div class="group relative bg-cardBg border border-stone rounded-sm p-5 hover:border-gold hover:shadow-md transition-all duration-300 min-h-[215px] flex flex-col justify-between overflow-hidden">
+          <!-- Imperfect corner fold -->
+          <div class="absolute top-0 right-0 w-0 h-0 border-t-[16px] border-r-[16px] border-t-stone border-r-transparent group-hover:border-t-gold transition-colors duration-500 shadow-sm pointer-events-none z-20"></div>
+          
+          <!-- Background Watermark Image (Absolute left side, large & subtle) -->
+          <img src="Recursos/Dashboard/CastleBN.png" class="absolute left-0 bottom-0 top-0 h-full w-auto object-contain mix-blend-multiply opacity-[0.20] pointer-events-none transition-all duration-500 group-hover:scale-105 group-hover:opacity-[0.28] z-0 select-none" alt="Castle">
+          
+          <!-- Content Area (Overlaid on top, z-10) -->
+          <div class="flex-grow flex flex-col justify-between relative z-10 pl-6">
+            <div>
+              <span class="font-marginal text-xl text-gold mb-1 block tracking-wide">Fantasy · Novel</span>
+              <h3 class="font-title text-2xl text-ink mb-2 group-hover:text-gold transition-colors leading-tight inline-block hover-ink">Los Reinos de Aether</h3>
+              
+              <!-- Stats 2x2 grid -->
+              <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs font-body text-ink/75 mb-3">
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="book-open" class="w-3.5 h-3.5 text-gold"></i>
+                  <span>3 works</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="file-text" class="w-3.5 h-3.5 text-gold"></i>
+                  <span>42 chapters</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="users" class="w-3.5 h-3.5 text-gold"></i>
+                  <span>85 entities</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="network" class="w-3.5 h-3.5 text-gold"></i>
+                  <span>142 connections</span>
+                </div>
+              </div>
+              
+              <!-- Progress tracker -->
+              <div class="mb-3">
+                <div class="flex justify-between items-center mb-1 text-[11px] font-marginal text-ink/60">
+                  <span>Memory coverage</span>
+                  <span>87%</span>
+                </div>
+                <div class="w-full bg-stone/40 h-1 rounded-full overflow-hidden">
+                  <div class="bg-gold h-full rounded-full" style="width: 87%"></div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="flex items-center justify-between border-t border-stone/40 pt-3 mt-auto">
+              <span class="text-xs font-marginal text-ink/55">Last edited: 2h ago</span>
+              <div class="flex items-center gap-2">
+                <button class="bg-ink hover:bg-gold text-paper hover:text-ink px-3 py-1 text-xs font-body tracking-wider rounded-sm transition-all duration-300 border border-ink">Open →</button>
+                <button class="border border-stone hover:bg-stone/20 text-ink px-3 py-1 text-xs font-body tracking-wider rounded-sm transition-all duration-300">Edit</button>
+                <button class="border border-red-800/30 hover:bg-red-50 text-red-700 px-3 py-1 text-xs font-body tracking-wider rounded-sm transition-all duration-300">Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3: Echoes of Eternity -->
+        <div class="group relative bg-cardBg border border-stone rounded-sm p-5 hover:border-gold hover:shadow-md transition-all duration-300 min-h-[215px] flex flex-col justify-between overflow-hidden">
+          <!-- Imperfect corner fold -->
+          <div class="absolute top-0 right-0 w-0 h-0 border-t-[16px] border-r-[16px] border-t-stone border-r-transparent group-hover:border-t-gold transition-colors duration-500 shadow-sm pointer-events-none z-20"></div>
+          
+          <!-- Background Watermark Image (Absolute left side, large & subtle) -->
+          <img src="Recursos/Dashboard/SpaceshipBN.png" class="absolute left-0 bottom-0 top-0 h-full w-auto object-contain mix-blend-multiply opacity-[0.20] pointer-events-none transition-all duration-500 group-hover:scale-105 group-hover:opacity-[0.28] z-0 select-none" alt="Spaceship">
+          
+          <!-- Content Area (Overlaid on top, z-10) -->
+          <div class="flex-grow flex flex-col justify-between relative z-10 pl-6">
+            <div>
+              <span class="font-marginal text-xl text-gold mb-1 block tracking-wide">Sci-Fi · Novel</span>
+              <h3 class="font-title text-2xl text-ink mb-2 group-hover:text-gold transition-colors leading-tight inline-block hover-ink">Echoes of Eternity <span class="text-xs font-marginal text-ink/50">(demo)</span></h3>
+              
+              <!-- Stats 2x2 grid -->
+              <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs font-body text-ink/75 mb-3">
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="book-open" class="w-3.5 h-3.5 text-gold"></i>
+                  <span>2 works</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="file-text" class="w-3.5 h-3.5 text-gold"></i>
+                  <span>18 chapters</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="users" class="w-3.5 h-3.5 text-gold"></i>
+                  <span>34 entities</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="network" class="w-3.5 h-3.5 text-gold"></i>
+                  <span>67 connections</span>
+                </div>
+              </div>
+              
+              <!-- Progress tracker -->
+              <div class="mb-3">
+                <div class="flex justify-between items-center mb-1 text-[11px] font-marginal text-ink/60">
+                  <span>Memory coverage</span>
+                  <span>65%</span>
+                </div>
+                <div class="w-full bg-stone/40 h-1 rounded-full overflow-hidden">
+                  <div class="bg-gold h-full rounded-full" style="width: 65%"></div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="flex items-center justify-between border-t border-stone/40 pt-3 mt-auto">
+              <span class="text-xs font-marginal text-ink/55">Last edited: 1d ago</span>
+              <div class="flex items-center gap-2">
+                <button class="bg-ink hover:bg-gold text-paper hover:text-ink px-3 py-1 text-xs font-body tracking-wider rounded-sm transition-all duration-300 border border-ink">Open →</button>
+                <button class="border border-stone hover:bg-stone/20 text-ink px-3 py-1 text-xs font-body tracking-wider rounded-sm transition-all duration-300">Edit</button>
+                <button class="border border-red-800/30 hover:bg-red-50 text-red-700 px-3 py-1 text-xs font-body tracking-wider rounded-sm transition-all duration-300">Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Workspace Background Flair (Mountains fading into background) -->
+    <img src="Recursos/Dashboard/MountainsBN.png" class="absolute bottom-0 right-0 w-[450px] opacity-30 pointer-events-none mix-blend-multiply z-0 select-none" alt="">
+  </main>
+
+  <!-- MODAL: Create New Universe -->
+  <div id="modal-overlay" class="fixed inset-0 bg-ink/75 backdrop-blur-sm z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-500" onclick="if(event.target === this) closeModal()">
+    <div id="modal-content" class="bg-paper border border-stone rounded-sm shadow-2xl w-full max-w-2xl mx-6 transform scale-95 transition-transform duration-500 relative p-12">
+      
+      <!-- Close button -->
+      <button onclick="closeModal()" class="absolute top-6 right-6 text-ink/40 hover:text-ink transition-colors focus:outline-none">
+        <i data-lucide="x" class="w-6 h-6"></i>
+      </button>
+      
+      <div class="relative z-10">
+        <div class="text-center mb-10">
+          <i data-lucide="sparkles" class="w-8 h-8 text-gold mx-auto mb-4"></i>
+          <h2 class="font-title text-4xl text-ink mb-2">Begin a New Saga</h2>
+          <p class="font-marginal text-2xl text-ink/70">The ink is ready. What world will you create?</p>
+        </div>
+        
+        <form onsubmit="event.preventDefault(); closeModal();" class="space-y-8">
+          <!-- REACT COMMENT: Bind this input to state value `name` (maps to CreateUniverseRequest.Name) -->
+          <div>
+            <label class="block font-marginal text-2xl text-ink/80 mb-2">Universe Name</label>
+            <input type="text" required placeholder="e.g. The Chronos Initiative" class="w-full bg-transparent border-b-2 border-stone focus:border-gold py-2 font-title text-3xl text-ink focus:outline-none placeholder:text-ink/20 transition-colors">
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- REACT COMMENT: Bind this select to state value `genre` (maps to CreateUniverseRequest.Genre) -->
+            <div>
+              <label class="block font-marginal text-2xl text-ink/80 mb-2">Genre</label>
+              <div class="relative">
+                <select class="w-full bg-transparent border-b border-stone focus:border-ink py-2 font-body text-lg text-ink focus:outline-none appearance-none cursor-pointer transition-colors">
+                  <option>Epic Fantasy</option>
+                  <option>Sci-Fi / Space Opera</option>
+                  <option>Urban Cyberpunk</option>
+                  <option>Mystery / Thriller</option>
+                  <option>Historical Fiction</option>
+                </select>
+                <i data-lucide="chevron-down" class="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-ink/50 pointer-events-none"></i>
+              </div>
+            </div>
+            
+            <!-- REACT COMMENT: Bind this select to state value `format` (maps to CreateUniverseRequest.Format) -->
+            <div>
+              <label class="block font-marginal text-2xl text-ink/80 mb-2">Format</label>
+              <div class="relative">
+                <select class="w-full bg-transparent border-b border-stone focus:border-ink py-2 font-body text-lg text-ink focus:outline-none appearance-none cursor-pointer transition-colors">
+                  <option>Novel</option>
+                  <option>Novel Series</option>
+                  <option>Screenplay</option>
+                  <option>Short Story</option>
+                </select>
+                <i data-lucide="chevron-down" class="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-ink/50 pointer-events-none"></i>
+              </div>
+            </div>
+          </div>
+          
+          <!-- REACT COMMENT: Bind this textarea to state value `description` (maps to CreateUniverseRequest.Description) -->
+          <div>
+            <label class="block font-marginal text-2xl text-ink/80 mb-2">Premise / Logline</label>
+            <textarea rows="3" placeholder="A brief summary of your world's core conflict..." class="w-full bg-transparent border-b border-stone focus:border-ink py-2 font-body text-lg text-ink focus:outline-none placeholder:text-ink/30 resize-none transition-colors"></textarea>
+          </div>
+          
+          <div class="pt-6 flex items-center justify-end gap-6">
+            <button type="button" onclick="closeModal()" class="font-marginal text-2xl text-ink/60 hover:text-ink transition-colors focus:outline-none">Cancel</button>
+            <button type="submit" class="bg-ink text-paper px-8 py-3.5 rounded-sm hover:bg-gold hover:text-ink transition-all duration-300 border border-ink font-title text-xl tracking-wide flex items-center gap-3 group focus:outline-none">
+              <i data-lucide="pen-tool" class="w-5 h-5 text-gold group-hover:-rotate-12 transition-transform duration-300"></i>
+              <span class="pt-1">Manifest World</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    // Modal Logic
+    const modalOverlay = document.getElementById('modal-overlay');
+    const modalContent = document.getElementById('modal-content');
+
+    function openModal() {
+      modalOverlay.classList.remove('opacity-0', 'pointer-events-none');
+      modalContent.classList.remove('scale-95');
+      modalContent.classList.add('scale-100');
+    }
+
+    function closeModal() {
+      modalOverlay.classList.add('opacity-0', 'pointer-events-none');
+      modalContent.classList.remove('scale-100');
+      modalContent.classList.add('scale-95');
+    }
+    
+    // Add escape key listener to close modal
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modalOverlay.classList.contains('opacity-0')) {
+        closeModal();
+      }
+    });
+  </script>
+</body>
+</html>
