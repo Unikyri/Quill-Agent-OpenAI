@@ -3,7 +3,8 @@
   flex-direction: row;
   gap: 0;
   overflow-x: auto;
-  padding: 24px 0;
+  overflow-y: visible;
+  padding: 64px 24px 24px;
   position: relative;
   min-height: 200px;
   align-items: flex-start;
@@ -12,9 +13,9 @@
 .timeline::before {
   content: '';
   position: absolute;
-  top: 48px;
-  left: 0;
-  right: 0;
+  top: 40px;
+  left: 24px;
+  right: 24px;
   height: 2px;
   background: var(--ink-20);
   z-index: 0;
@@ -38,9 +39,20 @@
   border-color: var(--ink);
 }
 
+.eventDate {
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--ink-60);
+  font-family: var(--micro, inherit);
+}
+
 .eventDot {
   position: absolute;
-  top: -36px;
+  top: -30px;
   left: 50%;
   transform: translateX(-50%);
   width: 12px;

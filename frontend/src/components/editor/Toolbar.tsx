@@ -60,6 +60,50 @@ export default function Toolbar({ editor }: ToolbarProps) {
       >
         🔗
       </button>
+      <div className={styles.separator} />
+      <button
+        className={`${styles.button} ${editor.isActive('heading', { level: 1 }) ? styles.buttonActive : ''}`}
+        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+        title="Heading 1"
+      >
+        H1
+      </button>
+      <button
+        className={`${styles.button} ${editor.isActive('heading', { level: 2 }) ? styles.buttonActive : ''}`}
+        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+        title="Heading 2"
+      >
+        H2
+      </button>
+      <button
+        className={`${styles.button} ${editor.isActive('heading', { level: 3 }) ? styles.buttonActive : ''}`}
+        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+        title="Heading 3"
+      >
+        H3
+      </button>
+      <div className={styles.separator} />
+      <button
+        className={`${styles.button} ${editor.isActive('bulletList') ? styles.buttonActive : ''}`}
+        onClick={() => editor.chain().focus().toggleBulletList().run()}
+        title="Bullet list"
+      >
+        •—
+      </button>
+      <button
+        className={`${styles.button} ${editor.isActive('blockquote') ? styles.buttonActive : ''}`}
+        onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        title="Blockquote"
+      >
+        ❝
+      </button>
+      <button
+        className={styles.button}
+        onClick={() => editor.chain().focus().setHorizontalRule().run()}
+        title="Horizontal rule"
+      >
+        ―
+      </button>
     </div>
   )
 }
