@@ -66,37 +66,33 @@ export default function UniverseLayout() {
   return (
     <UniverseContext.Provider value={ctx}>
       <div className={styles.wrap}>
-        <nav className={styles.navbar}>
+        <aside className={styles.sidebar}>
           <button className={styles.backBtn} onClick={() => navigate('/dashboard')}>
             ← Back to Dashboard
           </button>
-          <span className={styles.breadcrumb}>
-            <span className={styles.breadcrumbSep}>/</span>
-            <span className={styles.breadcrumbCurrent}>{ctx.universe?.name || 'Universe'}</span>
-          </span>
-        </nav>
 
-        <div className={styles.header}>
-          <h1 className={styles.heading}>{ctx.universe?.name || 'Universe'}</h1>
-          <p className={styles.meta}>
-            {ctx.universe?.genre} · {ctx.universe?.format}
-          </p>
-        </div>
+          <div className={styles.header}>
+            <h1 className={styles.heading}>{ctx.universe?.name || 'Universe'}</h1>
+            <p className={styles.meta}>
+              {ctx.universe?.genre} · {ctx.universe?.format}
+            </p>
+          </div>
 
-        <nav className={styles.tabBar}>
-          {tabs.map((tab) => (
-            <NavLink
-              key={tab.to}
-              to={tab.to}
-              end
-              className={({ isActive }) =>
-                `${styles.tab} ${isActive ? styles.tabActive : ''}`
-              }
-            >
-              {tab.label}
-            </NavLink>
-          ))}
-        </nav>
+          <nav className={styles.tabBar}>
+            {tabs.map((tab) => (
+              <NavLink
+                key={tab.to}
+                to={tab.to}
+                end
+                className={({ isActive }) =>
+                  `${styles.tab} ${isActive ? styles.tabActive : ''}`
+                }
+              >
+                {tab.label}
+              </NavLink>
+            ))}
+          </nav>
+        </aside>
 
         <div className={styles.content}>
           <Outlet />

@@ -1,110 +1,102 @@
-/* UniverseLayout — breadcrumb navbar + manuscript tab bar */
+/* UniverseLayout — left sidebar nav + content column */
 
 .wrap {
   min-height: 100vh;
+  display: flex;
   background: var(--paper-warm);
 }
 
-/* Top navbar with breadcrumb */
-.navbar {
+/* Sidebar */
+.sidebar {
+  width: 240px;
+  flex: none;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 24px;
-  background: var(--paper);
-  border-bottom: 1px solid var(--ink-10);
+  flex-direction: column;
+  gap: 24px;
+  padding: 20px 16px;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  border-right: 1px solid var(--ink-20);
 }
 
 .backBtn {
+  align-self: flex-start;
   padding: 6px 12px;
   background: transparent;
-  border: 1px solid var(--ink-20);
+  border: 1px solid var(--paper-40);
   border-radius: 4px;
-  color: var(--ink-60);
+  color: var(--sidebar-text);
   font-family: var(--sans);
   font-size: 13px;
   cursor: pointer;
-  transition: border-color 0.2s, color 0.2s;
+  transition: border-color 0.2s, opacity 0.2s;
 }
 
 .backBtn:hover {
-  border-color: var(--ink);
-  color: var(--ink);
-}
-
-.breadcrumb {
-  font-family: var(--micro);
-  font-size: 13px;
-  color: var(--ink-40);
-  font-style: italic;
-}
-
-.breadcrumbSep {
-  margin: 0 4px;
-  color: var(--ink-20);
-}
-
-.breadcrumbCurrent {
-  color: var(--ink-60);
+  border-color: var(--paper);
+  opacity: 0.85;
 }
 
 /* Universe header */
 .header {
-  padding: 24px 32px 0;
+  padding: 0;
 }
 
 .heading {
   font-family: var(--serif);
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 700;
-  color: var(--ink);
+  color: var(--sidebar-text);
   margin: 0 0 4px;
 }
 
 .meta {
   font-family: var(--micro);
   font-size: 14px;
-  color: var(--ink-60);
+  color: var(--paper-60);
   font-style: italic;
   margin: 0;
 }
 
-/* Tab bar */
+/* Tab bar — vertical nav */
 .tabBar {
   display: flex;
-  gap: 0;
-  margin: 20px 32px 0;
-  border-bottom: 1px solid var(--ink-20);
+  flex-direction: column;
+  gap: 4px;
 }
 
 .tab {
-  padding: 10px 20px;
+  padding: 10px 12px;
   font-family: var(--sans);
   font-size: 13px;
   font-weight: 600;
-  color: var(--ink-40);
+  color: var(--paper-60);
   background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
+  border-left: 2px solid transparent;
+  border-radius: 0 4px 4px 0;
   cursor: pointer;
   text-decoration: none;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  transition: color 0.2s, border-color 0.2s;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
 }
 
 .tab:hover {
-  color: var(--ink-60);
+  color: var(--sidebar-text);
+  background: var(--ink-20);
 }
 
 .tabActive {
-  color: var(--ink);
-  border-bottom-color: var(--ink);
+  color: var(--sidebar-text);
+  border-left-color: var(--gold);
+  background: var(--ink-20);
 }
 
 /* Content area */
 .content {
+  flex: 1;
+  min-width: 0;
   padding: 24px 32px;
 }
 
