@@ -10,12 +10,25 @@ vi.mock('../UniverseLayout.module.css', () => ({ default: new Proxy({}, { get: (
 // Mock api
 const mockGetUniverse = vi.fn()
 const mockListWorks = vi.fn()
+const mockListEntities = vi.fn()
 
 vi.mock('../../lib/api', () => ({
   api: {
     getUniverse: (...args: unknown[]) => mockGetUniverse(...args),
     listWorks: (...args: unknown[]) => mockListWorks(...args),
+    listEntities: (...args: unknown[]) => mockListEntities(...args),
   },
+}))
+
+const mockLogout = vi.fn()
+const authStoreState = {
+  user: { id: 'u1', email: 'writer@example.com', display_name: 'Author Name' },
+  logout: mockLogout,
+}
+vi.mock('../../stores/authStore', () => ({
+  useAuthStore: vi.fn((selector?: (state: typeof authStoreState) => unknown) =>
+    selector ? selector(authStoreState) : authStoreState
+  ),
 }))
 
 const mockNavigate = vi.fn()
@@ -56,6 +69,10 @@ beforeEach(() => {
   mockListWorks.mockResolvedValue({
     works: [{ id: 'w1', title: 'The Hobbit', type: 'novel', order_index: 1 }],
   })
+  mockListEntities.mockResolvedValue({
+    entities: [],
+    pagination: { page: 1, limit: 1, total: 12, total_pages: 12 },
+  })
 })
 
 describe('UniverseLayout', () => {
@@ -66,21 +83,24 @@ describe('UniverseLayout', () => {
     expect(screen.getByText('Loading universe…')).toBeInTheDocument()
   })
 
-  it('renders universe name and 5 tabs after load', async () => {
+  it('renders universe switcher card and all 9 nested shell nav items after load', async () => {
     renderLayout()
 
-    // Universe name appears in both breadcrumb and heading — use getAllByText
+    // Universe name appears in the switcher card
     await waitFor(() => {
       expect(screen.getAllByText('Middle Earth').length).toBeGreaterThanOrEqual(1)
     })
 
-    expect(screen.getByRole('heading', { name: 'Middle Earth' })).toBeInTheDocument()
-    expect(screen.getByText('Fantasy · Novel Series')).toBeInTheDocument()
-    expect(screen.getByText('Works')).toBeInTheDocument()
+    expect(screen.getByText('Fantasy · 12 entities')).toBeInTheDocument()
+    expect(screen.getByText('Dashboard')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Works/ })).toBeInTheDocument()
+    expect(screen.getByText('Editor')).toBeInTheDocument()
+    expect(screen.getByText('Entities')).toBeInTheDocument()
     expect(screen.getByText('Graph')).toBeInTheDocument()
     expect(screen.getByText('Timeline')).toBeInTheDocument()
     expect(screen.getByText('Contradictions')).toBeInTheDocument()
-    expect(screen.getByText('Plot-holes')).toBeInTheDocument()
+    expect(screen.getByText('Plot Holes')).toBeInTheDocument()
+    expect(screen.getByText('Ingestion')).toBeInTheDocument()
   })
 
   it('renders default Works tab content', async () => {
@@ -120,11 +140,50 @@ describe('UniverseLayout', () => {
     })
   })
 
-  it('has back to dashboard button', async () => {
+  it('clicking the universe switcher card navigates back to the dashboard', async () => {
+    const user = userEvent.setup()
     renderLayout()
 
     await waitFor(() => {
-      expect(screen.getByText('← Back to Dashboard')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Middle Earth/ })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /Middle Earth/ }))
+    expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
+  })
+
+  it('shows the current user in the sidebar footer and signs out on click', async () => {
+    const user = userEvent.setup()
+    renderLayout()
+
+    await waitFor(() => {
+      expect(screen.getByText('Author Name')).toBeInTheDocument()
+    })
+    expect(screen.getByText('writer@example.com')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Sign out/i }))
+    expect(mockLogout).toHaveBeenCalled()
+  })
+
+  it('collapses the sidebar and reveals a menu toggle in the header', async () => {
+    const user = userEvent.setup()
+    renderLayout()
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /Works/ })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /Hide panel/i }))
+
+    expect(screen.queryByRole('link', { name: /Works/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Show panel/i })).toBeInTheDocument()
+  })
+
+  it('shows the active tab title and a recall search stub in the header', async () => {
+    renderLayout('/universe/uni-1/works')
+
+    await waitFor(() => {
+      expect(screen.getByText('Recall from the universe…')).toBeInTheDocument()
     })
   })
 })

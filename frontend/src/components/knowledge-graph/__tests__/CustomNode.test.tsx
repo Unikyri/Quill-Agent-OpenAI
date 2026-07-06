@@ -25,55 +25,55 @@ function renderNode(type: string, label: string) {
 }
 
 describe('CustomNode', () => {
-  it('renders character node with the character token color and person icon', () => {
+  it('renders character node with the character token color and monochrome glyph', () => {
     const { container } = renderNode('character', 'Alice')
     const node = container.firstElementChild as HTMLElement
     expect(node.style.borderColor).toBe('var(--node-character)')
-    expect(container.textContent).toContain('👤')
+    expect(container.textContent).toContain('●')
     expect(container.textContent).toContain('Alice')
   })
 
-  it('renders place node with the place token color and pin icon', () => {
+  it('renders place node with the place token color and monochrome glyph', () => {
     const { container } = renderNode('place', 'Castle')
     const node = container.firstElementChild as HTMLElement
     expect(node.style.borderColor).toBe('var(--node-place)')
-    expect(container.textContent).toContain('📍')
+    expect(container.textContent).toContain('◆')
     expect(container.textContent).toContain('Castle')
   })
 
-  it('renders faction node with the faction token color and shield icon', () => {
+  it('renders faction node with the faction token color and monochrome glyph', () => {
     const { container } = renderNode('faction', 'The Order')
     const node = container.firstElementChild as HTMLElement
     expect(node.style.borderColor).toBe('var(--node-faction)')
-    expect(container.textContent).toContain('🛡️')
+    expect(container.textContent).toContain('■')
   })
 
-  it('renders event node with the event token color and lightning icon', () => {
+  it('renders event node with the event token color and monochrome glyph', () => {
     const { container } = renderNode('event', 'Battle')
     const node = container.firstElementChild as HTMLElement
     expect(node.style.borderColor).toBe('var(--node-event)')
-    expect(container.textContent).toContain('⚡')
+    expect(container.textContent).toContain('▲')
   })
 
-  it('renders world_rule node with the world-rule token color and scroll icon', () => {
+  it('renders world_rule node with the world-rule token color and monochrome glyph', () => {
     const { container } = renderNode('world_rule', 'Magic System')
     const node = container.firstElementChild as HTMLElement
     expect(node.style.borderColor).toBe('var(--node-worldrule)')
-    expect(container.textContent).toContain('📜')
+    expect(container.textContent).toContain('◈')
   })
 
-  it('renders plot_arc node with the plot-arc token color and book icon', () => {
+  it('renders plot_arc node with the plot-arc token color and monochrome glyph', () => {
     const { container } = renderNode('plot_arc', 'The Rebellion')
     const node = container.firstElementChild as HTMLElement
     expect(node.style.borderColor).toBe('var(--node-plotarc)')
-    expect(container.textContent).toContain('📖')
+    expect(container.textContent).toContain('◉')
   })
 
   it('falls back to character style for unknown type', () => {
     const { container } = renderNode('unknown_type', 'Mystery')
     const node = container.firstElementChild as HTMLElement
     expect(node.style.borderColor).toBe('var(--node-character)')
-    expect(container.textContent).toContain('👤')
+    expect(container.textContent).toContain('●')
   })
 
   it('shows "Untitled" when label is empty', () => {

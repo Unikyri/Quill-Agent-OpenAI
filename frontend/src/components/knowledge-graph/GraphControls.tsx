@@ -18,7 +18,7 @@ export default function GraphControls() {
             onChange={() => toggleFilter(type)}
             className={styles.filterCheckbox}
           />
-          <span className={styles.filterBadge} style={{ background: meta.color }}>
+          <span className={`${styles.filterBadge} glyph`} style={{ background: meta.color }}>
             {meta.icon}
           </span>
           <span className={styles.filterText}>{meta.label}</span>
