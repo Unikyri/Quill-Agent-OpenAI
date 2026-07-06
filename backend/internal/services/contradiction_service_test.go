@@ -28,7 +28,7 @@ func TestContradictionFingerprintDeterminism(t *testing.T) {
 	}
 
 	// Create service with nil dependencies — fingerprint is pure, needs no DB
-	svc := NewContradictionService(nil, nil, nil, nil, nil, 3)
+	svc := NewContradictionService(nil, nil, nil, nil, nil, 3, nil)
 
 	fp1 := svc.fingerprint(candidates[0])
 	fp2 := svc.fingerprint(candidates[0])
@@ -54,7 +54,7 @@ func TestContradictionFingerprintDeterminism(t *testing.T) {
 // affect the fingerprint — two candidates identical except for chapter fields
 // must produce different fingerprints.
 func TestContradictionFingerprintChaptersIncluded(t *testing.T) {
-	svc := NewContradictionService(nil, nil, nil, nil, nil, 3)
+	svc := NewContradictionService(nil, nil, nil, nil, nil, 3, nil)
 	entityID := uuid.New()
 	chA := uuid.New()
 	chB := uuid.New()
@@ -106,7 +106,7 @@ func TestContradictionFingerprintChaptersIncluded(t *testing.T) {
 // (64 chars for SHA-256).
 func TestContradictionFingerprintFormat(t *testing.T) {
 	cfg := &config.Config{MaxContradictionCandidates: 3}
-	svc := NewContradictionService(nil, nil, nil, nil, nil, cfg.MaxContradictionCandidates)
+	svc := NewContradictionService(nil, nil, nil, nil, nil, cfg.MaxContradictionCandidates, nil)
 
 	c := ContradictionCandidate{
 		EntityID:  uuid.New(),
@@ -150,7 +150,7 @@ func TestContradictionCheckDeterministicDeceasedAlive(t *testing.T) {
 	entityRepo := repositories.NewEntityRepo(pool)
 	contraRepo := repositories.NewContradictionRepo(pool)
 	cfg := config.Config{MaxContradictionCandidates: 3}
-	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates) // nil qwenSvc
+	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates, nil) // nil qwenSvc
 
 	// Pass an entity marked as "alive" but the DB says "deceased"
 	entities := []ResolvedEntity{
@@ -207,7 +207,7 @@ func TestResolveOrCreateThenCheckDeterministicCatchesReanimation(t *testing.T) {
 	contraRepo := repositories.NewContradictionRepo(pool)
 	cfg := config.Config{MaxContradictionCandidates: 3}
 	entitySvc := NewEntityService(pool, entityRepo, nil, nil)
-	contraSvc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates)
+	contraSvc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates, nil)
 
 	// Simulate a chapter re-mentioning "Dead Bob" as active — extraction
 	// finds him by exact name match (step 1), so no qwenSvc/vectorRepo needed.
@@ -255,7 +255,7 @@ func TestContradictionCheckDeterministicNoIssues(t *testing.T) {
 	entityRepo := repositories.NewEntityRepo(pool)
 	contraRepo := repositories.NewContradictionRepo(pool)
 	cfg := config.Config{MaxContradictionCandidates: 3}
-	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates)
+	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates, nil)
 
 	entities := []ResolvedEntity{
 		{Entity: activeEntity, MentionText: "Alice walked to the store", IsNew: false},
@@ -297,7 +297,7 @@ func TestContradictionCheckDeterministicChapterThreaded(t *testing.T) {
 	entityRepo := repositories.NewEntityRepo(pool)
 	contraRepo := repositories.NewContradictionRepo(pool)
 	cfg := config.Config{MaxContradictionCandidates: 3}
-	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates)
+	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates, nil)
 
 	chapterID := uuid.New()
 
@@ -356,10 +356,10 @@ func TestContradictionCheckSemanticSignature(t *testing.T) {
 		QwenEmbeddingModel:         "text-embedding-v3",
 		MaxContradictionCandidates: 3,
 	}
-	qwenSvc := NewQwenService(&cfgQwen)
+	qwenSvc := NewQwenService(&cfgQwen, nil)
 
 	cfg := config.Config{MaxContradictionCandidates: 3}
-	svc := NewContradictionService(pool, contraRepo, entityRepo, qwenSvc, nil, cfg.MaxContradictionCandidates)
+	svc := NewContradictionService(pool, contraRepo, entityRepo, qwenSvc, nil, cfg.MaxContradictionCandidates, nil)
 
 	entities := []ResolvedEntity{
 		{Entity: models.Entity{ID: uuid.New(), Type: "character", Name: "Test"}, MentionText: "Test text", IsNew: false},
@@ -401,13 +401,13 @@ func TestCheckSemanticAgentLoop(t *testing.T) {
 		QwenAPIKey:           "test",
 		QwenMaxConcurrency:   1,
 		QwenTurboConcurrency: 1,
-	})
+	}, nil)
 	qwenSvc.client.Timeout = 5 * time.Second
 
 	exec := &mockExecutor{}
 
 	cfg := config.Config{MaxContradictionCandidates: 5}
-	svc := NewContradictionService(nil, nil, nil, qwenSvc, exec, cfg.MaxContradictionCandidates)
+	svc := NewContradictionService(nil, nil, nil, qwenSvc, exec, cfg.MaxContradictionCandidates, nil)
 
 	entityID := uuid.New()
 	entities := []ResolvedEntity{
@@ -473,13 +473,13 @@ func TestCheckSemanticEmptyContradiction(t *testing.T) {
 		QwenAPIKey:           "test",
 		QwenMaxConcurrency:   1,
 		QwenTurboConcurrency: 1,
-	})
+	}, nil)
 	qwenSvc.client.Timeout = 5 * time.Second
 
 	exec := &mockExecutor{}
 
 	cfg := config.Config{MaxContradictionCandidates: 5}
-	svc := NewContradictionService(nil, nil, nil, qwenSvc, exec, cfg.MaxContradictionCandidates)
+	svc := NewContradictionService(nil, nil, nil, qwenSvc, exec, cfg.MaxContradictionCandidates, nil)
 
 	entityID := uuid.New()
 	entities := []ResolvedEntity{

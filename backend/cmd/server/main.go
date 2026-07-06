@@ -80,7 +80,9 @@ func main() {
 
 	// ── Services ──
 
-	qwenSvc := services.NewQwenService(cfg)
+	tok := services.NewTokenizer()
+	budgetMgr := services.NewContextBudgetManager(tok, cfg.MaxContextTokens, cfg.ResponseReserve)
+	qwenSvc := services.NewQwenService(cfg, budgetMgr)
 	authSvc := services.NewAuthService(userRepo, cfg)
 	universeSvc := services.NewUniverseService(pool, universeRepo, graphRepo)
 	workSvc := services.NewWorkService(pool, workRepo)
@@ -105,7 +107,7 @@ func main() {
 	timelineSvc := services.NewTimelineService(pool, timelineRepo, qwenSvc, executor)
 	plotHoleSvc := services.NewPlotHoleService(pool, plotHoleRepo, entityRepo, cfg.PlotHoleChapters, qwenSvc, executor)
 
-	contraSvc := services.NewContradictionService(pool, contradictionRepo, entityRepo, qwenSvc, executor, cfg.MaxContradictionCandidates)
+	contraSvc := services.NewContradictionService(pool, contradictionRepo, entityRepo, qwenSvc, executor, cfg.MaxContradictionCandidates, budgetMgr)
 
 	// WebSocket Hub (created first with nil submitter/recaller — set later to avoid circular init)
 	hub := ws.NewHub(authSvc, nil, memorySvc, qwenSvc)

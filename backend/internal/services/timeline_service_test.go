@@ -146,7 +146,7 @@ func TestTimelineServiceValidateAmbiguousAgentFallback(t *testing.T) {
 		QwenAPIKey:           "test",
 		QwenMaxConcurrency:   1,
 		QwenTurboConcurrency: 1,
-	})
+	}, nil)
 	qwenSvc.client.Timeout = 5 * time.Second
 
 	pool := testutil.SetupTestDB(t)
@@ -202,7 +202,7 @@ func TestTimelineServiceValidateAmbiguousAgentReject(t *testing.T) {
 		QwenAPIKey:           "test",
 		QwenMaxConcurrency:   1,
 		QwenTurboConcurrency: 1,
-	})
+	}, nil)
 	qwenSvc.client.Timeout = 5 * time.Second
 
 	pool := testutil.SetupTestDB(t)

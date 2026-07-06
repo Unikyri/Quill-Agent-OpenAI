@@ -17,20 +17,25 @@ import (
 )
 
 type QwenService struct {
-	client   *http.Client
-	baseURL  string
-	apiKey   string
-	maxSem   chan struct{}
-	turboSem chan struct{}
+	client    *http.Client
+	baseURL   string
+	apiKey    string
+	maxSem    chan struct{}
+	turboSem  chan struct{}
+	budgetMgr *ContextBudgetManager
 }
 
-func NewQwenService(cfg *config.Config) *QwenService {
+// budgetMgr may be nil — RunAgentLoop then skips tool-result compression
+// entirely (current unbounded behavior), which also lets tests construct
+// QwenService without a tokenizer.
+func NewQwenService(cfg *config.Config, budgetMgr *ContextBudgetManager) *QwenService {
 	return &QwenService{
-		client:   &http.Client{Timeout: 30 * time.Second},
-		baseURL:  cfg.QwenBaseURL,
-		apiKey:   cfg.QwenAPIKey,
-		maxSem:   make(chan struct{}, cfg.QwenMaxConcurrency),
-		turboSem: make(chan struct{}, cfg.QwenTurboConcurrency),
+		client:    &http.Client{Timeout: 30 * time.Second},
+		baseURL:   cfg.QwenBaseURL,
+		apiKey:    cfg.QwenAPIKey,
+		maxSem:    make(chan struct{}, cfg.QwenMaxConcurrency),
+		turboSem:  make(chan struct{}, cfg.QwenTurboConcurrency),
+		budgetMgr: budgetMgr,
 	}
 }
 
@@ -504,7 +509,13 @@ func (s *QwenService) RunAgentLoop(ctx context.Context, messages []QwenMessage, 
 	msgs := make([]QwenMessage, len(messages))
 	copy(msgs, messages)
 
+	compressed := false
+
 	for depth := 0; depth < maxDepth; depth++ {
+		if s.budgetMgr != nil && !compressed {
+			msgs, compressed = s.compressToolResults(ctx, msgs)
+		}
+
 		payload := QwenRequest{
 			Model:      "qwen-max",
 			Messages:   msgs,
@@ -561,4 +572,78 @@ func (s *QwenService) RunAgentLoop(ctx context.Context, messages []QwenMessage, 
 		}
 	}
 	return "", nil
+}
+
+// compressToolResults summarizes accumulated tool-call results into a single
+// message when the transcript is over 80% of the usable context window,
+// keeping the original system+user head and the most recent tool-call
+// iteration verbatim (so tool_call_id pairing stays valid). Runs at most
+// once per RunAgentLoop call — the returned bool is true once an attempt
+// (successful or not) has been made, so the caller stops retrying.
+//
+// ponytail: best-effort — a failed qwen-turbo call just skips compression,
+// it never fails the loop.
+func (s *QwenService) compressToolResults(ctx context.Context, msgs []QwenMessage) ([]QwenMessage, bool) {
+	used := s.budgetMgr.tok.CountTokensForMessages(msgs)
+	usable := s.budgetMgr.maxContextTokens - s.budgetMgr.responseReserve
+	if used <= usable*8/10 {
+		return msgs, false
+	}
+
+	if len(msgs) < 3 {
+		return msgs, false
+	}
+
+	boundary := -1
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == "assistant" && len(msgs[i].ToolCalls) > 0 {
+			boundary = i
+			break
+		}
+	}
+	if boundary <= 2 {
+		// No compressible middle yet — keep trying on later iterations.
+		return msgs, false
+	}
+
+	head := msgs[0:2]
+	tail := msgs[boundary:]
+	middle := msgs[2:boundary]
+
+	var oldToolContent strings.Builder
+	for _, m := range middle {
+		if m.Role == "tool" {
+			oldToolContent.WriteString(m.Content)
+			oldToolContent.WriteString("\n")
+		}
+	}
+
+	payload := QwenRequest{
+		Model: "qwen-turbo",
+		Messages: []QwenMessage{
+			{Role: "system", Content: "Summarize these tool-call results, preserving every fact, name, date, and relationship relevant to detecting narrative contradictions. Be concise."},
+			{Role: "user", Content: oldToolContent.String()},
+		},
+	}
+
+	respBody, err := s.callWithSemaphore(ctx, s.turboSem, "qwen-turbo", payload)
+	if err != nil {
+		return msgs, true // best-effort: skip compression, don't retry again this call
+	}
+
+	var qwenResp QwenResponse
+	if err := json.Unmarshal(respBody, &qwenResp); err != nil || len(qwenResp.Choices) == 0 {
+		return msgs, true
+	}
+	summary := qwenResp.Choices[0].Message.Content
+
+	compressedMsgs := make([]QwenMessage, 0, len(head)+1+len(tail))
+	compressedMsgs = append(compressedMsgs, head...)
+	compressedMsgs = append(compressedMsgs, QwenMessage{
+		Role:    "assistant",
+		Content: "Prior investigation summary:\n" + summary,
+	})
+	compressedMsgs = append(compressedMsgs, tail...)
+
+	return compressedMsgs, true
 }

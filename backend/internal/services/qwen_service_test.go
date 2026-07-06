@@ -102,7 +102,7 @@ func TestQwenServiceCheckContradictionsSignature(t *testing.T) {
 		QwenEmbeddingModel:         "text-embedding-v3",
 		MaxContradictionCandidates: 3,
 	}
-	svc := NewQwenService(cfg)
+	svc := NewQwenService(cfg, nil)
 
 	// Empty candidates should return nil, nil
 	results, err := svc.CheckContradictions(context.Background(), nil)
@@ -270,7 +270,7 @@ func TestRunAgentLoopMultiToolCycle(t *testing.T) {
 		QwenAPIKey:           "test",
 		QwenMaxConcurrency:   1,
 		QwenTurboConcurrency: 1,
-	})
+	}, nil)
 
 	exec := &mockToolExecutor{}
 	messages := []QwenMessage{{Role: "user", Content: "Who is the hero?"}}
@@ -310,7 +310,7 @@ func TestRunAgentLoopDepthExhaustion(t *testing.T) {
 		QwenAPIKey:           "test",
 		QwenMaxConcurrency:   1,
 		QwenTurboConcurrency: 1,
-	})
+	}, nil)
 
 	exec := &mockToolExecutor{}
 	messages := []QwenMessage{{Role: "user", Content: "keep searching"}}
@@ -345,7 +345,7 @@ func TestRunAgentLoopEmptyTools(t *testing.T) {
 		QwenAPIKey:           "test",
 		QwenMaxConcurrency:   1,
 		QwenTurboConcurrency: 1,
-	})
+	}, nil)
 
 	exec := &mockToolExecutor{}
 	messages := []QwenMessage{{Role: "user", Content: "Hello"}}
@@ -464,7 +464,7 @@ func TestQuillExecutorSearchVectorMemoryHappyPath(t *testing.T) {
 
 	exec := &QuillExecutor{
 		VectorRepo: mockVector,
-		QwenSvc:    NewQwenService(&config.Config{QwenBaseURL: embedSrv.URL, QwenAPIKey: "test", QwenMaxConcurrency: 1, QwenTurboConcurrency: 1}),
+		QwenSvc:    NewQwenService(&config.Config{QwenBaseURL: embedSrv.URL, QwenAPIKey: "test", QwenMaxConcurrency: 1, QwenTurboConcurrency: 1}, nil),
 	}
 
 	result, err := exec.ExecuteTool("search_vector_memory", `{"query":"find Bob"}`)
@@ -506,7 +506,7 @@ func TestQuillExecutorSearchVectorMemoryEmpty(t *testing.T) {
 
 	exec := &QuillExecutor{
 		VectorRepo: mockVector,
-		QwenSvc:    NewQwenService(&config.Config{QwenBaseURL: embedSrv.URL, QwenAPIKey: "test", QwenMaxConcurrency: 1, QwenTurboConcurrency: 1}),
+		QwenSvc:    NewQwenService(&config.Config{QwenBaseURL: embedSrv.URL, QwenAPIKey: "test", QwenMaxConcurrency: 1, QwenTurboConcurrency: 1}, nil),
 	}
 
 	result, err := exec.ExecuteTool("search_vector_memory", `{"query":"nonexistent"}`)
@@ -603,7 +603,7 @@ func TestRunAgentLoopSingleCall(t *testing.T) {
 		QwenAPIKey:           "test",
 		QwenMaxConcurrency:   1,
 		QwenTurboConcurrency: 1,
-	})
+	}, nil)
 
 	exec := &mockToolExecutor{}
 	tools := []QwenTool{

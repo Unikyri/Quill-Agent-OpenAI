@@ -27,12 +27,15 @@ type ContradictionService struct {
 	qwenSvc       *QwenService
 	executor      ToolExecutor
 	maxCandidates int
+	budgetMgr     *ContextBudgetManager
 }
 
 // NewContradictionService creates a contradiction service.
 // qwenSvc may be nil — CheckSemantic will be a no-op in that case.
 // executor may be nil — CheckSemantic falls back to batch mode without agent loop.
-func NewContradictionService(pool *pgxpool.Pool, contraRepo *repositories.ContradictionRepo, entityRepo *repositories.EntityRepo, qwenSvc *QwenService, executor ToolExecutor, maxCandidates int) *ContradictionService {
+// budgetMgr may be nil — CheckSemantic then concatenates all entities uncapped
+// (current behavior).
+func NewContradictionService(pool *pgxpool.Pool, contraRepo *repositories.ContradictionRepo, entityRepo *repositories.EntityRepo, qwenSvc *QwenService, executor ToolExecutor, maxCandidates int, budgetMgr *ContextBudgetManager) *ContradictionService {
 	return &ContradictionService{
 		pool:          pool,
 		contraRepo:    contraRepo,
@@ -40,6 +43,7 @@ func NewContradictionService(pool *pgxpool.Pool, contraRepo *repositories.Contra
 		qwenSvc:       qwenSvc,
 		executor:      executor,
 		maxCandidates: maxCandidates,
+		budgetMgr:     budgetMgr,
 	}
 }
 
@@ -129,12 +133,6 @@ func (s *ContradictionService) CheckSemantic(ctx context.Context, universeID uui
 		return nil, nil
 	}
 
-	// Build entity context for the user message
-	var entityLines string
-	for _, re := range entities {
-		entityLines += fmt.Sprintf("- %s (%s): %s\n", re.Entity.Name, re.Entity.Type, re.Entity.Description)
-	}
-
 	// ponytail: set UniverseID on the executor so tool calls resolve in the right universe.
 	// QuillExecutor has a public UniverseID field; other executors may ignore it.
 	if qe, ok := s.executor.(*QuillExecutor); ok {
@@ -156,7 +154,11 @@ For each contradiction you find, output a JSON array. Each contradiction must ha
 
 IMPORTANT: Use the tools to gather context BEFORE making your decision. Only return contradictions that are actually supported by the evidence. If no contradictions exist, return an empty array: []`
 
-	userMessage := fmt.Sprintf("Analyze the following new text for contradictions with existing story data:\n\nNew text: %s\n\nKnown entities:\n%s", text, entityLines)
+	const userMessageTemplate = "Analyze the following new text for contradictions with existing story data:\n\nNew text: %s\n\nKnown entities:\n%s"
+
+	entityLines := s.buildEntityLines(entities, systemPrompt, userMessageTemplate, text)
+
+	userMessage := fmt.Sprintf(userMessageTemplate, text, entityLines)
 
 	messages := []QwenMessage{
 		{Role: "system", Content: systemPrompt},
@@ -266,6 +268,41 @@ IMPORTANT: Use the tools to gather context BEFORE making your decision. Only ret
 	}
 
 	return contradictions, nil
+}
+
+// buildEntityLines renders the known-entities block for the semantic-check
+// user message. With no budgetMgr it concatenates every entity uncapped
+// (current behavior). With a budgetMgr, entities are ranked by
+// RelevanceScore and fit into the entities share of the token budget so the
+// prompt can't blow the context window on large casts.
+func (s *ContradictionService) buildEntityLines(entities []ResolvedEntity, systemPrompt, userMessageTemplate, text string) string {
+	if s.budgetMgr == nil {
+		var entityLines string
+		for _, re := range entities {
+			entityLines += fmt.Sprintf("- %s (%s): %s\n", re.Entity.Name, re.Entity.Type, re.Entity.Description)
+		}
+		return entityLines
+	}
+
+	items := make([]RankedItem, len(entities))
+	for i, re := range entities {
+		items[i] = RankedItem{
+			Text:  fmt.Sprintf("- %s (%s): %s\n", re.Entity.Name, re.Entity.Type, re.Entity.Description),
+			Score: re.Entity.RelevanceScore,
+		}
+	}
+
+	systemTokens := s.budgetMgr.tok.CountTokens(systemPrompt)
+	userBaseTokens := s.budgetMgr.tok.CountTokens(fmt.Sprintf(userMessageTemplate, text, ""))
+	alloc := s.budgetMgr.ComputeBudget(systemTokens, userBaseTokens)
+
+	fitted, _, _ := s.budgetMgr.FitToBudget(items, alloc.EntitiesTokens)
+
+	var entityLines string
+	for _, item := range fitted {
+		entityLines += item.Text
+	}
+	return entityLines
 }
 
 // truncate shortens text to maxLen characters, appending "…" if truncated.
