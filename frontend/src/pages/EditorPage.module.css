@@ -1,42 +1,181 @@
-/* EditorPage — two-panel layout with header bar */
+/* EditorPage — 3-pane layout: chapter rail, TipTap canvas, live-analysis panel */
 
 .wrap {
   display: flex;
   height: 100vh;
-  background: var(--paper);
+  background: var(--bg-app);
 }
 
-/* Left: editor panel */
+/* Left: chapter rail */
+.rail {
+  width: 220px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-rail);
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+}
+
+.railHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 14px 10px;
+}
+
+.railTitle {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+}
+
+.railAddBtn {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.railAddBtn:hover {
+  border-color: var(--teal);
+  color: var(--teal);
+}
+
+.railForm {
+  padding: 0 14px 10px;
+}
+
+.railFormInput {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  outline: none;
+}
+
+.railFormInput:focus {
+  border-color: var(--teal);
+}
+
+.railFormError {
+  margin: 4px 0 0;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.railList {
+  display: flex;
+  flex-direction: column;
+  padding: 0 8px 12px;
+}
+
+.railItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-sm);
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.railItem:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.railItemActive {
+  background: var(--teal-soft-12);
+  color: var(--teal);
+}
+
+.railItemTitle {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.railDot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-round);
+  flex: none;
+  background: var(--muted-3);
+}
+
+.railDot[data-status='analyzed'] {
+  background: var(--success);
+}
+
+.railDot[data-status='analyzing'],
+.railDot[data-status='in_analysis'] {
+  background: var(--warning);
+}
+
+/* Center: editor panel */
 .editorPanel {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0;
 }
 
-/* Header bar */
 .headerBar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 24px;
-  background: var(--paper);
-  border-bottom: 1px solid var(--ink-10);
+  padding: 12px 24px;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--line);
 }
 
 .headerLeft {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: var(--micro);
-  font-size: 14px;
-  color: var(--ink-60);
+  font-family: var(--serif);
   font-style: italic;
+  font-size: 14px;
+  color: var(--muted);
 }
 
 .wsIndicator {
-  font-size: 10px;
+  font-size: 9px;
+  line-height: 1;
   cursor: default;
+}
+
+.statusOpen {
+  color: var(--success);
+}
+
+.statusWarn {
+  color: var(--warning);
+}
+
+.statusClosed {
+  color: var(--danger);
 }
 
 .headerRight {
@@ -44,7 +183,7 @@
   gap: 16px;
   font-family: var(--sans);
   font-size: 12px;
-  color: var(--ink-60);
+  color: var(--muted-2);
 }
 
 /* Loading fallback */
@@ -53,8 +192,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--micro);
+  font-family: var(--serif);
   font-size: 15px;
-  color: var(--ink-40);
+  color: var(--muted);
   font-style: italic;
 }

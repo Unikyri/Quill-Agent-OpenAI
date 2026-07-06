@@ -2,16 +2,16 @@
   display: flex;
   gap: 4px;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--ink-10);
-  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-header);
   flex-wrap: wrap;
 }
 
 .button {
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 4px;
-  color: var(--ink-60);
+  border-radius: var(--r-sm);
+  color: var(--muted);
   padding: 6px 10px;
   font-size: 13px;
   cursor: pointer;
@@ -21,22 +21,22 @@
 }
 
 .button:hover {
-  background: var(--paper-warm);
+  background: var(--hover);
   color: var(--ink);
 }
 
 .buttonActive {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink-80);
+  background: var(--teal);
+  color: var(--parchment-hi);
+  border-color: var(--teal-deep);
 }
 
 .buttonActive:hover {
-  background: var(--ink-80);
+  background: var(--teal-deep);
 }
 
 .separator {
   width: 1px;
-  background: var(--ink-10);
+  background: var(--line);
   margin: 0 4px;
 }
