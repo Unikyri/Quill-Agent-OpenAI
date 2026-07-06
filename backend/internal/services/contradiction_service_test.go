@@ -3,8 +3,10 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,7 +30,7 @@ func TestContradictionFingerprintDeterminism(t *testing.T) {
 	}
 
 	// Create service with nil dependencies — fingerprint is pure, needs no DB
-	svc := NewContradictionService(nil, nil, nil, nil, nil, 3)
+	svc := NewContradictionService(nil, nil, nil, nil, nil, 3, nil)
 
 	fp1 := svc.fingerprint(candidates[0])
 	fp2 := svc.fingerprint(candidates[0])
@@ -54,7 +56,7 @@ func TestContradictionFingerprintDeterminism(t *testing.T) {
 // affect the fingerprint — two candidates identical except for chapter fields
 // must produce different fingerprints.
 func TestContradictionFingerprintChaptersIncluded(t *testing.T) {
-	svc := NewContradictionService(nil, nil, nil, nil, nil, 3)
+	svc := NewContradictionService(nil, nil, nil, nil, nil, 3, nil)
 	entityID := uuid.New()
 	chA := uuid.New()
 	chB := uuid.New()
@@ -106,7 +108,7 @@ func TestContradictionFingerprintChaptersIncluded(t *testing.T) {
 // (64 chars for SHA-256).
 func TestContradictionFingerprintFormat(t *testing.T) {
 	cfg := &config.Config{MaxContradictionCandidates: 3}
-	svc := NewContradictionService(nil, nil, nil, nil, nil, cfg.MaxContradictionCandidates)
+	svc := NewContradictionService(nil, nil, nil, nil, nil, cfg.MaxContradictionCandidates, nil)
 
 	c := ContradictionCandidate{
 		EntityID:  uuid.New(),
@@ -150,7 +152,7 @@ func TestContradictionCheckDeterministicDeceasedAlive(t *testing.T) {
 	entityRepo := repositories.NewEntityRepo(pool)
 	contraRepo := repositories.NewContradictionRepo(pool)
 	cfg := config.Config{MaxContradictionCandidates: 3}
-	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates) // nil qwenSvc
+	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates, nil) // nil qwenSvc
 
 	// Pass an entity marked as "alive" but the DB says "deceased"
 	entities := []ResolvedEntity{
@@ -207,7 +209,7 @@ func TestResolveOrCreateThenCheckDeterministicCatchesReanimation(t *testing.T) {
 	contraRepo := repositories.NewContradictionRepo(pool)
 	cfg := config.Config{MaxContradictionCandidates: 3}
 	entitySvc := NewEntityService(pool, entityRepo, nil, nil)
-	contraSvc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates)
+	contraSvc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates, nil)
 
 	// Simulate a chapter re-mentioning "Dead Bob" as active — extraction
 	// finds him by exact name match (step 1), so no qwenSvc/vectorRepo needed.
@@ -255,7 +257,7 @@ func TestContradictionCheckDeterministicNoIssues(t *testing.T) {
 	entityRepo := repositories.NewEntityRepo(pool)
 	contraRepo := repositories.NewContradictionRepo(pool)
 	cfg := config.Config{MaxContradictionCandidates: 3}
-	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates)
+	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates, nil)
 
 	entities := []ResolvedEntity{
 		{Entity: activeEntity, MentionText: "Alice walked to the store", IsNew: false},
@@ -297,7 +299,7 @@ func TestContradictionCheckDeterministicChapterThreaded(t *testing.T) {
 	entityRepo := repositories.NewEntityRepo(pool)
 	contraRepo := repositories.NewContradictionRepo(pool)
 	cfg := config.Config{MaxContradictionCandidates: 3}
-	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates)
+	svc := NewContradictionService(pool, contraRepo, entityRepo, nil, nil, cfg.MaxContradictionCandidates, nil)
 
 	chapterID := uuid.New()
 
@@ -356,10 +358,10 @@ func TestContradictionCheckSemanticSignature(t *testing.T) {
 		QwenEmbeddingModel:         "text-embedding-v3",
 		MaxContradictionCandidates: 3,
 	}
-	qwenSvc := NewQwenService(&cfgQwen)
+	qwenSvc := NewQwenService(&cfgQwen, nil)
 
 	cfg := config.Config{MaxContradictionCandidates: 3}
-	svc := NewContradictionService(pool, contraRepo, entityRepo, qwenSvc, nil, cfg.MaxContradictionCandidates)
+	svc := NewContradictionService(pool, contraRepo, entityRepo, qwenSvc, nil, cfg.MaxContradictionCandidates, nil)
 
 	entities := []ResolvedEntity{
 		{Entity: models.Entity{ID: uuid.New(), Type: "character", Name: "Test"}, MentionText: "Test text", IsNew: false},
@@ -401,13 +403,13 @@ func TestCheckSemanticAgentLoop(t *testing.T) {
 		QwenAPIKey:           "test",
 		QwenMaxConcurrency:   1,
 		QwenTurboConcurrency: 1,
-	})
+	}, nil)
 	qwenSvc.client.Timeout = 5 * time.Second
 
 	exec := &mockExecutor{}
 
 	cfg := config.Config{MaxContradictionCandidates: 5}
-	svc := NewContradictionService(nil, nil, nil, qwenSvc, exec, cfg.MaxContradictionCandidates)
+	svc := NewContradictionService(nil, nil, nil, qwenSvc, exec, cfg.MaxContradictionCandidates, nil)
 
 	entityID := uuid.New()
 	entities := []ResolvedEntity{
@@ -473,13 +475,13 @@ func TestCheckSemanticEmptyContradiction(t *testing.T) {
 		QwenAPIKey:           "test",
 		QwenMaxConcurrency:   1,
 		QwenTurboConcurrency: 1,
-	})
+	}, nil)
 	qwenSvc.client.Timeout = 5 * time.Second
 
 	exec := &mockExecutor{}
 
 	cfg := config.Config{MaxContradictionCandidates: 5}
-	svc := NewContradictionService(nil, nil, nil, qwenSvc, exec, cfg.MaxContradictionCandidates)
+	svc := NewContradictionService(nil, nil, nil, qwenSvc, exec, cfg.MaxContradictionCandidates, nil)
 
 	entityID := uuid.New()
 	entities := []ResolvedEntity{
@@ -512,4 +514,80 @@ type mockExecutor struct{}
 
 func (m *mockExecutor) ExecuteTool(name string, argsJSON string) (string, error) {
 	return "mock tool result", nil
+}
+
+// TestBuildEntityLinesCapsToHighestRelevance closes the verify-report's
+// CRITICAL gap: every existing CheckSemantic test above passes a nil
+// budgetMgr, so the entity-capping wiring in buildEntityLines was never
+// exercised with a real budget. This constructs a real, deliberately tiny
+// ContextBudgetManager and proves buildEntityLines (a) drops entities when
+// they don't all fit and (b) keeps the highest-RelevanceScore entities, not
+// an arbitrary subset.
+//
+// The nil-budgetMgr fallback (concatenate every entity, uncapped) is already
+// covered by TestCheckSemanticAgentLoop / TestCheckSemanticEmptyContradiction
+// above — not duplicated here.
+func TestBuildEntityLinesCapsToHighestRelevance(t *testing.T) {
+	tok := NewTokenizer()
+
+	// A long, uniform description so each entity line costs roughly the same
+	// number of tokens — makes the "which ones survive" assertion depend on
+	// RelevanceScore ranking, not incidental text-length differences.
+	const description = "A long-standing figure in the story whose history spans several chapters and countless subplots, mentioned repeatedly by name across the narrative."
+
+	makeEntity := func(name string, score float64) ResolvedEntity {
+		return ResolvedEntity{
+			Entity: models.Entity{
+				ID:             uuid.New(),
+				Type:           "character",
+				Name:           name,
+				Description:    description,
+				RelevanceScore: score,
+			},
+		}
+	}
+
+	entities := []ResolvedEntity{
+		makeEntity("HighOne", 0.95),
+		makeEntity("HighTwo", 0.90),
+		makeEntity("HighThree", 0.85),
+		makeEntity("LowOne", 0.30),
+		makeEntity("LowTwo", 0.20),
+		makeEntity("LowThree", 0.10),
+	}
+
+	// Measure a single entity line's token cost the same way buildEntityLines
+	// does, then reverse ComputeBudget's 35% split (with systemPrompt/
+	// userMessageTemplate/text all empty below, systemTokens and
+	// userBaseTokens are 0, so available == maxContextTokens) to size a
+	// budget that fits exactly the top 3 of 6 lines. perEntityTokens is large
+	// relative to the +10 slack, so a 4th line can never round its way in.
+	sample := fmt.Sprintf("- %s (%s): %s\n", entities[0].Entity.Name, entities[0].Entity.Type, entities[0].Entity.Description)
+	perEntityTokens := tok.CountTokens(sample)
+	entitiesBudget := perEntityTokens*3 + 10
+	maxContextTokens := entitiesBudget * 100 / 35
+
+	budgetMgr := NewContextBudgetManager(tok, maxContextTokens, 0)
+	svc := NewContradictionService(nil, nil, nil, nil, nil, 3, budgetMgr)
+
+	result := svc.buildEntityLines(entities, "", "%s%s", "")
+
+	lineCount := strings.Count(result, "\n")
+	if lineCount == 0 {
+		t.Fatal("expected at least one entity line in result")
+	}
+	if lineCount >= len(entities) {
+		t.Fatalf("expected fewer lines than total entities (%d) under budget pressure, got %d lines:\n%s", len(entities), lineCount, result)
+	}
+
+	for _, name := range []string{"HighOne", "HighTwo", "HighThree"} {
+		if !strings.Contains(result, name) {
+			t.Errorf("expected top-scored entity %q to survive capping, got:\n%s", name, result)
+		}
+	}
+	for _, name := range []string{"LowOne", "LowTwo", "LowThree"} {
+		if strings.Contains(result, name) {
+			t.Errorf("expected low-scored entity %q to be dropped under budget pressure, got:\n%s", name, result)
+		}
+	}
 }

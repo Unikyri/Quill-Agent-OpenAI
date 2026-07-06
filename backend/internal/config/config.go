@@ -34,6 +34,8 @@ type Config struct {
 	PlotHoleChapters         int
 	MaxContradictionCandidates int
 	WSEnabled                bool
+	MaxContextTokens         int
+	ResponseReserve          int
 }
 
 func Load() (*Config, error) {
@@ -64,6 +66,8 @@ func Load() (*Config, error) {
 		PlotHoleChapters:          getEnvInt("PLOT_HOLE_CHAPTERS", 8),
 		MaxContradictionCandidates: getEnvInt("MAX_CONTRADICTION_CANDIDATES", 3),
 		WSEnabled:                 getEnvBool("QUILL_WS_ENABLED", true),
+		MaxContextTokens:          getEnvInt("QWEN_MAX_CONTEXT_TOKENS", 30000),
+		ResponseReserve:           getEnvInt("QWEN_RESPONSE_RESERVE", 2000),
 	}
 
 	if cfg.QwenAPIKey == "" {

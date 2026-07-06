@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -102,7 +103,7 @@ func TestQwenServiceCheckContradictionsSignature(t *testing.T) {
 		QwenEmbeddingModel:         "text-embedding-v3",
 		MaxContradictionCandidates: 3,
 	}
-	svc := NewQwenService(cfg)
+	svc := NewQwenService(cfg, nil)
 
 	// Empty candidates should return nil, nil
 	results, err := svc.CheckContradictions(context.Background(), nil)
@@ -270,7 +271,7 @@ func TestRunAgentLoopMultiToolCycle(t *testing.T) {
 		QwenAPIKey:           "test",
 		QwenMaxConcurrency:   1,
 		QwenTurboConcurrency: 1,
-	})
+	}, nil)
 
 	exec := &mockToolExecutor{}
 	messages := []QwenMessage{{Role: "user", Content: "Who is the hero?"}}
@@ -310,7 +311,7 @@ func TestRunAgentLoopDepthExhaustion(t *testing.T) {
 		QwenAPIKey:           "test",
 		QwenMaxConcurrency:   1,
 		QwenTurboConcurrency: 1,
-	})
+	}, nil)
 
 	exec := &mockToolExecutor{}
 	messages := []QwenMessage{{Role: "user", Content: "keep searching"}}
@@ -345,7 +346,7 @@ func TestRunAgentLoopEmptyTools(t *testing.T) {
 		QwenAPIKey:           "test",
 		QwenMaxConcurrency:   1,
 		QwenTurboConcurrency: 1,
-	})
+	}, nil)
 
 	exec := &mockToolExecutor{}
 	messages := []QwenMessage{{Role: "user", Content: "Hello"}}
@@ -464,7 +465,7 @@ func TestQuillExecutorSearchVectorMemoryHappyPath(t *testing.T) {
 
 	exec := &QuillExecutor{
 		VectorRepo: mockVector,
-		QwenSvc:    NewQwenService(&config.Config{QwenBaseURL: embedSrv.URL, QwenAPIKey: "test", QwenMaxConcurrency: 1, QwenTurboConcurrency: 1}),
+		QwenSvc:    NewQwenService(&config.Config{QwenBaseURL: embedSrv.URL, QwenAPIKey: "test", QwenMaxConcurrency: 1, QwenTurboConcurrency: 1}, nil),
 	}
 
 	result, err := exec.ExecuteTool("search_vector_memory", `{"query":"find Bob"}`)
@@ -506,7 +507,7 @@ func TestQuillExecutorSearchVectorMemoryEmpty(t *testing.T) {
 
 	exec := &QuillExecutor{
 		VectorRepo: mockVector,
-		QwenSvc:    NewQwenService(&config.Config{QwenBaseURL: embedSrv.URL, QwenAPIKey: "test", QwenMaxConcurrency: 1, QwenTurboConcurrency: 1}),
+		QwenSvc:    NewQwenService(&config.Config{QwenBaseURL: embedSrv.URL, QwenAPIKey: "test", QwenMaxConcurrency: 1, QwenTurboConcurrency: 1}, nil),
 	}
 
 	result, err := exec.ExecuteTool("search_vector_memory", `{"query":"nonexistent"}`)
@@ -603,7 +604,7 @@ func TestRunAgentLoopSingleCall(t *testing.T) {
 		QwenAPIKey:           "test",
 		QwenMaxConcurrency:   1,
 		QwenTurboConcurrency: 1,
-	})
+	}, nil)
 
 	exec := &mockToolExecutor{}
 	tools := []QwenTool{
@@ -620,5 +621,191 @@ func TestRunAgentLoopSingleCall(t *testing.T) {
 	}
 	if len(exec.calls) != 0 {
 		t.Errorf("expected 0 executor calls, got %d", len(exec.calls))
+	}
+}
+
+// ── Context-budget compression integration tests ──────────────────────────
+//
+// These close the verify-report's CRITICAL gap: every RunAgentLoop-adjacent
+// test above passes a nil budgetMgr, so the compression wiring itself was
+// never exercised at runtime. Both the "under threshold" and "over
+// threshold" scenarios are proven directly against compressToolResults
+// (full message-slice visibility for the collapse/tail-preservation
+// assertions), plus one full RunAgentLoop drive proving the compressed-once
+// guard holds across a whole loop.
+
+// TestCompressToolResultsUnderThreshold verifies that a generously large
+// budget never triggers compression — the message slice returned is
+// unchanged and no turbo call is made.
+func TestCompressToolResultsUnderThreshold(t *testing.T) {
+	tok := NewTokenizer()
+	budgetMgr := NewContextBudgetManager(tok, 100000, 1000) // huge budget, threshold unreachable
+
+	svc := NewQwenService(&config.Config{
+		QwenBaseURL:          "http://127.0.0.1:1", // must never be dialed
+		QwenAPIKey:           "test",
+		QwenMaxConcurrency:   1,
+		QwenTurboConcurrency: 1,
+	}, budgetMgr)
+
+	msgs := []QwenMessage{
+		{Role: "system", Content: "sys"},
+		{Role: "user", Content: "hello"},
+		{Role: "assistant", ToolCalls: []QwenToolCall{{ID: "call_1", Type: "function", Function: QwenToolCallFunction{Name: "search", Arguments: "{}"}}}},
+		{Role: "tool", ToolCallID: "call_1", Content: "some result"},
+	}
+
+	got, compressed := svc.compressToolResults(context.Background(), msgs)
+	if compressed {
+		t.Error("expected no compression when the budget isn't exceeded")
+	}
+	if len(got) != len(msgs) {
+		t.Errorf("expected message slice unchanged under threshold, got %d messages want %d", len(got), len(msgs))
+	}
+	for i := range msgs {
+		if got[i].Role != msgs[i].Role || got[i].Content != msgs[i].Content || got[i].ToolCallID != msgs[i].ToolCallID || len(got[i].ToolCalls) != len(msgs[i].ToolCalls) {
+			t.Errorf("message %d mutated when it should have been left untouched: got %+v want %+v", i, got[i], msgs[i])
+		}
+	}
+}
+
+// TestCompressToolResultsFiresOverThreshold verifies that once the transcript
+// crosses 80% of the usable context window, compressToolResults collapses
+// everything except the head (system+user) and the most recent tool-call
+// cycle into a single synthetic summary message, with no orphaned
+// tool_call_id in the result.
+func TestCompressToolResultsFiresOverThreshold(t *testing.T) {
+	turboCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		turboCalls++
+		w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"Summary of prior tool results."}}]}`))
+	}))
+	defer srv.Close()
+
+	tok := NewTokenizer()
+	budgetMgr := NewContextBudgetManager(tok, 20, 1) // tiny budget — trivially crossed
+
+	svc := NewQwenService(&config.Config{
+		QwenBaseURL:          srv.URL,
+		QwenAPIKey:           "test",
+		QwenMaxConcurrency:   1,
+		QwenTurboConcurrency: 1,
+	}, budgetMgr)
+
+	longResult := strings.Repeat("The hero traveled through the ancient forest searching for clues. ", 4)
+
+	msgs := []QwenMessage{
+		{Role: "system", Content: "You are a narrative analyst."},
+		{Role: "user", Content: "Analyze this chapter for contradictions."},
+		{Role: "assistant", ToolCalls: []QwenToolCall{{ID: "call_1", Type: "function", Function: QwenToolCallFunction{Name: "search", Arguments: `{"query":"hero"}`}}}},
+		{Role: "tool", ToolCallID: "call_1", Content: longResult},
+		{Role: "assistant", ToolCalls: []QwenToolCall{{ID: "call_2", Type: "function", Function: QwenToolCallFunction{Name: "search", Arguments: `{"query":"villain"}`}}}},
+		{Role: "tool", ToolCallID: "call_2", Content: longResult},
+	}
+
+	got, compressed := svc.compressToolResults(context.Background(), msgs)
+	if !compressed {
+		t.Fatal("expected compression to fire over threshold")
+	}
+	if turboCalls != 1 {
+		t.Errorf("expected exactly 1 turbo summarization call, got %d", turboCalls)
+	}
+
+	// Collapsed: head(2) + synthetic summary(1) + most-recent tail(2) = 5,
+	// strictly fewer than the original 6 messages.
+	if len(got) >= len(msgs) {
+		t.Errorf("expected collapsed message slice, got %d messages (original had %d)", len(got), len(msgs))
+	}
+	if len(got) != 5 {
+		t.Fatalf("expected head(2)+summary(1)+tail(2) = 5 messages, got %d: %+v", len(got), got)
+	}
+
+	// Head preserved verbatim.
+	if got[0].Role != msgs[0].Role || got[0].Content != msgs[0].Content {
+		t.Error("expected head[0] (system) preserved verbatim")
+	}
+	if got[1].Role != msgs[1].Role || got[1].Content != msgs[1].Content {
+		t.Error("expected head[1] (user) preserved verbatim")
+	}
+
+	// Synthetic summary message, no ToolCalls (would leave nothing to pair
+	// its tool_call_id against).
+	summary := got[2]
+	if summary.Role != "assistant" || !strings.Contains(summary.Content, "Prior investigation summary") {
+		t.Errorf("expected synthetic assistant summary message, got %+v", summary)
+	}
+	if len(summary.ToolCalls) != 0 {
+		t.Error("synthetic summary message must not carry ToolCalls")
+	}
+
+	// Tail (most recent tool-call cycle) preserved verbatim — no orphaned
+	// tool_call_id.
+	if got[3].Role != "assistant" || len(got[3].ToolCalls) != 1 || got[3].ToolCalls[0].ID != "call_2" {
+		t.Errorf("expected most recent assistant tool-call message preserved verbatim, got %+v", got[3])
+	}
+	if got[4].Role != "tool" || got[4].ToolCallID != "call_2" {
+		t.Errorf("expected matching tool response for call_2 preserved, got %+v", got[4])
+	}
+}
+
+// TestRunAgentLoopCompressesOnceAcrossMultipleIterations drives the full
+// RunAgentLoop with a tiny budget through several tool-call cycles and
+// verifies the compressed-once guard: exactly one turbo call happens across
+// the whole loop, even though compressToolResults is checked at the top of
+// every iteration.
+func TestRunAgentLoopCompressesOnceAcrossMultipleIterations(t *testing.T) {
+	maxCalls := 0
+	turboCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var req QwenRequest
+		json.Unmarshal(body, &req)
+
+		if req.Model == "qwen-turbo" {
+			turboCalls++
+			w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"Summary."}}]}`))
+			return
+		}
+
+		maxCalls++
+		if maxCalls < 4 {
+			w.Write([]byte(fmt.Sprintf(`{"choices":[{"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_%d","type":"function","function":{"name":"search","arguments":"{}"}}]}}]}`, maxCalls)))
+			return
+		}
+		w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"Done."}}]}`))
+	}))
+	defer srv.Close()
+
+	tok := NewTokenizer()
+	budgetMgr := NewContextBudgetManager(tok, 20, 1) // tiny budget — crossed from the first iteration
+
+	svc := NewQwenService(&config.Config{
+		QwenBaseURL:          srv.URL,
+		QwenAPIKey:           "test",
+		QwenMaxConcurrency:   1,
+		QwenTurboConcurrency: 1,
+	}, budgetMgr)
+
+	exec := &mockToolExecutor{}
+	messages := []QwenMessage{
+		{Role: "system", Content: "You are a narrative analyst."},
+		{Role: "user", Content: "Analyze this chapter for contradictions across many named entities and events."},
+	}
+	tools := []QwenTool{
+		{Type: "function", Function: QwenToolFunction{Name: "search", Description: "search", Parameters: map[string]interface{}{"type": "object"}}},
+	}
+
+	result, err := svc.RunAgentLoop(context.Background(), messages, tools, exec, 6)
+	if err != nil {
+		t.Fatalf("RunAgentLoop: %v", err)
+	}
+	if result != "Done." {
+		t.Errorf("expected final answer 'Done.', got %q", result)
+	}
+	if turboCalls != 1 {
+		t.Errorf("expected exactly 1 turbo compression call across the whole loop (compressed-once guard), got %d", turboCalls)
+	}
+	if len(exec.calls) != 3 {
+		t.Errorf("expected 3 executor calls before the final answer, got %d", len(exec.calls))
 	}
 }

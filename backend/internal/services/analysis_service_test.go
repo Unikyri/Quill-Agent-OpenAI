@@ -318,9 +318,9 @@ func svcCreateAnalysisRepos(pool *pgxpool.Pool) analysisTestRepos {
 }
 
 func svcCreateAnalysisServices(pool *pgxpool.Pool, repos analysisTestRepos) analysisTestServices {
-	qwenSvc := NewQwenService(nil) // nil config = no real API calls
+	qwenSvc := NewQwenService(nil, nil) // nil config = no real API calls
 	entitySvc := NewEntityService(pool, repos.entity, repos.vector, qwenSvc)
-	contraSvc := NewContradictionService(pool, repos.contradiction, repos.entity, qwenSvc, nil, 3)
+	contraSvc := NewContradictionService(pool, repos.contradiction, repos.entity, qwenSvc, nil, 3, nil)
 	relevSvc := NewRelevanceService(pool, repos.entity, 0.1, 0.15)
 	timelineSvc := NewTimelineService(pool, repos.timeline, nil, nil)
 	plotHoleSvc := NewPlotHoleService(pool, repos.plotHole, repos.entity, 8, nil, nil)
