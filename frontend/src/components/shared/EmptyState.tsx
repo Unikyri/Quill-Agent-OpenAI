@@ -8,10 +8,10 @@ interface EmptyStateProps {
   onCta?: () => void
 }
 
-export default function EmptyState({ icon = '📭', title, message, cta, onCta }: EmptyStateProps) {
+export default function EmptyState({ icon = '◇', title, message, cta, onCta }: EmptyStateProps) {
   return (
     <div className={styles.emptyCard}>
-      <div className={styles.icon}>{icon}</div>
+      <div className={`glyph ${styles.icon}`}>{icon}</div>
       <h3 className={styles.title}>{title}</h3>
       <p className={styles.message}>{message}</p>
       {cta && onCta && (

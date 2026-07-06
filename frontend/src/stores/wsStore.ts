@@ -39,6 +39,14 @@ interface GraphPing {
   [key: string]: unknown
 }
 
+interface IngestionProgress {
+  job_id?: string
+  status?: string
+  chapters_processed?: number
+  total_chapters?: number
+  [key: string]: unknown
+}
+
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/v1/ws`
 
 const MAX_RECONNECT_DELAY_MS = 30_000
@@ -58,6 +66,7 @@ interface WSState {
   discoveredEntities: DiscoveredEntity[]
   recallItems: RecallItem[]
   graphPings: GraphPing[]
+  ingestionProgress: Record<string, IngestionProgress>
   connect: (token: string) => void
   disconnect: () => void
   send: (msg: WSMessage) => void
@@ -105,6 +114,13 @@ export const useWSStore = create<WSState>((set, get) => {
       case 'graph_updated':
         set({ graphPings: [...get().graphPings, payload as GraphPing].slice(-200) })
         break
+      case 'ingestion_progress': {
+        const progress = payload as IngestionProgress
+        if (progress.job_id) {
+          set({ ingestionProgress: { ...get().ingestionProgress, [progress.job_id]: progress } })
+        }
+        break
+      }
       default:
         break
     }
@@ -180,6 +196,7 @@ export const useWSStore = create<WSState>((set, get) => {
     discoveredEntities: [],
     recallItems: [],
     graphPings: [],
+    ingestionProgress: {},
 
     connect: (token: string) => {
       intentionalClose = false
@@ -207,6 +224,7 @@ export const useWSStore = create<WSState>((set, get) => {
         discoveredEntities: [],
         recallItems: [],
         graphPings: [],
+        ingestionProgress: {},
       })
     },
   }

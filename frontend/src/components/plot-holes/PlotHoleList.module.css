@@ -5,52 +5,60 @@
 }
 
 .card {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 4px;
-  padding: 14px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--gold-ink); /* plain --gold only reaches ~2:1 on --bg-card (fails WCAG 3:1 for meaningful UI accents) */
+  border-radius: var(--r-md);
+  padding: 15px 18px;
 }
 
 .cardHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+}
+
+.kicker {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold-ink); /* plain --gold only reaches ~2:1 on --bg-card (fails WCAG AA 4.5:1) */
+}
+
+.title {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 17px;
+  color: var(--ink);
+  margin: 0 0 6px;
 }
 
 .cardDesc {
-  font-size: 14px;
-  color: var(--ink);
-  margin: 0;
-  line-height: 1.5;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 10px;
+  line-height: 1.55;
 }
 
-/* Severity badges — ponytail: semantic colors carry meaning */
-.severity {
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 4px;
+.cardFooter {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.chapterLink {
+  background: transparent;
+  border: none;
+  color: var(--teal);
+  font-family: var(--sans);
+  font-size: 12px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  cursor: pointer;
+  padding: 0;
 }
 
-.severityLow {
-  background: rgba(46, 90, 46, 0.15);
-  color: var(--success);
-}
-
-.severityMedium {
-  background: rgba(184, 134, 11, 0.15);
-  color: var(--warning);
-}
-
-.severityHigh {
-  background: rgba(139, 0, 0, 0.15);
-  color: var(--danger);
-}
-
-.severityCritical {
-  background: rgba(139, 0, 0, 0.25);
-  color: var(--danger);
+.chapterLink:hover {
+  text-decoration: underline;
 }

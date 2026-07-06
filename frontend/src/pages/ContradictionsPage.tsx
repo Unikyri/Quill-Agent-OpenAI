@@ -39,7 +39,7 @@ export default function ContradictionsPage() {
   if (contradictions.length === 0) {
     return (
       <EmptyState
-        icon="\u{2696}"
+        icon="△"
         title="No Contradictions"
         message="No contradictions detected in your universe. AI analysis scans entities and plot events for inconsistencies — run an analysis to check for plot holes."
         cta={universe ? `Analyze "${universe.name}"` : undefined}

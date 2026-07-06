@@ -41,7 +41,7 @@ export default function KnowledgeGraphPage() {
   if (nodes.length === 0) {
     return (
       <EmptyState
-        icon="\u{1F578}"
+        icon="✳"
         title="No Knowledge Graph"
         message="Generate a knowledge graph from your universe entities using AI analysis to visualize character, location, and event relationships."
         cta={universe ? `Analyze "${universe.name}"` : undefined}

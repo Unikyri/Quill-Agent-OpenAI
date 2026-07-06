@@ -1,13 +1,9 @@
-/* UniverseWorksTab — work cards with manuscript styling */
-
-.wrap {
-  /* inherited from parent layout */
-}
+/* UniverseWorksTab — list of works within the current universe */
 
 .heading {
   font-family: var(--serif);
+  font-weight: 500;
   font-size: 22px;
-  font-weight: 600;
   color: var(--ink);
   margin: 0 0 16px;
 }
@@ -19,10 +15,10 @@
 
 .newBtn {
   padding: 10px 20px;
-  background: var(--ink);
-  color: var(--paper-warm);
+  background: var(--teal);
+  color: var(--parchment-hi);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--r-md);
   font-family: var(--sans);
   font-size: 13px;
   font-weight: 600;
@@ -31,7 +27,7 @@
 }
 
 .newBtn:hover {
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
 .inlineForm {
@@ -43,9 +39,9 @@
 
 .formInput {
   padding: 8px 12px;
-  border: 1px solid var(--card-border);
-  border-radius: 4px;
-  background: var(--card-bg);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--bg-input);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 13px;
@@ -54,14 +50,14 @@
 }
 
 .formInput:focus {
-  border-color: var(--ink);
+  border-color: var(--teal);
 }
 
 .formSelect {
   padding: 8px 10px;
-  border: 1px solid var(--card-border);
-  border-radius: 4px;
-  background: var(--card-bg);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--bg-input);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 13px;
@@ -70,15 +66,15 @@
 }
 
 .formSelect:focus {
-  border-color: var(--ink);
+  border-color: var(--teal);
 }
 
 .formSubmit {
   padding: 8px 16px;
-  background: var(--ink);
-  color: var(--paper-warm);
+  background: var(--teal);
+  color: var(--parchment-hi);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--r-md);
   font-family: var(--sans);
   font-size: 13px;
   font-weight: 600;
@@ -86,15 +82,15 @@
 }
 
 .formSubmit:hover {
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
 .formCancel {
   padding: 8px 16px;
   background: transparent;
-  border: 1px solid var(--ink-20);
-  border-radius: 4px;
-  color: var(--ink-60);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  color: var(--muted);
   font-family: var(--sans);
   font-size: 13px;
   cursor: pointer;
@@ -113,41 +109,46 @@
 }
 
 .card {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 4px;
-  padding: 20px 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 18px 22px;
   margin-bottom: 12px;
   cursor: pointer;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .card:hover {
-  border-color: var(--ink);
-  box-shadow: 0 2px 8px var(--ink-10);
+  border-color: var(--teal);
+  box-shadow: 0 2px 10px rgba(43, 38, 32, 0.08);
+}
+
+.cardTypePill {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--teal-soft-12);
+  color: var(--teal);
+  border-radius: var(--r-pill);
+  padding: 3px 9px;
+  margin-bottom: 8px;
 }
 
 .cardTitle {
   font-family: var(--serif);
+  font-weight: 500;
   font-size: 17px;
-  font-weight: 600;
   color: var(--ink);
-  margin: 0 0 4px;
-}
-
-.cardType {
-  font-family: var(--micro);
-  font-size: 13px;
-  color: var(--ink-60);
-  font-style: italic;
   margin: 0;
 }
 
 .empty {
   text-align: center;
   padding: 32px;
-  font-family: var(--micro);
+  font-family: var(--sans);
   font-size: 15px;
-  color: var(--ink-60);
+  color: var(--muted);
   font-style: italic;
 }

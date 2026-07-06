@@ -1,49 +1,45 @@
-import { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import styles from './PlotHoleList.module.css'
 
 export interface PlotHole {
   id: string
-  description: string
-  severity: string
+  title: string
+  description?: string
+  status: string
+  related_entity_ids?: string[]
+  first_mentioned_chapter_id?: string
 }
 
 interface PlotHoleListProps {
   plotHoles: PlotHole[]
+  universeId: string
 }
 
-const SEVERITY_ORDER: Record<string, number> = {
-  critical: 0,
-  high: 1,
-  medium: 2,
-  low: 3,
-}
-
-const SEVERITY_CLASS: Record<string, string> = {
-  critical: styles.severityCritical,
-  high: styles.severityHigh,
-  medium: styles.severityMedium,
-  low: styles.severityLow,
-}
-
-export default function PlotHoleList({ plotHoles }: PlotHoleListProps) {
-  const sorted = useMemo(() => {
-    return [...plotHoles].sort((a, b) => {
-      const orderA = SEVERITY_ORDER[a.severity] ?? 99
-      const orderB = SEVERITY_ORDER[b.severity] ?? 99
-      return orderA - orderB
-    })
-  }, [plotHoles])
+export default function PlotHoleList({ plotHoles, universeId }: PlotHoleListProps) {
+  const navigate = useNavigate()
 
   return (
     <div className={styles.listWrap}>
-      {sorted.map((ph) => (
+      {plotHoles.map((ph) => (
         <div key={ph.id} className={styles.card}>
           <div className={styles.cardHeader}>
-            <span className={`${styles.severity} ${SEVERITY_CLASS[ph.severity] || styles.severityLow}`}>
-              {ph.severity}
-            </span>
+            <span className={styles.kicker}>OPEN THREAD</span>
           </div>
-          <p className={styles.cardDesc}>{ph.description}</p>
+          <h3 className={styles.title}>{ph.title}</h3>
+          {ph.description && <p className={styles.cardDesc}>{ph.description}</p>}
+          <div className={styles.cardFooter}>
+            {/* ponytail: entity chip needs a name lookup by id (no entity data
+                plumbed to this list); showing raw ids would be worse than
+                omitting — deferred until a universe-wide entity map is passed in. */}
+            {ph.first_mentioned_chapter_id && (
+              <button
+                className={styles.chapterLink}
+                onClick={() => navigate(`/universe/${universeId}/editor/${ph.first_mentioned_chapter_id}`)}
+              >
+                Go to chapter →
+              </button>
+            )}
+          </div>
         </div>
       ))}
     </div>

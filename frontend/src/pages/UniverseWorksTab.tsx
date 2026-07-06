@@ -72,11 +72,19 @@ export default function UniverseWorksTab() {
         works.map((w) => (
           <div
             key={w.id}
+            role="button"
+            tabIndex={0}
             className={styles.card}
             onClick={() => navigate(`/work/${w.id}`)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                navigate(`/work/${w.id}`)
+              }
+            }}
           >
+            <span className={styles.cardTypePill}>{w.type}</span>
             <h3 className={styles.cardTitle}>{w.title}</h3>
-            <p className={styles.cardType}>{w.type}</p>
           </div>
         ))
       )}

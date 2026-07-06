@@ -25,17 +25,17 @@ describe('ContextPanel', () => {
 
   it('shows red indicator when disconnected', () => {
     render(<ContextPanel status="closed" />)
-    expect(screen.getByText('🔴')).toBeInTheDocument()
+    expect(screen.getByTitle('WS: closed')).toBeInTheDocument()
   })
 
   it('shows green indicator when connected', () => {
     render(<ContextPanel status="open" />)
-    expect(screen.getByText('🟢')).toBeInTheDocument()
+    expect(screen.getByTitle('WS: open')).toBeInTheDocument()
   })
 
   it('shows yellow indicator when reconnecting', () => {
     render(<ContextPanel status="reconnecting" />)
-    expect(screen.getByText('🟡')).toBeInTheDocument()
+    expect(screen.getByTitle('WS: reconnecting')).toBeInTheDocument()
   })
 
   it('renders contradiction cards from store', () => {

@@ -49,7 +49,7 @@ export default function TimelinePage() {
   if (events.length === 0) {
     return (
       <EmptyState
-        icon="\u{1F4C5}"
+        icon="⌇"
         title="No Timeline Events"
         message="Generate a timeline from your work's chapters using AI analysis to visualize the chronological flow of events."
         cta={universe ? `Analyze "${universe.name}"` : undefined}

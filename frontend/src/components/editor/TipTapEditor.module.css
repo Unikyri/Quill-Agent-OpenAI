@@ -26,7 +26,7 @@
 .editorContent :global(.ProseMirror p.is-editor-empty:first-child::before) {
   content: attr(data-placeholder);
   float: left;
-  color: var(--ink-40);
+  color: var(--muted-2);
   pointer-events: none;
   height: 0;
 }
@@ -37,7 +37,7 @@
 }
 
 .editorContent :global(.ProseMirror mark) {
-  background: var(--ink-10);
+  background: var(--line);
   color: var(--ink);
   border-radius: 2px;
   padding: 0 2px;

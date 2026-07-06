@@ -1,7 +1,7 @@
 .emptyCard {
-  background: var(--paper);
-  border: 1px solid var(--ink-10);
-  border-radius: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   padding: 40px 24px;
   text-align: center;
   max-width: 400px;
@@ -14,6 +14,7 @@
 }
 
 .title {
+  font-family: var(--serif);
   font-size: 18px;
   font-weight: 600;
   margin: 0 0 8px 0;
@@ -22,17 +23,17 @@
 
 .message {
   font-size: 14px;
-  color: var(--ink-60);
+  color: var(--muted);
   margin: 0 0 20px 0;
   line-height: 1.5;
 }
 
 .cta {
   display: inline-block;
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--teal);
+  color: var(--parchment-hi);
   padding: 8px 20px;
-  border-radius: 4px;
+  border-radius: var(--r-md);
   text-decoration: none;
   font-size: 14px;
   cursor: pointer;
@@ -40,5 +41,5 @@
 }
 
 .cta:hover {
-  background: var(--ink-80);
+  background: var(--teal-deep);
 }

@@ -1,13 +1,13 @@
-/* Canvas wrapper — paper theme */
+/* Canvas wrapper */
 .canvasWrap {
   position: relative;
   width: 100%;
   height: 70vh;
   min-height: 400px;
-  border-radius: 4px;
+  border-radius: var(--r-lg);
   overflow: hidden;
-  background: var(--paper);
-  border: 1px solid var(--ink-10);
+  background: var(--bg-graph);
+  border: 1px solid var(--line);
 }
 
 .flowCanvas {
@@ -15,9 +15,9 @@
   height: 100%;
 }
 
-/* ReactFlow overrides — paper theme */
+/* ReactFlow overrides */
 :global(.react-flow__background) {
-  background: var(--paper) !important;
+  background: var(--bg-graph) !important;
 }
 
 :global(.react-flow__node) {
@@ -25,29 +25,29 @@
 }
 
 :global(.react-flow__edge-path) {
-  stroke: var(--ink-20) !important;
+  stroke: #a99f86 !important;
   stroke-width: 2;
 }
 
 :global(.react-flow__edge-text) {
-  fill: var(--ink-60) !important;
+  fill: var(--muted) !important;
   font-size: 11px;
 }
 
 :global(.react-flow__controls-button) {
-  background: var(--paper) !important;
-  border-color: var(--ink-10) !important;
+  background: var(--bg-card) !important;
+  border-color: var(--line) !important;
   fill: var(--ink) !important;
 }
 
 :global(.react-flow__controls-button:hover) {
-  background: var(--paper-warm) !important;
+  background: var(--bg-input) !important;
 }
 
 :global(.react-flow__minimap) {
-  background: var(--paper) !important;
-  border: 1px solid var(--ink-10) !important;
-  border-radius: 4px;
+  background: var(--bg-card) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--r-md);
 }
 
 .controls {
@@ -55,16 +55,20 @@
 }
 
 .minimap {
-  background: var(--paper);
+  background: var(--bg-card);
 }
 
-/* Filter bar */
+/* Filter bar — doubles as floating legend card (see GraphControls.tsx) */
 .filterBar {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   flex-wrap: wrap;
   margin-bottom: 12px;
-  padding: 8px 0;
+  padding: 10px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: 0 4px 14px rgba(43, 38, 32, 0.06);
 }
 
 .filterLabel {
@@ -72,13 +76,14 @@
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  font-size: 13px;
-  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--ink-soft);
   user-select: none;
 }
 
 .filterCheckbox {
-  accent-color: var(--ink);
+  accent-color: var(--teal);
   cursor: pointer;
 }
 
@@ -86,10 +91,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
-  font-size: 12px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-sm);
+  font-size: 11px;
+  color: var(--parchment-hi);
 }
 
 .filterText {
@@ -98,18 +104,18 @@
 
 /* Custom node */
 .customNode {
-  background: var(--paper);
+  background: var(--bg-card);
   border: 2px solid var(--ink);
-  border-radius: 4px;
-  padding: 8px 12px;
+  border-radius: var(--r-pill);
+  padding: 8px 14px;
   min-width: 100px;
-  box-shadow: 0 2px 8px var(--ink-10);
+  box-shadow: 0 2px 8px rgba(43, 38, 32, 0.08);
   cursor: pointer;
   transition: box-shadow 0.2s;
 }
 
 .customNode:hover {
-  box-shadow: 0 4px 16px var(--ink-20);
+  box-shadow: 0 4px 16px rgba(43, 38, 32, 0.16);
 }
 
 .nodeContent {
@@ -119,11 +125,12 @@
 }
 
 .nodeIcon {
-  font-size: 16px;
+  font-size: 15px;
   flex-shrink: 0;
 }
 
 .nodeLabel {
+  font-family: var(--sans);
   font-size: 12px;
   font-weight: 600;
   color: var(--ink);
@@ -136,7 +143,7 @@
   width: 8px !important;
   height: 8px !important;
   background: var(--ink) !important;
-  border: 2px solid var(--paper) !important;
+  border: 2px solid var(--bg-card) !important;
 }
 
 /* Drawer */
@@ -146,12 +153,12 @@
   right: 0;
   width: 300px;
   height: 100%;
-  background: var(--paper);
-  border-left: 1px solid var(--ink-10);
+  background: var(--bg-card);
+  border-left: 1px solid var(--line);
   padding: 20px;
   overflow-y: auto;
   z-index: 10;
-  box-shadow: -4px 0 16px var(--ink-10);
+  box-shadow: -4px 0 16px rgba(43, 38, 32, 0.1);
   animation: slideIn 0.2s ease;
 }
 
@@ -169,15 +176,16 @@
 
 .drawerTitle {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 18px;
   color: var(--ink);
 }
 
 .drawerClose {
   background: transparent;
   border: none;
-  color: var(--ink-60);
+  color: var(--muted);
   font-size: 16px;
   cursor: pointer;
   padding: 4px;
@@ -189,21 +197,25 @@
 }
 
 .drawerType {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
   text-transform: uppercase;
-  color: var(--ink);
-  background: var(--ink-10);
-  padding: 2px 8px;
-  border-radius: 4px;
-  margin-bottom: 12px;
+  color: var(--ink-soft);
+  background: var(--surface-sunken);
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  margin-bottom: 14px;
 }
 
 .drawerDesc {
+  font-family: var(--sans);
   font-size: 13px;
-  color: var(--ink-60);
-  line-height: 1.5;
+  color: var(--muted);
+  line-height: 1.55;
   margin: 0 0 16px 0;
 }
 
@@ -215,13 +227,15 @@
 }
 
 .drawerFieldKey {
-  font-size: 10px;
+  font-family: var(--mono);
+  font-size: 9.5px;
   text-transform: uppercase;
-  color: var(--ink-40);
-  letter-spacing: 0.5px;
+  color: var(--muted-2);
+  letter-spacing: 0.06em;
 }
 
 .drawerFieldValue {
+  font-family: var(--sans);
   font-size: 13px;
   color: var(--ink);
   word-break: break-word;

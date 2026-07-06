@@ -63,41 +63,33 @@ describe('PlotHolesPage', () => {
     })
   })
 
-  it('renders plot holes sorted by severity (critical → high → medium → low)', async () => {
+  it('renders each plot hole as an open-thread card with title and description', async () => {
     mockGetPlotHoles.mockResolvedValue({
       plot_holes: [
-        { id: 'ph1', description: 'Low priority issue', severity: 'low' },
-        { id: 'ph2', description: 'Critical gap', severity: 'critical' },
-        { id: 'ph3', description: 'Medium problem', severity: 'medium' },
-        { id: 'ph4', description: 'High urgency', severity: 'high' },
+        { id: 'ph1', title: 'Low priority thread', description: 'Low priority issue', status: 'open' },
+        { id: 'ph2', title: 'Critical gap thread', description: 'Critical gap', status: 'open' },
       ],
     })
     renderPage()
 
     await waitFor(() => {
-      expect(screen.getByText('Critical gap')).toBeInTheDocument()
-      expect(screen.getByText('High urgency')).toBeInTheDocument()
-      expect(screen.getByText('Medium problem')).toBeInTheDocument()
-      expect(screen.getByText('Low priority issue')).toBeInTheDocument()
+      expect(screen.getByText('Critical gap thread')).toBeInTheDocument()
+      expect(screen.getByText('Low priority thread')).toBeInTheDocument()
     })
 
-    // Verify severity order: critical → high → medium → low
-    const descs = screen
-      .getAllByText(/Critical gap|High urgency|Medium problem|Low priority issue/)
-      .map((el) => el.textContent)
-    expect(descs).toEqual(['Critical gap', 'High urgency', 'Medium problem', 'Low priority issue'])
+    expect(screen.getAllByText('OPEN THREAD').length).toBe(2)
   })
 
-  it('renders severity badges with correct text', async () => {
+  it('shows "Go to chapter" only when a first-mentioned chapter is known', async () => {
     mockGetPlotHoles.mockResolvedValue({
       plot_holes: [
-        { id: 'ph1', description: 'A problem', severity: 'high' },
+        { id: 'ph1', title: 'A problem', description: 'desc', status: 'open', first_mentioned_chapter_id: 'ch-9' },
       ],
     })
     renderPage()
 
     await waitFor(() => {
-      expect(screen.getByText('high')).toBeInTheDocument()
+      expect(screen.getByText(/Go to chapter/)).toBeInTheDocument()
     })
   })
 })

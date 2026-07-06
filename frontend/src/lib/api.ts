@@ -69,6 +69,8 @@ export const api = {
   getWork: (id: string) => request<{ work: any }>(`/works/${id}`),
   createWork: (universeId: string, data: any) =>
     request<{ work: any }>(`/universes/${universeId}/works`, { method: 'POST', json: data }),
+  updateWork: (id: string, data: any) =>
+    request<{ work: any }>(`/works/${id}`, { method: 'PUT', json: data }),
 
   // Chapters
   listChapters: (workId: string) =>
@@ -99,12 +101,26 @@ export const api = {
 
   // Phase 2a: Knowledge Graph & Analysis
   getContradictions: (universeId: string) =>
-    request<{ contradictions: Array<{ id: string; message: string; severity: string; entities: string[] }> }>(
-      `/universes/${universeId}/contradictions`
-    ),
+    request<{
+      contradictions: Array<{
+        id: string
+        entity_id?: string
+        severity: string
+        description: string
+        suggestion?: string
+        evidence_a?: string
+        evidence_a_chapter_id?: string
+        evidence_b?: string
+        evidence_b_chapter_id?: string
+        status: string
+      }>
+    }>(`/universes/${universeId}/contradictions`),
 
   resolveContradiction: (universeId: string, id: string) =>
     request<void>(`/universes/${universeId}/contradictions/${id}/resolve`, { method: 'PUT' }),
+
+  dismissContradiction: (universeId: string, id: string) =>
+    request<void>(`/universes/${universeId}/contradictions/${id}/dismiss`, { method: 'PUT' }),
 
   getTimeline: (universeId: string) =>
     request<{ events: Array<{ id: string; label: string; timestamp: string; description: string }> }>(
@@ -112,9 +128,16 @@ export const api = {
     ),
 
   getPlotHoles: (universeId: string) =>
-    request<{ plot_holes: Array<{ id: string; description: string; severity: string }> }>(
-      `/universes/${universeId}/plot-holes`
-    ),
+    request<{
+      plot_holes: Array<{
+        id: string
+        title: string
+        description?: string
+        related_entity_ids?: string[]
+        first_mentioned_chapter_id?: string
+        status: string
+      }>
+    }>(`/universes/${universeId}/plot-holes`),
 
   getGraph: (universeId: string) =>
     request<{
@@ -127,4 +150,23 @@ export const api = {
       `/universes/${universeId}/recall`,
       { method: 'POST', json: { query, k } }
     ),
+
+  // Ingestion — multipart upload, bypasses `request()`'s JSON body handling
+  // since the browser must set its own `Content-Type: multipart/form-data`
+  // boundary. Progress is streamed separately over WS (`ingestion_progress`).
+  ingestDocument: async (universeId: string, file: File) => {
+    const token = localStorage.getItem('token')
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await fetch(`${API_BASE}/universes/${universeId}/ingest`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: formData,
+    })
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ error: { message: 'Upload failed' } }))
+      throw new Error(error.error?.message || `HTTP ${res.status}`)
+    }
+    return res.json() as Promise<{ job_id: string; status: string }>
+  },
 }

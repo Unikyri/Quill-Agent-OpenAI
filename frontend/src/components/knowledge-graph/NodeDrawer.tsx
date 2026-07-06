@@ -21,12 +21,12 @@ export default function NodeDrawer() {
     <div className={styles.drawer}>
       <div className={styles.drawerHeader}>
         <h3 className={styles.drawerTitle}>{node.data.label as string}</h3>
-        <button className={styles.drawerClose} onClick={() => selectNode(null)}>
+        <button className={`glyph ${styles.drawerClose}`} onClick={() => selectNode(null)}>
           ✕
         </button>
       </div>
       <span className={styles.drawerType} style={{ borderLeft: `3px solid ${meta.color}` }}>
-        {meta.icon} {meta.label}
+        <span className="glyph">{meta.icon}</span> {meta.label}
       </span>
       {status && (
         <div className={styles.drawerField}>

@@ -54,11 +54,11 @@ export default function Toolbar({ editor }: ToolbarProps) {
       </button>
       <div className={styles.separator} />
       <button
-        className={`${styles.button} ${editor.isActive('link') ? styles.buttonActive : ''}`}
+        className={`glyph ${styles.button} ${editor.isActive('link') ? styles.buttonActive : ''}`}
         onClick={setLink}
         title="Add link"
       >
-        🔗
+        ⛓
       </button>
       <div className={styles.separator} />
       <button
@@ -84,21 +84,21 @@ export default function Toolbar({ editor }: ToolbarProps) {
       </button>
       <div className={styles.separator} />
       <button
-        className={`${styles.button} ${editor.isActive('bulletList') ? styles.buttonActive : ''}`}
+        className={`glyph ${styles.button} ${editor.isActive('bulletList') ? styles.buttonActive : ''}`}
         onClick={() => editor.chain().focus().toggleBulletList().run()}
         title="Bullet list"
       >
         •—
       </button>
       <button
-        className={`${styles.button} ${editor.isActive('blockquote') ? styles.buttonActive : ''}`}
+        className={`glyph ${styles.button} ${editor.isActive('blockquote') ? styles.buttonActive : ''}`}
         onClick={() => editor.chain().focus().toggleBlockquote().run()}
         title="Blockquote"
       >
         ❝
       </button>
       <button
-        className={styles.button}
+        className={`glyph ${styles.button}`}
         onClick={() => editor.chain().focus().setHorizontalRule().run()}
         title="Horizontal rule"
       >

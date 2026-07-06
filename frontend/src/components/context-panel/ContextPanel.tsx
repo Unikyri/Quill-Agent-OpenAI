@@ -31,7 +31,8 @@ export default function ContextPanel({ status }: ContextPanelProps) {
     }))
   }, [])
 
-  const statusIndicator = status === 'open' ? '🟢' : status === 'reconnecting' ? '🟡' : '🔴'
+  const statusClass =
+    status === 'open' ? styles.statusOpen : status === 'reconnecting' ? styles.statusReconnecting : styles.statusClosed
   const totalCards = recallItems.length + contradictions.length + discoveredEntities.length + graphPings.length
 
   return (
@@ -39,8 +40,8 @@ export default function ContextPanel({ status }: ContextPanelProps) {
       <div className={styles.panelHeader}>
         <h3 className={styles.panelTitle}>
           Context Panel
-          <span className={styles.statusIndicator} title={`WS: ${status}`}>
-            {statusIndicator}
+          <span className={`glyph ${styles.statusIndicator} ${statusClass}`} title={`WS: ${status}`}>
+            ●
           </span>
         </h3>
         {totalCards > 0 && (

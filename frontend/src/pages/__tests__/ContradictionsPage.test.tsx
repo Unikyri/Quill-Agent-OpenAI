@@ -53,8 +53,8 @@ describe('ContradictionsPage', () => {
   it('renders contradiction cards on load', async () => {
     mockGetContradictions.mockResolvedValue({
       contradictions: [
-        { id: 'c1', message: 'Character age mismatch', severity: 'high', entities: ['Alice'] },
-        { id: 'c2', message: 'Timeline conflict', severity: 'low', entities: ['Bob', 'Carol'] },
+        { id: 'c1', description: 'Character age mismatch', severity: 'high', status: 'open' },
+        { id: 'c2', description: 'Timeline conflict', severity: 'low', status: 'open' },
       ],
     })
     renderPage()
@@ -90,8 +90,8 @@ describe('ContradictionsPage', () => {
   it('filters contradictions by severity', async () => {
     mockGetContradictions.mockResolvedValue({
       contradictions: [
-        { id: 'c1', message: 'High issue', severity: 'high', entities: [] },
-        { id: 'c2', message: 'Low issue', severity: 'low', entities: [] },
+        { id: 'c1', description: 'High issue', severity: 'high', status: 'open' },
+        { id: 'c2', description: 'Low issue', severity: 'low', status: 'open' },
       ],
     })
     renderPage()
@@ -115,7 +115,7 @@ describe('ContradictionsPage', () => {
   it('resolves contradiction optimistically on confirm', async () => {
     mockGetContradictions.mockResolvedValue({
       contradictions: [
-        { id: 'c1', message: 'Fix me', severity: 'medium', entities: [] },
+        { id: 'c1', description: 'Fix me', severity: 'medium', status: 'open' },
       ],
     })
     mockResolveContradiction.mockResolvedValue(true)

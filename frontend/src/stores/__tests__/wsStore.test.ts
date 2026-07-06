@@ -74,6 +74,7 @@ beforeEach(() => {
     discoveredEntities: [],
     recallItems: [],
     graphPings: [],
+    ingestionProgress: {},
   })
   vi.useFakeTimers()
 })
@@ -95,6 +96,7 @@ describe('wsStore', () => {
       expect(s.discoveredEntities).toEqual([])
       expect(s.recallItems).toEqual([])
       expect(s.graphPings).toEqual([])
+      expect(s.ingestionProgress).toEqual({})
     })
 
     it('has null lastError and 0 reconnectAttempt', () => {
@@ -188,6 +190,34 @@ describe('wsStore', () => {
       const ws = MockWebSocket.instances[0]
       ws.simulateMessage({ type: 'graph_updated', payload: { updated: true } })
       expect(getStore().graphPings).toHaveLength(1)
+    })
+
+    it('dispatches ingestion_progress keyed by job_id', () => {
+      const ws = MockWebSocket.instances[0]
+      ws.simulateMessage({
+        type: 'ingestion_progress',
+        payload: { job_id: 'job-1', status: 'running', chapters_processed: 2, total_chapters: 5 },
+      })
+      expect(getStore().ingestionProgress['job-1']).toEqual({
+        job_id: 'job-1',
+        status: 'running',
+        chapters_processed: 2,
+        total_chapters: 5,
+      })
+    })
+
+    it('merges later ingestion_progress updates for the same job_id', () => {
+      const ws = MockWebSocket.instances[0]
+      ws.simulateMessage({
+        type: 'ingestion_progress',
+        payload: { job_id: 'job-1', status: 'running', chapters_processed: 1, total_chapters: 5 },
+      })
+      ws.simulateMessage({
+        type: 'ingestion_progress',
+        payload: { job_id: 'job-1', status: 'running', chapters_processed: 3, total_chapters: 5 },
+      })
+      expect(getStore().ingestionProgress['job-1'].chapters_processed).toBe(3)
+      expect(Object.keys(getStore().ingestionProgress)).toHaveLength(1)
     })
 
     it('handles auth_ok by clearing lastError', () => {

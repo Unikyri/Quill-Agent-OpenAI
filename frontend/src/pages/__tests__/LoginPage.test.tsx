@@ -77,7 +77,7 @@ describe('LoginPage', () => {
   it('switches to register form', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: /register/i }))
-    expect(screen.getByPlaceholderText(/display name/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/author name/i)).toBeInTheDocument()
   })
 
   it('handles demo flow: login → clone → navigate', async () => {

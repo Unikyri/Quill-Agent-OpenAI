@@ -1,0 +1,64 @@
+.slot {
+  position: relative;
+  background: var(--surface-sunken);
+  border: 1px dashed var(--line-strong);
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slot[data-drag-over] {
+  border-color: var(--teal);
+  background: var(--teal-soft);
+}
+
+.input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.previewImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.removeBtn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(43, 38, 32, 0.6);
+  color: var(--parchment-hi);
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.placeholder {
+  font-size: 11px;
+  color: var(--muted-2);
+  text-align: center;
+  padding: 0 8px;
+  margin: 0;
+}
+
+.errorText {
+  font-size: 11px;
+  color: var(--danger);
+  text-align: center;
+  padding: 0 8px;
+  margin: 0;
+}
+
+.spinner {
+  font-size: 20px;
+  color: var(--teal);
+  animation: qspin 0.8s linear infinite;
+}

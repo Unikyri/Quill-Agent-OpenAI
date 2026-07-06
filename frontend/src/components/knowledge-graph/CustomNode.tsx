@@ -11,7 +11,7 @@ function CustomNode({ data }: NodeProps) {
     <div className={styles.customNode} style={{ borderColor: meta.color }}>
       <Handle type="target" position={Position.Top} className={styles.handle} />
       <div className={styles.nodeContent}>
-        <span className={styles.nodeIcon}>{meta.icon}</span>
+        <span className={`${styles.nodeIcon} glyph`}>{meta.icon}</span>
         <span className={styles.nodeLabel}>{(data.label as string) || 'Untitled'}</span>
       </div>
       <Handle type="source" position={Position.Bottom} className={styles.handle} />

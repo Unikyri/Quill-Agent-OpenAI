@@ -1,87 +1,71 @@
+/* Vertical spine timeline */
 .timeline {
-  display: flex;
-  flex-direction: row;
-  gap: 0;
-  overflow-x: auto;
-  overflow-y: visible;
-  padding: 64px 24px 24px;
   position: relative;
-  min-height: 200px;
-  align-items: flex-start;
+  padding: 8px 8px 8px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
 }
 
-.timeline::before {
-  content: '';
+.spine {
   position: absolute;
-  top: 40px;
-  left: 24px;
-  right: 24px;
-  height: 2px;
-  background: var(--ink-20);
+  top: 6px;
+  bottom: 6px;
+  left: 33px;
+  width: 2px;
+  background: var(--line-strong);
   z-index: 0;
 }
 
-.eventCard {
+.eventRow {
+  position: relative;
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.marker {
   position: relative;
   z-index: 1;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 4px;
-  padding: 12px 14px;
-  min-width: 180px;
-  max-width: 220px;
-  margin-right: 32px;
-  flex-shrink: 0;
-  transition: border-color 0.2s;
-}
-
-.eventCard:hover {
-  border-color: var(--ink);
-}
-
-.eventDate {
-  position: absolute;
-  top: -60px;
-  left: 50%;
-  transform: translateX(-50%);
-  white-space: nowrap;
-  font-size: 11px;
-  color: var(--ink-60);
-  font-family: var(--micro, inherit);
-}
-
-.eventDot {
-  position: absolute;
-  top: -30px;
-  left: 50%;
-  transform: translateX(-50%);
+  flex: none;
   width: 12px;
   height: 12px;
-  border-radius: 50%;
-  background: var(--ink);
-  border: 2px solid var(--paper);
-  z-index: 2;
+  margin-top: 6px;
+  border-radius: var(--r-round);
+  background: var(--bg-app);
+  border: 3px solid var(--teal);
 }
 
-.eventChapter {
-  font-size: 11px;
+.eventCard {
+  flex: 1;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 14px 18px;
+}
+
+.eraKicker {
+  display: block;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-60);
-  font-weight: 600;
-  margin: 0 0 4px 0;
-  letter-spacing: 0.5px;
+  color: var(--muted-2);
+  margin-bottom: 6px;
 }
 
 .eventLabel {
-  font-size: 14px;
-  font-weight: 600;
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 17px;
   color: var(--ink);
-  margin: 0 0 4px 0;
+  margin: 0 0 6px;
 }
 
 .eventDesc {
-  font-size: 12px;
-  color: var(--ink-60);
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--muted);
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.5;
 }

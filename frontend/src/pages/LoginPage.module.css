@@ -1,53 +1,189 @@
+/* LoginPage — two-pane auth (teal hero + form) */
+
 .container {
+  width: 100vw;
+  height: 100vh;
+  min-height: 640px;
   display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  background: var(--paper-warm);
-  /* ponytail: paper grain via CSS gradient until real textures arrive */
-  background-image:
-    repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      var(--ink-02) 2px,
-      var(--ink-02) 4px
-    );
+  background: var(--bg-card);
 }
 
-.card {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 4px;
-  padding: 48px 40px 36px;
-  width: 420px;
-  max-width: 90vw;
-  box-shadow: 0 1px 4px var(--ink-10);
+/* ---- Left hero pane ---- */
+.hero {
+  width: 44%;
+  min-width: 420px;
+  position: relative;
+  background: var(--teal-deep);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 46px 46px 40px;
+}
+
+.heroSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.heroGradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    rgba(35, 75, 67, 0.97) 0%,
+    rgba(35, 75, 67, 0.9) 44%,
+    rgba(35, 75, 67, 0.35) 66%,
+    rgba(35, 75, 67, 0) 82%
+  );
+  pointer-events: none;
+}
+
+.dash {
+  animation: qdash 1.4s linear infinite;
+}
+
+.glow {
+  animation: qglow 4s ease-in-out infinite;
+}
+
+.float1 { animation: qfloat 7s ease-in-out infinite; }
+.float2 { animation: qfloat 6s ease-in-out infinite 0.6s; }
+.float3 { animation: qfloat 8s ease-in-out infinite 1.1s; }
+.float4 { animation: qfloat 6.5s ease-in-out infinite 0.3s; }
+.float5 { animation: qfloat 7.5s ease-in-out infinite 0.9s; }
+
+.heroBrand {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.brandMark {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border: 1.5px solid var(--gold);
+  border-radius: var(--r-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gold);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 19px;
+}
+
+.brandName {
+  font-family: var(--serif);
+  font-size: 24px;
+  font-weight: 400;
+  color: var(--parchment-hi);
+  letter-spacing: 0.01em;
+  margin: 0;
+}
+
+.heroCopy {
+  position: relative;
+  max-width: 340px;
+}
+
+.heroKicker {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 16px;
+}
+
+.heroTitle {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 34px;
+  line-height: 1.24;
+  margin: 0 0 14px;
+  color: var(--parchment-hi);
+}
+
+.heroSubtitle {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--teal-tint-on-dark);
+  margin: 0;
+}
+
+.heroLegend {
+  position: relative;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: #94aaa2;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendDot {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-round);
+  background: var(--gold);
+}
+
+.legendCharacter { background: var(--gold); }
+.legendPlace { background: #8fae86; }
+.legendItem2 { background: #c98a5c; }
+
+.legendDash {
+  width: 14px;
+  height: 0;
+  border-top: 1.6px dashed var(--conflict-dash);
+}
+
+/* ---- Right form pane ---- */
+.formPane {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.formCard {
+  width: 100%;
+  max-width: 392px;
 }
 
 .heading {
   font-family: var(--serif);
-  font-size: 32px;
-  font-weight: 700;
+  font-weight: 500;
+  font-size: 28px;
   color: var(--ink);
-  margin: 0 0 4px;
-  letter-spacing: -0.5px;
+  margin: 0 0 6px;
 }
 
 .subheading {
-  font-family: var(--micro);
-  font-size: 15px;
-  color: var(--ink-60);
-  margin: 0 0 28px;
-  font-style: italic;
+  font-size: 13.5px;
+  color: var(--muted);
+  margin: 0 0 26px;
 }
 
 /* Tabs */
 .tabs {
   display: flex;
-  gap: 0;
-  margin-bottom: 28px;
-  border-bottom: 1px solid var(--ink-20);
+  gap: 4px;
+  background: var(--bg-app);
+  border-radius: var(--r-lg);
+  padding: 4px;
+  margin-bottom: 26px;
 }
 
 .tab {
@@ -57,23 +193,19 @@
   font-family: var(--sans);
   font-size: 13px;
   font-weight: 600;
-  color: var(--ink-60);
+  color: var(--muted);
   border: none;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
+  border-radius: var(--r-md);
   cursor: pointer;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  transition: color 0.2s, border-color 0.2s;
 }
 
 .tab:hover {
-  color: var(--ink-80);
+  color: var(--ink);
 }
 
 .tabActive {
-  color: var(--ink);
-  border-bottom-color: var(--ink);
+  color: var(--parchment-hi);
+  background: var(--teal);
 }
 
 /* Form */
@@ -83,13 +215,23 @@
 }
 
 .field {
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 
-.field input {
-  font-family: var(--sans);
-  font-size: 15px;
-  padding: 10px 4px;
+.label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 7px;
+}
+
+.hint {
+  font-size: 11.5px;
+  color: var(--muted-2);
+  margin-top: 7px;
 }
 
 .errorMsg {
@@ -101,23 +243,22 @@
 
 .submitBtn {
   width: 100%;
-  padding: 12px;
+  padding: 14px;
   margin-bottom: 16px;
   font-family: var(--sans);
   font-size: 14px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  background: var(--ink);
-  color: var(--paper);
+  letter-spacing: 0.01em;
+  background: var(--teal);
+  color: var(--parchment-hi);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--r-md);
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .submitBtn:hover:not(:disabled) {
-  background: var(--ink-80);
+  background: var(--teal-deep);
 }
 
 .submitBtn:disabled {
@@ -136,14 +277,13 @@
 .dividerLine {
   flex: 1;
   height: 1px;
-  background: var(--ink-20);
+  background: var(--line-strong);
 }
 
 .dividerText {
-  font-family: var(--micro);
+  font-family: var(--mono);
   font-size: 12px;
-  color: var(--ink-60);
-  font-style: italic;
+  color: var(--muted-2);
 }
 
 .demoBtn {
@@ -152,17 +292,16 @@
   font-family: var(--sans);
   font-size: 13px;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--teal);
   background: transparent;
-  border: 1px solid var(--ink-40);
-  border-radius: 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
   cursor: pointer;
   transition: border-color 0.2s, color 0.2s;
 }
 
 .demoBtn:hover:not(:disabled) {
-  border-color: var(--ink);
-  color: var(--ink);
+  border-color: var(--teal);
 }
 
 .demoBtn:disabled {
@@ -170,13 +309,29 @@
   cursor: not-allowed;
 }
 
-/* Decorative quote */
-.quote {
-  margin-top: 32px;
+.switchText {
   text-align: center;
-  font-family: var(--micro);
   font-size: 13px;
-  color: var(--ink-60);
-  font-style: italic;
-  line-height: 1.6;
+  color: var(--muted);
+  margin: 22px 0 0;
+}
+
+.switchCta {
+  color: var(--teal);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---- Responsive: single pane below 860px ---- */
+@media (max-width: 860px) {
+  .container {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+  }
+  .hero {
+    width: 100%;
+    min-width: 0;
+    min-height: 280px;
+  }
 }

@@ -67,13 +67,13 @@ export default function ContextCard({
     <div className={cardClass}>
       <div className={styles.cardHeader}>
         <span className={styles.cardTitle}>
-          {type === 'contradiction' && '⚠️ '}
-          {type === 'entity' && '👤 '}
-          {type === 'recall' && '💡 '}
+          {type === 'contradiction' && <span className={`glyph ${styles.cardGlyph}`}>△ </span>}
+          {type === 'entity' && <span className={`glyph ${styles.cardGlyph}`}>○ </span>}
+          {type === 'recall' && <span className={`glyph ${styles.cardGlyph}`}>⌕ </span>}
           {title}
         </span>
-        <button className={styles.dismissBtn} onClick={handleDismiss} title="Dismiss">
-          ✕
+        <button className={`glyph ${styles.dismissBtn}`} onClick={handleDismiss} title="Dismiss">
+          ✗
         </button>
       </div>
       <p className={styles.cardDetail}>{detail}</p>

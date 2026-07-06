@@ -65,7 +65,7 @@ export default function DashboardPage() {
     <div className={styles.layout}>
       <aside className={styles.sidebar}>
         <h1 className={styles.sidebarHeading}>Quill</h1>
-        <p className={styles.sidebarSub}>Writer's Desk</p>
+        <p className={styles.sidebarSub}>Your second brain</p>
 
         <div className={styles.sidebarDivider} />
 
@@ -102,7 +102,7 @@ export default function DashboardPage() {
 
         <input
           className={styles.searchInput}
-          placeholder="Search universes…"
+          placeholder="⌕ Search universes…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -166,8 +166,17 @@ export default function DashboardPage() {
             {filteredUniverses.map((u) => (
               <div
                 key={u.id}
+                role="button"
+                tabIndex={0}
                 className={styles.universeCard}
                 onClick={() => navigate(`/universe/${u.id}`)}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    navigate(`/universe/${u.id}`)
+                  }
+                }}
               >
                 <div className={styles.cardHeader}>
                   <h3 className={styles.cardTitle}>{u.name}</h3>

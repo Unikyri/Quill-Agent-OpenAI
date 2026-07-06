@@ -1,60 +1,23 @@
-/* WorkPage — chapter cards */
+/* WorkPage — single-work detail (header card + chapter table) */
 
 .layout {
-  display: flex;
   min-height: 100vh;
-  background: var(--paper-warm);
-}
-
-.statsBox {
-  width: 220px;
-  flex-shrink: 0;
-  padding: 32px 20px;
-  background: var(--card-bg);
-  border-right: 1px solid var(--card-border);
-}
-
-.statsHeading {
-  font-family: var(--serif);
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--ink);
-  margin: 0 0 20px;
-}
-
-.statItem {
-  margin-bottom: 16px;
-}
-
-.statLabel {
-  font-family: var(--micro);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--ink-40);
-  margin: 0 0 4px;
-}
-
-.statValue {
-  font-family: var(--serif);
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--ink);
-  margin: 0;
+  background: var(--bg-app);
 }
 
 .wrap {
-  flex: 1;
-  padding: 24px 32px;
+  padding: 26px 30px 40px;
+  max-width: 980px;
+  margin: 0 auto;
 }
 
 .backBtn {
   padding: 6px 12px;
   margin-bottom: 20px;
   background: transparent;
-  border: 1px solid var(--ink-20);
-  border-radius: 4px;
-  color: var(--ink-60);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  color: var(--muted);
   font-family: var(--sans);
   font-size: 13px;
   cursor: pointer;
@@ -62,30 +25,139 @@
 }
 
 .backBtn:hover {
-  border-color: var(--ink);
-  color: var(--ink);
+  border-color: var(--teal);
+  color: var(--teal);
+}
+
+/* Header card */
+.headerCard {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  padding: 24px 26px;
+  margin-bottom: 20px;
+  display: flex;
+  gap: 22px;
+  align-items: flex-start;
+}
+
+.coverCol {
+  flex: none;
+}
+
+.headerInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 6px;
+}
+
+.typePill {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--teal-soft-12);
+  color: var(--teal);
+  border-radius: var(--r-pill);
+  padding: 3px 9px;
+}
+
+.metaText {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--muted-2);
+}
+
+.titleRow, .synopsisRow {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-bottom: 8px;
 }
 
 .heading {
   font-family: var(--serif);
-  font-size: 28px;
-  font-weight: 700;
+  font-weight: 500;
+  font-size: 23px;
   color: var(--ink);
-  margin: 0 0 4px;
+  margin: 0;
 }
 
-.type {
-  font-family: var(--micro);
-  font-size: 14px;
-  color: var(--ink-60);
-  font-style: italic;
-  margin: 0 0 28px;
+.editIcon {
+  color: var(--muted-2);
+  cursor: pointer;
+  font-size: 13px;
+  flex: none;
+}
+
+.editIcon:hover {
+  color: var(--teal);
+}
+
+.titleInput {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 23px;
+  color: var(--ink);
+  background: var(--bg-input);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  padding: 4px 10px;
+  margin-bottom: 8px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.synopsis {
+  font-family: var(--sans);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0;
+  max-width: 540px;
+}
+
+.synopsisInput {
+  font-family: var(--sans);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--bg-input);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  padding: 8px 10px;
+  width: 100%;
+  max-width: 540px;
+  min-height: 60px;
+  margin-bottom: 16px;
+}
+
+.openEditorBtn {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--parchment-hi);
+  background: var(--teal);
+  border: none;
+  border-radius: var(--r-md);
+  padding: 10px 18px;
+  cursor: pointer;
+}
+
+.openEditorBtn:hover {
+  opacity: 0.9;
 }
 
 .sectionHeading {
   font-family: var(--serif);
+  font-weight: 500;
   font-size: 18px;
-  font-weight: 600;
   color: var(--ink);
   margin: 0;
 }
@@ -101,10 +173,10 @@
 
 .newBtn {
   padding: 8px 16px;
-  background: var(--ink);
-  color: var(--paper-warm);
+  background: var(--teal);
+  color: var(--parchment-hi);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--r-md);
   font-family: var(--sans);
   font-size: 13px;
   font-weight: 600;
@@ -113,7 +185,7 @@
 }
 
 .newBtn:hover {
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
 .inlineForm {
@@ -126,9 +198,9 @@
 
 .formInput {
   padding: 8px 12px;
-  border: 1px solid var(--card-border);
-  border-radius: 4px;
-  background: var(--card-bg);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--bg-input);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 13px;
@@ -137,15 +209,15 @@
 }
 
 .formInput:focus {
-  border-color: var(--ink);
+  border-color: var(--teal);
 }
 
 .formSubmit {
   padding: 8px 16px;
-  background: var(--ink);
-  color: var(--paper-warm);
+  background: var(--teal);
+  color: var(--parchment-hi);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--r-md);
   font-family: var(--sans);
   font-size: 13px;
   font-weight: 600;
@@ -153,15 +225,15 @@
 }
 
 .formSubmit:hover {
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
 .formCancel {
   padding: 8px 16px;
   background: transparent;
-  border: 1px solid var(--ink-20);
-  border-radius: 4px;
-  color: var(--ink-60);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  color: var(--muted);
   font-family: var(--sans);
   font-size: 13px;
   cursor: pointer;
@@ -179,83 +251,105 @@
   color: var(--danger);
 }
 
-/* Chapter grid + cards */
-.chapterGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 14px;
+/* Chapter table */
+.chapterTable {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  padding: 8px 8px 10px;
 }
 
-.chapterCard {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 4px;
-  padding: 16px 20px;
-  cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.chapterCard:hover {
-  border-color: var(--ink);
-  box-shadow: 0 1px 6px var(--ink-10);
-}
-
-.chapterCardHeader {
+.tableHeaderRow {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.chapterTitle {
-  font-family: var(--serif);
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--ink);
-  margin: 0;
-}
-
-.chapterStatus {
-  flex-shrink: 0;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--ink-10);
-  color: var(--ink-60);
-  font-family: var(--sans);
+  align-items: center;
+  font-family: var(--mono);
   font-size: 10px;
-  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  color: var(--muted-2);
+  padding: 12px 16px 10px;
 }
 
-.chapterStatus[data-status='analyzed'] {
-  background: var(--success);
-  color: var(--paper);
+.tableRow {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line-2);
+  font-family: var(--sans);
+  font-size: 13.5px;
 }
 
-.chapterMeta {
-  font-family: var(--micro);
-  font-size: 13px;
-  color: var(--ink-60);
-  font-style: italic;
-  margin: 0;
+.colIndex {
+  width: 40px;
+  font-family: var(--mono);
+  color: var(--muted-2);
+}
+
+.colTitle {
+  flex: 1;
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.colTitle:hover {
+  color: var(--teal);
+}
+
+input.colTitle {
+  cursor: text;
+  background: var(--bg-input);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  padding: 4px 8px;
+  font-family: var(--sans);
+  font-size: 13.5px;
+}
+
+.colWords {
+  width: 110px;
+  color: var(--muted);
+}
+
+.colStatus {
+  width: 150px;
+  font-size: 12px;
+  color: var(--muted-2);
+}
+
+.colStatus[data-status='analyzed'] {
+  color: var(--success);
+}
+
+.colStatus[data-status='analyzing'],
+.colStatus[data-status='in_analysis'] {
+  color: var(--warning);
+}
+
+.colRename {
+  width: 28px;
+  text-align: center;
+  color: var(--muted-3);
+  cursor: pointer;
+}
+
+.colRename:hover {
+  color: var(--teal);
 }
 
 /* States */
 .loading {
   padding: 48px;
   text-align: center;
-  font-family: var(--micro);
+  font-family: var(--sans);
   font-size: 15px;
-  color: var(--ink-60);
+  color: var(--muted);
   font-style: italic;
 }
 
 .error {
   padding: 48px;
   text-align: center;
-  font-family: var(--micro);
+  font-family: var(--sans);
   font-size: 15px;
   color: var(--danger);
   font-style: italic;
@@ -264,8 +358,8 @@
 .empty {
   text-align: center;
   padding: 32px;
-  font-family: var(--micro);
+  font-family: var(--sans);
   font-size: 15px;
-  color: var(--ink-60);
+  color: var(--muted);
   font-style: italic;
 }

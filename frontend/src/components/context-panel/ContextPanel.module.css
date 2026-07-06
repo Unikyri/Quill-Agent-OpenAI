@@ -1,9 +1,9 @@
 .panel {
   width: 320px;
-  border-left: 1px solid var(--ink-10);
+  border-left: 1px solid var(--line);
   padding: 16px;
   overflow-y: auto;
-  background: var(--paper);
+  background: var(--bg-rail);
 }
 
 .panelHeader {
@@ -18,17 +18,32 @@
   align-items: center;
   gap: 8px;
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 16px;
+  color: var(--ink);
 }
 
 .statusIndicator {
   font-size: 12px;
 }
 
+.statusOpen {
+  color: var(--success);
+}
+
+.statusReconnecting {
+  color: var(--warning);
+}
+
+.statusClosed {
+  color: var(--danger);
+}
+
 .cardCount {
-  font-size: 12px;
-  color: var(--ink-60);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted-2);
 }
 
 .cardList {
@@ -39,9 +54,9 @@
 
 /* Card */
 .card {
-  background: var(--paper-warm);
-  border: 1px solid var(--ink-10);
-  border-radius: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
   padding: 12px;
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
@@ -56,7 +71,7 @@
 }
 
 .cardInfo {
-  border-color: var(--ink-20);
+  border-color: var(--line-strong);
 }
 
 .cardHeader {
@@ -67,14 +82,20 @@
 }
 
 .cardTitle {
+  font-family: var(--sans);
   font-size: 13px;
   font-weight: 600;
+  color: var(--ink);
+}
+
+.cardGlyph {
+  color: var(--muted);
 }
 
 .dismissBtn {
   background: transparent;
   border: none;
-  color: var(--ink-60);
+  color: var(--muted);
   font-size: 14px;
   cursor: pointer;
   padding: 0 4px;
@@ -86,8 +107,9 @@
 }
 
 .cardDetail {
+  font-family: var(--sans);
   font-size: 13px;
-  color: var(--ink-60);
+  color: var(--muted);
   margin: 0 0 6px 0;
   line-height: 1.5;
 }
@@ -107,8 +129,8 @@
 }
 
 .badgeNew {
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--teal);
+  color: var(--parchment-hi);
 }
 
 /* ponytail: severity kept as semantic colors; they carry meaning beyond theme */
@@ -129,7 +151,8 @@
 
 /* Empty state */
 .emptyState {
-  color: var(--ink-60);
+  font-family: var(--sans);
+  color: var(--muted);
   font-size: 13px;
   text-align: center;
   padding: 32px 16px;

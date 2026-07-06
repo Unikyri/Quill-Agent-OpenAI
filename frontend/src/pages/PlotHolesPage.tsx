@@ -39,7 +39,7 @@ export default function PlotHolesPage() {
   if (plotHoles.length === 0) {
     return (
       <EmptyState
-        icon="\u{1F573}"
+        icon="◠"
         title="No Plot Holes"
         message="No plot holes detected. AI analysis scans your works for narrative gaps, inconsistencies, and unresolved threads."
         cta={universe ? `Analyze "${universe.name}"` : undefined}
@@ -50,7 +50,7 @@ export default function PlotHolesPage() {
   return (
     <div className={styles.wrap}>
       <div className={styles.listArea}>
-        <PlotHoleList plotHoles={plotHoles} />
+        <PlotHoleList plotHoles={plotHoles} universeId={universeId!} />
       </div>
     </div>
   )

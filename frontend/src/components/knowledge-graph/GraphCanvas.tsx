@@ -67,14 +67,14 @@ export default function GraphCanvas() {
         className={styles.flowCanvas}
         proOptions={{ hideAttribution: true }}
       >
-        <Background color="#333" gap={20} />
+        <Background color="#c9bfa5" gap={20} />
         <Controls className={styles.controls} />
         <MiniMap
           nodeColor={(n) => {
             const type = (n.data as { type?: string })?.type
-            return NODE_TYPE_META[type ?? '']?.color || '#666'
+            return NODE_TYPE_META[type ?? '']?.color || '#6f6656'
           }}
-          maskColor="rgba(0,0,0,0.6)"
+          maskColor="rgba(43,38,32,0.35)"
           className={styles.minimap}
         />
       </ReactFlow>

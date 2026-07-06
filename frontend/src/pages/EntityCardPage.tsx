@@ -120,7 +120,7 @@ export default function EntityCardPage() {
             )}
           </div>
           <p className={styles.subtitle} style={{ color: meta.color }}>
-            {meta.icon} {meta.label}
+            <span className="glyph">{meta.icon}</span> {meta.label}
           </p>
 
           <p className={styles.description}>
@@ -183,10 +183,22 @@ export default function EntityCardPage() {
               <p className={styles.sidebarLabel}>Relationships</p>
               <div className={styles.relatedList}>
                 {relationships.map((rel) => (
-                  <div key={rel.id} className={styles.relatedItem} onClick={() => navigate(`/entity/${rel.id}`)}>
+                  <div
+                    key={rel.id}
+                    role="button"
+                    tabIndex={0}
+                    className={styles.relatedItem}
+                    onClick={() => navigate(`/universe/${entity?.universe_id}/entities/${rel.id}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        navigate(`/universe/${entity?.universe_id}/entities/${rel.id}`)
+                      }
+                    }}
+                  >
                     <span>
                       {rel.name}{' '}
-                      <span style={{ color: 'var(--ink-40)', fontSize: 11 }}>
+                      <span style={{ color: 'var(--muted-2)', fontSize: 11 }}>
                         ({NODE_TYPE_META[rel.type]?.label || rel.type})
                       </span>
                     </span>
@@ -201,7 +213,19 @@ export default function EntityCardPage() {
               <p className={styles.sidebarLabel}>Factions</p>
               <div className={styles.relatedList}>
                 {factions.map((rel) => (
-                  <div key={rel.id} className={styles.relatedItem} onClick={() => navigate(`/entity/${rel.id}`)}>
+                  <div
+                    key={rel.id}
+                    role="button"
+                    tabIndex={0}
+                    className={styles.relatedItem}
+                    onClick={() => navigate(`/universe/${entity?.universe_id}/entities/${rel.id}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        navigate(`/universe/${entity?.universe_id}/entities/${rel.id}`)
+                      }
+                    }}
+                  >
                     <span>{rel.name}</span>
                   </div>
                 ))}
