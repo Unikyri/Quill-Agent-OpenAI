@@ -38,15 +38,29 @@ type AnalysisHub interface {
 	SendToUser(userID uuid.UUID, msg models.WSMessage) error
 }
 
+// Reactivatr is the minimal relevance interface used by AnalysisService
+// to reactivate archived entities and touch entity relevance.
+// RelevanceService satisfies this interface.
+type Reactivatr interface {
+	Touch(ctx context.Context, entityID, chapterID uuid.UUID) error
+	Reactivate(ctx context.Context, entityID uuid.UUID) error
+}
+
+// EntityResolvr resolves or creates an entity from extracted data.
+// EntityService satisfies this interface.
+type EntityResolvr interface {
+	ResolveOrCreate(ctx context.Context, universeID uuid.UUID, data repositories.ExtractedEntity) (*models.Entity, string, bool, error)
+}
+
 // AnalysisService runs a per-work sequential analysis queue.
 //
 // ponytail: one goroutine per work, sequential queue. No worker pool needed
 // for hackathon scale. Cancel/Shutdown stop the goroutine.
 type AnalysisService struct {
 	pool        *pgxpool.Pool
-	entitySvc   *EntityService
+	entitySvc   EntityResolvr
 	contraSvc   *ContradictionService
-	relevSvc    *RelevanceService
+	relevSvc    Reactivatr
 	timelineSvc *TimelineService
 	plotHoleSvc *PlotHoleService
 	qwenSvc     *QwenService
@@ -62,9 +76,9 @@ type AnalysisService struct {
 // for testing; Submit will only enqueue. Workers start via runWorker.
 func NewAnalysisService(
 	pool *pgxpool.Pool,
-	entitySvc *EntityService,
+	entitySvc EntityResolvr,
 	contraSvc *ContradictionService,
-	relevSvc *RelevanceService,
+	relevSvc Reactivatr,
 	timelineSvc *TimelineService,
 	plotHoleSvc *PlotHoleService,
 	qwenSvc *QwenService,
@@ -421,12 +435,19 @@ func (s *AnalysisService) extractEntities(ctx context.Context, universeID uuid.U
 			continue
 		}
 		resolved = append(resolved, ResolvedEntity{
-			Entity:         *entity,
-			MentionText:    mentionText,
-			IsNew:          isNew,
-			PreviousStatus: previousStatus,
-		})
-	}
+				Entity:         *entity,
+				MentionText:    mentionText,
+				IsNew:          isNew,
+				PreviousStatus: previousStatus,
+			})
+
+			// spec: when an archived entity is re-mentioned, reactivate it
+			if previousStatus == "archived" && s.relevSvc != nil {
+				if err := s.relevSvc.Reactivate(ctx, entity.ID); err != nil {
+					log.Printf("[analysis] reactivate entity %s: %v", entity.ID, err)
+				}
+			}
+		}
 
 	return resolved, nil
 }

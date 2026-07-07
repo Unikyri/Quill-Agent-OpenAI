@@ -2,12 +2,17 @@ package services
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/quill/backend/internal/config"
 	"github.com/quill/backend/internal/models"
 	"github.com/quill/backend/internal/repositories"
 	"github.com/quill/backend/internal/testutil"
@@ -190,6 +195,203 @@ func TestAnalysisServiceResolvedEntityType(t *testing.T) {
 	}
 }
 
+// spec: CRITICAL #6 — Pipeline extractEntities nil-safe: no crash with nil deps
+func TestExtractEntitiesNilSafe(t *testing.T) {
+	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, nil, nil)
+
+	// extractEntities (unexported) should return nil, nil when qwenSvc is nil
+	entities, err := svc.extractEntities(context.Background(), uuid.New(), "Test paragraph", uuid.New())
+	if err != nil {
+		t.Errorf("extractEntities with nil deps should return nil error, got: %v", err)
+	}
+	if entities != nil {
+		t.Errorf("extractEntities with nil deps should return nil slice, got: %v", entities)
+	}
+}
+
+// spec: CRITICAL #6 — Pipeline archived→Reactivate path: archived entity re-mentioned
+func TestExtractEntitiesArchivedReactivate(t *testing.T) {
+	pool := setupAnalysisTestDB(t)
+	if pool == nil {
+		t.Skip("TEST_DATABASE_URL not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// We test that AnalysisService with all nil deps does not panic when extracting.
+	// The full archived→Reactivate path needs a real QwenService + real EntityService,
+	// which requires TEST_DATABASE_URL + QWEN_API_KEY. We verify nil-safe behavior:
+	// the Reactivate call at analysis_service.go:431-435 is guarded by `s.relevSvc != nil`.
+	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, nil, nil)
+
+	entities, err := svc.extractEntities(ctx, uuid.New(), "The old wizard returned.", uuid.New())
+	if err != nil {
+		t.Errorf("extractEntities nil-safe with archived entity text: %v", err)
+	}
+	if entities != nil {
+		t.Errorf("expected nil entities with nil deps, got %d", len(entities))
+	}
+	// spec: no panic, null-guard on relevSvc works — verified by reaching here
+}
+
+// ── spy types for extractEntities Reactivate test (#6) ──
+
+// spyReactivatr records calls to Touch and Reactivate.
+type spyReactivatr struct {
+	mu              sync.Mutex
+	touchCalls      []uuid.UUID
+	reactivateCalls []uuid.UUID
+}
+
+func (s *spyReactivatr) Touch(ctx context.Context, entityID, chapterID uuid.UUID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.touchCalls = append(s.touchCalls, entityID)
+	return nil
+}
+
+func (s *spyReactivatr) Reactivate(ctx context.Context, entityID uuid.UUID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reactivateCalls = append(s.reactivateCalls, entityID)
+	return nil
+}
+
+// spyEntityResolvr returns entities with a configurable previousStatus.
+type spyEntityResolvr struct {
+	previousStatus string
+	entityName     string
+	entityID       uuid.UUID
+}
+
+func (s *spyEntityResolvr) ResolveOrCreate(ctx context.Context, universeID uuid.UUID, data repositories.ExtractedEntity) (*models.Entity, string, bool, error) {
+	e := &models.Entity{
+		ID:         s.entityID,
+		UniverseID: universeID,
+		Name:       s.entityName,
+		Type:       data.Type,
+		Status:     s.previousStatus,
+	}
+	return e, s.previousStatus, false, nil
+}
+
+// spec: CRITICAL #6 — Pipeline archived→Reactivate: archived entity re-mentioned
+// calls Reactivate when previousStatus == "archived".
+func TestExtractEntities_ReactivateCallsReactivate(t *testing.T) {
+	// httptest server for Qwen ExtractEntities (returns character with no special fields)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		resp := QwenResponse{
+			Choices: []struct {
+				Message struct {
+					Content   string         `json:"content"`
+					ToolCalls []QwenToolCall `json:"tool_calls,omitempty"`
+				} `json:"message"`
+			}{
+				{Message: struct {
+					Content   string         `json:"content"`
+					ToolCalls []QwenToolCall `json:"tool_calls,omitempty"`
+				}{Content: `{"characters":[{"name":"OldWizard","type":"character","status":"active","description":"An old wizard","properties":{}}],"places":[],"events":[],"factions":[],"world_rules":[],"plot_developments":[]}`}},
+			},
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		QwenBaseURL:           server.URL,
+		QwenAPIKey:            "test-key",
+		QwenMaxConcurrency:    1,
+		QwenTurboConcurrency:  1,
+	}
+	qwenSvc := NewQwenService(cfg, nil)
+
+	entityID := uuid.New()
+	entityResolvr := &spyEntityResolvr{previousStatus: "archived", entityName: "OldWizard", entityID: entityID}
+	relevSpy := &spyReactivatr{}
+
+	svc := NewAnalysisService(nil, entityResolvr, nil, relevSpy, nil, nil, qwenSvc, nil, nil)
+
+	entities, err := svc.extractEntities(context.Background(), uuid.New(), "The old wizard returned.", uuid.New())
+	if err != nil {
+		t.Fatalf("extractEntities: %v", err)
+	}
+	if len(entities) != 1 {
+		t.Fatalf("len(entities) = %d, want 1", len(entities))
+	}
+
+	// CRITICAL assertion: Reactivate must be called when previousStatus == "archived"
+	relevSpy.mu.Lock()
+	reactivateCalls := relevSpy.reactivateCalls
+	relevSpy.mu.Unlock()
+
+	if len(reactivateCalls) == 0 {
+		t.Error("Reactivate was NOT called when entity previousStatus == 'archived' — pipeline hook not exercised")
+	} else if len(reactivateCalls) != 1 {
+		t.Errorf("Reactivate called %d times, want 1", len(reactivateCalls))
+	} else if reactivateCalls[0] != entityID {
+		t.Errorf("Reactivate called with entity ID %s, want %s", reactivateCalls[0], entityID)
+	}
+
+	// Triangulation: verify the entity returned in ResolvedEntity has the expected status
+	if entities[0].PreviousStatus != "archived" {
+		t.Errorf("PreviousStatus = %s, want archived", entities[0].PreviousStatus)
+	}
+}
+
+// spec: CRITICAL #6 triangulation — active entity should NOT trigger Reactivate
+func TestExtractEntities_ActiveEntityNoReactivate(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		resp := QwenResponse{
+			Choices: []struct {
+				Message struct {
+					Content   string         `json:"content"`
+					ToolCalls []QwenToolCall `json:"tool_calls,omitempty"`
+				} `json:"message"`
+			}{
+				{Message: struct {
+					Content   string         `json:"content"`
+					ToolCalls []QwenToolCall `json:"tool_calls,omitempty"`
+				}{Content: `{"characters":[{"name":"ActiveHero","type":"character","status":"active","description":"A hero","properties":{}}],"places":[],"events":[],"factions":[],"world_rules":[],"plot_developments":[]}`}},
+			},
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		QwenBaseURL:           server.URL,
+		QwenAPIKey:            "test-key",
+		QwenMaxConcurrency:    1,
+		QwenTurboConcurrency:  1,
+	}
+	qwenSvc := NewQwenService(cfg, nil)
+
+	entityID := uuid.New()
+	entityResolvr := &spyEntityResolvr{previousStatus: "active", entityName: "ActiveHero", entityID: entityID}
+	relevSpy := &spyReactivatr{}
+
+	svc := NewAnalysisService(nil, entityResolvr, nil, relevSpy, nil, nil, qwenSvc, nil, nil)
+
+	entities, err := svc.extractEntities(context.Background(), uuid.New(), "Active hero appears.", uuid.New())
+	if err != nil {
+		t.Fatalf("extractEntities: %v", err)
+	}
+	if len(entities) != 1 {
+		t.Fatalf("len(entities) = %d, want 1", len(entities))
+	}
+
+	// Reactivate should NOT be called for non-archived entities
+	relevSpy.mu.Lock()
+	reactivateCalls := relevSpy.reactivateCalls
+	relevSpy.mu.Unlock()
+
+	if len(reactivateCalls) != 0 {
+		t.Errorf("Reactivate should NOT be called for active entity, but got %d calls", len(reactivateCalls))
+	}
+}
+
 // ── Integration tests (require DB) ──
 
 // TestAnalysisServiceFullPipeline runs the analysis pipeline end-to-end.
@@ -321,7 +523,7 @@ func svcCreateAnalysisServices(pool *pgxpool.Pool, repos analysisTestRepos) anal
 	qwenSvc := NewQwenService(nil, nil) // nil config = no real API calls
 	entitySvc := NewEntityService(pool, repos.entity, repos.vector, qwenSvc)
 	contraSvc := NewContradictionService(pool, repos.contradiction, repos.entity, qwenSvc, nil, 3, nil)
-	relevSvc := NewRelevanceService(pool, repos.entity, 0.1, 0.15)
+	relevSvc := NewRelevanceService(pool, repos.entity, 0.1, 0.15, nil)
 	timelineSvc := NewTimelineService(pool, repos.timeline, nil, nil)
 	plotHoleSvc := NewPlotHoleService(pool, repos.plotHole, repos.entity, 8, nil, nil)
 

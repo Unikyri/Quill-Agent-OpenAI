@@ -227,6 +227,31 @@ type ExtractedEntities struct {
 	PlotDevelopments []ExtractedEntity `json:"plot_developments"`
 }
 
+// Chat sends a raw chat completion request and returns the response content.
+// Wraps callWithSemaphore via turboSem for any model and message slice.
+func (s *QwenService) Chat(ctx context.Context, model string, messages []QwenMessage) (string, error) {
+	payload := QwenRequest{
+		Model:    model,
+		Messages: messages,
+	}
+
+	respBody, err := s.callWithSemaphore(ctx, s.turboSem, model, payload)
+	if err != nil {
+		return "", err
+	}
+
+	var qwenResp QwenResponse
+	if err := json.Unmarshal(respBody, &qwenResp); err != nil {
+		return "", fmt.Errorf("unmarshal chat response: %w", err)
+	}
+
+	if len(qwenResp.Choices) == 0 {
+		return "", fmt.Errorf("no choices in chat response")
+	}
+
+	return qwenResp.Choices[0].Message.Content, nil
+}
+
 func (s *QwenService) ExtractEntities(ctx context.Context, text string, universeContext string) (*ExtractedEntities, error) {
 	prompt := fmt.Sprintf(`You are a narrative analysis AI. Extract ALL named entities from this paragraph.
 

@@ -30,7 +30,7 @@ func TestChapterServiceCreateTriggersDecay(t *testing.T) {
 	entityRepo := repositories.NewEntityRepo(pool)
 	chapterRepo := repositories.NewChapterRepo(pool)
 	workRepo := repositories.NewWorkRepo(pool)
-	relevSvc := NewRelevanceService(pool, entityRepo, 0.1, 0.15)
+	relevSvc := NewRelevanceService(pool, entityRepo, 0.1, 0.15, nil)
 
 	svc := NewChapterService(pool, chapterRepo, workRepo, relevSvc)
 
@@ -63,7 +63,7 @@ func TestChapterServiceCreateFailureSkipsDecay(t *testing.T) {
 	entityRepo := repositories.NewEntityRepo(pool)
 	chapterRepo := repositories.NewChapterRepo(pool)
 	workRepo := repositories.NewWorkRepo(pool)
-	relevSvc := NewRelevanceService(pool, entityRepo, 0.1, 0.15)
+	relevSvc := NewRelevanceService(pool, entityRepo, 0.1, 0.15, nil)
 
 	svc := NewChapterService(pool, chapterRepo, workRepo, relevSvc)
 

@@ -212,6 +212,15 @@ type PaginationInfo struct {
 	TotalPages int `json:"total_pages"`
 }
 
+type ConsolidatedMemory struct {
+	ID        uuid.UUID `json:"id"`
+	EntityID  uuid.UUID `json:"entity_id"`
+	Summary   string    `json:"summary"`
+	KeyFacts  []string  `json:"key_facts"`
+	Embedding []float32 `json:"embedding"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type HealthResponse struct {
 	Status        string `json:"status"`
 	DB            string `json:"db"`

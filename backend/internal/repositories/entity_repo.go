@@ -261,6 +261,28 @@ func (r *EntityRepo) GetMaxMentionsInUniverse(ctx context.Context, universeID uu
 	return max, nil
 }
 
+// FindNewlyArchivable returns IDs of active entities whose relevance score is
+// at or below the given threshold. Called before the archive UPDATE so the
+// caller can launch consolidation goroutines for entities that will be archived.
+func (r *EntityRepo) FindNewlyArchivable(ctx context.Context, universeID uuid.UUID, threshold float64) ([]uuid.UUID, error) {
+	query := `SELECT id FROM entities WHERE universe_id = $1 AND status = 'active' AND relevance_score <= $2`
+	rows, err := r.pool.Query(ctx, query, universeID, threshold)
+	if err != nil {
+		return nil, fmt.Errorf("find newly archivable: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan archivable id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
 // DecayAll applies exponential decay to all active entities in the universe.
 // score = score * e^(-lambda). Archived entities are skipped.
 func (r *EntityRepo) DecayAll(ctx context.Context, universeID uuid.UUID, lambda float64) error {

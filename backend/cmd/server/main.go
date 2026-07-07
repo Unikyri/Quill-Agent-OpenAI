@@ -81,6 +81,7 @@ func main() {
 	contradictionRepo := repositories.NewContradictionRepo(pool)
 	timelineRepo := repositories.NewTimelineRepo(pool)
 	plotHoleRepo := repositories.NewPlotHoleRepo(pool)
+	consolidationRepo := repositories.NewConsolidationRepo(pool)
 
 	// ── Services ──
 
@@ -94,7 +95,8 @@ func main() {
 	demoSvc := services.NewDemoService(pool, universeRepo, graphRepo)
 
 	// Phase 2a services
-	relevSvc := services.NewRelevanceService(pool, entityRepo, cfg.DecayLambda, cfg.ArchiveThreshold)
+	consolidationSvc := services.NewConsolidationService(consolidationRepo, entityRepo, qwenSvc)
+	relevSvc := services.NewRelevanceService(pool, entityRepo, cfg.DecayLambda, cfg.ArchiveThreshold, consolidationSvc)
 	chapterSvc := services.NewChapterService(pool, chapterRepo, workRepo, relevSvc)
 	memorySvc := services.NewMemoryService(graphRepo, entityRepo, vectorRepo)
 

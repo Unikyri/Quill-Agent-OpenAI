@@ -10,6 +10,15 @@ import (
 	"github.com/quill/backend/internal/models"
 )
 
+// mockEntityLister satisfies entityLister with a fixed set of entities.
+type mockEntityLister struct {
+	entities []models.Entity
+}
+
+func (m *mockEntityLister) ListByUniverseActive(ctx context.Context, universeID uuid.UUID) ([]models.Entity, error) {
+	return m.entities, nil
+}
+
 // capturingGraphQuerier records the entityID passed to GetNeighbors so
 // tests can assert the correct entity was resolved. Distinct from
 // mockGraphQuerier (qwen_service_test.go) to avoid redeclaration.
@@ -24,8 +33,7 @@ func (m *capturingGraphQuerier) GetNeighbors(ctx context.Context, graphName, ent
 }
 
 // TestQueryEntityGraphResolvesByNameOrAlias locks case-insensitive
-// name-then-alias resolution (agent-tool-alias-resolution). mockEntityLister
-// is defined in qwen_service_test.go (same package) and reused here.
+// name-then-alias resolution (agent-tool-alias-resolution).
 func TestQueryEntityGraphResolvesByNameOrAlias(t *testing.T) {
 	aragornID := uuid.New()
 	gandalfID := uuid.New()

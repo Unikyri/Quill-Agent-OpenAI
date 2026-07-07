@@ -171,7 +171,7 @@ func setupE2EApp(t *testing.T) (*pgxpool.Pool, *fiber.App) {
 	timelineSvc := services.NewTimelineService(pool, timelineRepo, nil, nil)
 	plotHoleSvc := services.NewPlotHoleService(pool, plotHoleRepo, entityRepo, cfg.PlotHoleChapters, nil, nil)
 	memorySvc := services.NewMemoryService(graphRepo, entityRepo, vectorRepo)
-	_ = services.NewRelevanceService(pool, entityRepo, cfg.DecayLambda, cfg.ArchiveThreshold)
+	_ = services.NewRelevanceService(pool, entityRepo, cfg.DecayLambda, cfg.ArchiveThreshold, nil)
 	_ = ws.NewHub(authSvc, nil, nil, nil)
 
 	authH := NewAuthHandler(authSvc)

@@ -149,6 +149,66 @@ func TestEntityRepoListByUniverseActive(t *testing.T) {
 	}
 }
 
+// TestFindNewlyArchivable returns active entities below score threshold.
+func TestEntityRepoFindNewlyArchivable(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "005")
+	universe := setupEntityRepoFixtures(t, pool)
+
+	// Entities with varying scores
+	high := createTestEntity(t, pool, universe.ID, "HighScore", 0.9, "active")
+	mid := createTestEntity(t, pool, universe.ID, "MidScore", 0.2, "active")
+	low := createTestEntity(t, pool, universe.ID, "LowScore", 0.05, "active")
+	_ = createTestEntity(t, pool, universe.ID, "AlreadyArchived", 0.01, "archived") // should NOT match
+
+	ctx := context.Background()
+	repo := NewEntityRepo(pool)
+
+	ids, err := repo.FindNewlyArchivable(ctx, universe.ID, 0.15)
+	if err != nil {
+		t.Fatalf("FindNewlyArchivable: %v", err)
+	}
+
+	// low (0.05) should match; high (0.9) and mid (0.2) should not; archived should not
+	got := make(map[uuid.UUID]bool)
+	for _, id := range ids {
+		got[id] = true
+	}
+
+	if !got[low.ID] {
+		t.Errorf("low score entity (0.05) should be returned")
+	}
+	if got[high.ID] {
+		t.Errorf("high score entity (0.9) should NOT be returned")
+	}
+	if got[mid.ID] {
+		t.Errorf("mid score entity (0.2) should NOT be returned (above threshold 0.15)")
+	}
+	if len(ids) != 1 {
+		t.Errorf("FindNewlyArchivable returned %d entities, want 1; got IDs: %v", len(ids), ids)
+	}
+}
+
+// TestFindNewlyArchivableNoMatches returns empty slice when none qualify.
+func TestEntityRepoFindNewlyArchivableNoMatches(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "005")
+	universe := setupEntityRepoFixtures(t, pool)
+
+	createTestEntity(t, pool, universe.ID, "AllHigh", 0.9, "active")
+
+	ctx := context.Background()
+	repo := NewEntityRepo(pool)
+
+	ids, err := repo.FindNewlyArchivable(ctx, universe.ID, 0.15)
+	if err != nil {
+		t.Fatalf("FindNewlyArchivable: %v", err)
+	}
+	if len(ids) != 0 {
+		t.Errorf("expected 0 entities, got %d", len(ids))
+	}
+}
+
 // TestTouchBatchEmpty is safe with empty slice
 func TestEntityRepoTouchBatchEmpty(t *testing.T) {
 	pool := testutil.SetupTestDB(t)
