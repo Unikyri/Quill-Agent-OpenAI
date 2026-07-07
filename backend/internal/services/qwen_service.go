@@ -631,6 +631,127 @@ func (s *QwenService) RunAgentLoop(ctx context.Context, messages []QwenMessage, 
 	return "", nil
 }
 
+// RunAgentLoopStream is a streaming variant of RunAgentLoop: it drives each
+// iteration via ChatCompletionStream instead of a single-shot call, so
+// intermediate progress can be surfaced through onProgress as tool calls
+// complete. RunAgentLoop itself is unchanged and remains the default,
+// non-streaming path; the two share identical loop semantics and return
+// contract (final answer string, same tool-dispatch behavior).
+//
+// onProgress is called synchronously once per completed tool call, before
+// that tool is executed. It may be nil.
+func (s *QwenService) RunAgentLoopStream(ctx context.Context, messages []QwenMessage, tools []QwenTool, executor ToolExecutor, maxDepth int, onProgress func(stage string, tc *QwenToolCall)) (string, error) {
+	if maxDepth <= 0 {
+		maxDepth = 5
+	}
+	if onProgress == nil {
+		onProgress = func(string, *QwenToolCall) {}
+	}
+
+	// Empty tools fallback — single streamed completion, mirrors RunAgentLoop.
+	if len(tools) == 0 {
+		payload := QwenRequest{
+			Model:    s.maxModel,
+			Messages: messages,
+		}
+		content, _, err := s.streamOnce(ctx, payload)
+		if err != nil {
+			return "", fmt.Errorf("run agent loop stream: %w", err)
+		}
+		return content, nil
+	}
+
+	// ponytail: copy messages to avoid mutating caller's slice (same as RunAgentLoop)
+	msgs := make([]QwenMessage, len(messages))
+	copy(msgs, messages)
+
+	compressed := false
+
+	for depth := 0; depth < maxDepth; depth++ {
+		if s.budgetMgr != nil && !compressed {
+			msgs, compressed = s.compressToolResults(ctx, msgs)
+		}
+
+		payload := QwenRequest{
+			Model:      s.maxModel,
+			Messages:   msgs,
+			Tools:      tools,
+			ToolChoice: "auto",
+		}
+
+		content, toolCalls, err := s.streamOnce(ctx, payload)
+		if err != nil {
+			return "", fmt.Errorf("run agent loop stream: %w", err)
+		}
+
+		// No tool calls → final answer
+		if len(toolCalls) == 0 {
+			return content, nil
+		}
+
+		// Append assistant message with tool calls
+		msgs = append(msgs, QwenMessage{
+			Role:      "assistant",
+			Content:   content,
+			ToolCalls: toolCalls,
+		})
+
+		// Execute each completed tool call and append results
+		for _, tc := range toolCalls {
+			onProgress("tool_call", &tc)
+			result, execErr := executor.ExecuteTool(tc.Function.Name, tc.Function.Arguments)
+			if execErr != nil {
+				result = fmt.Sprintf("error: %v", execErr)
+			}
+			msgs = append(msgs, QwenMessage{
+				Role:       "tool",
+				ToolCallID: tc.ID,
+				Content:    result,
+			})
+		}
+	}
+
+	// Depth exhausted — return the last assistant message content if any
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == "assistant" && msgs[i].Content != "" {
+			return msgs[i].Content, nil
+		}
+	}
+	return "", nil
+}
+
+// streamOnce gates on maxSem (matching RunAgentLoop's concurrency limits —
+// ChatCompletionStream itself does not gate), drains one ChatCompletionStream
+// call to completion, and returns the accumulated assistant text plus any
+// completed tool calls.
+func (s *QwenService) streamOnce(ctx context.Context, payload QwenRequest) (string, []QwenToolCall, error) {
+	select {
+	case s.maxSem <- struct{}{}:
+		defer func() { <-s.maxSem }()
+	case <-ctx.Done():
+		return "", nil, ctx.Err()
+	}
+
+	ch, err := s.ChatCompletionStream(ctx, payload)
+	if err != nil {
+		return "", nil, err
+	}
+
+	var text strings.Builder
+	var toolCalls []QwenToolCall
+	for chunk := range ch {
+		switch chunk.Type {
+		case "text":
+			text.WriteString(chunk.Text)
+		case "tool_call":
+			toolCalls = append(toolCalls, *chunk.ToolCall)
+		case "error":
+			return "", nil, chunk.Err
+		}
+	}
+	return text.String(), toolCalls, nil
+}
+
 // compressToolResults summarizes accumulated tool-call results into a single
 // message when the transcript is over 80% of the usable context window,
 // keeping the original system+user head and the most recent tool-call
