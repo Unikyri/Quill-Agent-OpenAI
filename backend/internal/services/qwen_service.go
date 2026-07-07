@@ -17,12 +17,15 @@ import (
 )
 
 type QwenService struct {
-	client    *http.Client
-	baseURL   string
-	apiKey    string
-	maxSem    chan struct{}
-	turboSem  chan struct{}
-	budgetMgr *ContextBudgetManager
+	client     *http.Client
+	baseURL    string
+	apiKey     string
+	maxSem     chan struct{}
+	turboSem   chan struct{}
+	budgetMgr  *ContextBudgetManager
+	maxModel   string
+	turboModel string
+	embModel   string
 }
 
 // budgetMgr may be nil — RunAgentLoop then skips tool-result compression
@@ -30,12 +33,15 @@ type QwenService struct {
 // QwenService without a tokenizer.
 func NewQwenService(cfg *config.Config, budgetMgr *ContextBudgetManager) *QwenService {
 	return &QwenService{
-		client:    &http.Client{Timeout: 30 * time.Second},
-		baseURL:   cfg.QwenBaseURL,
-		apiKey:    cfg.QwenAPIKey,
-		maxSem:    make(chan struct{}, cfg.QwenMaxConcurrency),
-		turboSem:  make(chan struct{}, cfg.QwenTurboConcurrency),
-		budgetMgr: budgetMgr,
+		client:     &http.Client{Timeout: 30 * time.Second},
+		baseURL:    cfg.QwenBaseURL,
+		apiKey:     cfg.QwenAPIKey,
+		maxSem:     make(chan struct{}, cfg.QwenMaxConcurrency),
+		turboSem:   make(chan struct{}, cfg.QwenTurboConcurrency),
+		budgetMgr:  budgetMgr,
+		maxModel:   cfg.QwenMaxModel,
+		turboModel: cfg.QwenTurboModel,
+		embModel:   cfg.QwenEmbeddingModel,
 	}
 }
 
@@ -276,7 +282,7 @@ Respond with ONLY valid JSON in this format:
 }`, universeContext, text)
 
 	payload := QwenRequest{
-		Model: "qwen-turbo",
+		Model: s.turboModel,
 		Messages: []QwenMessage{
 			{Role: "system", Content: "You extract narrative entities. Return only JSON."},
 			{Role: "user", Content: prompt},
@@ -284,7 +290,7 @@ Respond with ONLY valid JSON in this format:
 		ResponseFormat: &ResponseFormat{Type: "json_object"},
 	}
 
-	respBody, err := s.callWithSemaphore(ctx, s.turboSem, "qwen-turbo", payload)
+	respBody, err := s.callWithSemaphore(ctx, s.turboSem, s.turboModel, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +315,7 @@ Respond with ONLY valid JSON in this format:
 
 func (s *QwenService) GenerateEmbedding(ctx context.Context, text string) ([]float32, error) {
 	payload := EmbeddingRequest{
-		Model: "text-embedding-v3",
+		Model: s.embModel,
 		Input: []string{text},
 	}
 
@@ -332,7 +338,7 @@ func (s *QwenService) GenerateEmbedding(ctx context.Context, text string) ([]flo
 
 func (s *QwenService) GenerateEmbeddingBatch(ctx context.Context, texts []string) ([][]float32, error) {
 	payload := EmbeddingRequest{
-		Model: "text-embedding-v3",
+		Model: s.embModel,
 		Input: texts,
 	}
 
@@ -373,7 +379,7 @@ Return JSON array of relationships:
 [{"source": "entity1", "target": "entity2", "type": "ALLY_OF|ENEMY_OF|LOCATED_AT|MEMBER_OF", "properties": {}}]`, text, entityList)
 
 	payload := QwenRequest{
-		Model: "qwen-turbo",
+		Model: s.turboModel,
 		Messages: []QwenMessage{
 			{Role: "system", Content: "You analyze narrative relationships. Return only JSON."},
 			{Role: "user", Content: prompt},
@@ -381,7 +387,7 @@ Return JSON array of relationships:
 		ResponseFormat: &ResponseFormat{Type: "json_object"},
 	}
 
-	respBody, err := s.callWithSemaphore(ctx, s.turboSem, "qwen-turbo", payload)
+	respBody, err := s.callWithSemaphore(ctx, s.turboSem, s.turboModel, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -431,7 +437,7 @@ func (s *QwenService) CheckContradictions(ctx context.Context, candidates []Cont
 	prompt += "\nReturn: [{\"has_contradiction\": true/false, \"entity_index\": int, \"description\": \"...\", \"severity\": \"low|medium|high\", \"suggestion\": \"...\"}]"
 
 	payload := QwenRequest{
-		Model: "qwen-max",
+		Model: s.maxModel,
 		Messages: []QwenMessage{
 			{Role: "system", Content: "You detect narrative contradictions. Return only JSON."},
 			{Role: "user", Content: prompt},
@@ -439,7 +445,7 @@ func (s *QwenService) CheckContradictions(ctx context.Context, candidates []Cont
 		ResponseFormat: &ResponseFormat{Type: "json_object"},
 	}
 
-	respBody, err := s.callWithSemaphore(ctx, s.maxSem, "qwen-max", payload)
+	respBody, err := s.callWithSemaphore(ctx, s.maxSem, s.maxModel, payload)
 	if err != nil {
 		return nil, fmt.Errorf("check contradictions: %w", err)
 	}
@@ -538,10 +544,10 @@ func (s *QwenService) RunAgentLoop(ctx context.Context, messages []QwenMessage, 
 	// Empty tools fallback — single chat completion
 	if len(tools) == 0 {
 		payload := QwenRequest{
-			Model:    "qwen-max",
+			Model:    s.maxModel,
 			Messages: messages,
 		}
-		respBody, err := s.callWithSemaphore(ctx, s.maxSem, "qwen-max", payload)
+		respBody, err := s.callWithSemaphore(ctx, s.maxSem, s.maxModel, payload)
 		if err != nil {
 			return "", fmt.Errorf("run agent loop: %w", err)
 		}
@@ -567,13 +573,13 @@ func (s *QwenService) RunAgentLoop(ctx context.Context, messages []QwenMessage, 
 		}
 
 		payload := QwenRequest{
-			Model:      "qwen-max",
+			Model:      s.maxModel,
 			Messages:   msgs,
 			Tools:      tools,
 			ToolChoice: "auto",
 		}
 
-		respBody, err := s.callWithSemaphore(ctx, s.maxSem, "qwen-max", payload)
+		respBody, err := s.callWithSemaphore(ctx, s.maxSem, s.maxModel, payload)
 		if err != nil {
 			return "", fmt.Errorf("run agent loop: %w", err)
 		}
@@ -669,14 +675,14 @@ func (s *QwenService) compressToolResults(ctx context.Context, msgs []QwenMessag
 	}
 
 	payload := QwenRequest{
-		Model: "qwen-turbo",
+		Model: s.turboModel,
 		Messages: []QwenMessage{
 			{Role: "system", Content: "Summarize these tool-call results, preserving every fact, name, date, and relationship relevant to detecting narrative contradictions. Be concise."},
 			{Role: "user", Content: oldToolContent.String()},
 		},
 	}
 
-	respBody, err := s.callWithSemaphore(ctx, s.turboSem, "qwen-turbo", payload)
+	respBody, err := s.callWithSemaphore(ctx, s.turboSem, s.turboModel, payload)
 	if err != nil {
 		return msgs, true // best-effort: skip compression, don't retry again this call
 	}
