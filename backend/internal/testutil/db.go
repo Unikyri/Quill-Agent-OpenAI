@@ -8,7 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	pgxvector "github.com/pgvector/pgvector-go/pgx"
 )
 
 func SetupTestDB(t *testing.T) *pgxpool.Pool {
@@ -20,7 +22,14 @@ func SetupTestDB(t *testing.T) *pgxpool.Pool {
 	}
 
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, url)
+	poolCfg, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		t.Fatalf("parse test db config: %v", err)
+	}
+	poolCfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		return pgxvector.RegisterTypes(ctx, conn)
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		t.Fatalf("connect to test db: %v", err)
 	}

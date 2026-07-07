@@ -14,6 +14,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	pgxvector "github.com/pgvector/pgvector-go/pgx"
 
 	"github.com/quill/backend/internal/config"
 	"github.com/quill/backend/internal/handlers"
@@ -45,6 +46,9 @@ func main() {
 		_, err = conn.Exec(ctx, "SET search_path = ag_catalog, \"$user\", public")
 		if err != nil {
 			return fmt.Errorf("set search_path: %w", err)
+		}
+		if err := pgxvector.RegisterTypes(ctx, conn); err != nil {
+			return fmt.Errorf("register pgvector types: %w", err)
 		}
 		return nil
 	}

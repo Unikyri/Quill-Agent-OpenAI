@@ -1,0 +1,1 @@
+ALTER TABLE entity_embeddings DROP CONSTRAINT IF EXISTS entity_embeddings_entity_id_key;
