@@ -75,6 +75,8 @@ beforeEach(() => {
     recallItems: [],
     graphPings: [],
     ingestionProgress: {},
+    pipeline: null,
+    budget: null,
   })
   vi.useFakeTimers()
 })
@@ -190,6 +192,40 @@ describe('wsStore', () => {
       const ws = MockWebSocket.instances[0]
       ws.simulateMessage({ type: 'graph_updated', payload: { updated: true } })
       expect(getStore().graphPings).toHaveLength(1)
+    })
+
+    it('dispatches analysis_progress to pipeline slice, tolerating missing counts', () => {
+      const ws = MockWebSocket.instances[0]
+      ws.simulateMessage({
+        type: 'analysis_progress',
+        payload: { stage: 'checking_contradictions', chapter_id: 'ch-1' },
+      })
+      expect(getStore().pipeline).toEqual({
+        stage: 'checking_contradictions',
+        entity_count: undefined,
+        contradiction_count: undefined,
+        plot_hole_count: undefined,
+      })
+      expect(getStore().budget).toBeNull()
+    })
+
+    it('dispatches analysis_progress budget at the context_budget stage', () => {
+      const ws = MockWebSocket.instances[0]
+      const budget = {
+        max_context_tokens: 8000,
+        available: 4000,
+        entities_tokens: 1400,
+        vector_tokens: 1600,
+        tools_tokens: 1000,
+        used_percent: 50,
+      }
+      ws.simulateMessage({
+        type: 'analysis_progress',
+        payload: { stage: 'context_budget', chapter_id: 'ch-1', entity_count: 3, budget },
+      })
+      expect(getStore().pipeline?.stage).toBe('context_budget')
+      expect(getStore().pipeline?.entity_count).toBe(3)
+      expect(getStore().budget).toEqual(budget)
     })
 
     it('dispatches ingestion_progress keyed by job_id', () => {

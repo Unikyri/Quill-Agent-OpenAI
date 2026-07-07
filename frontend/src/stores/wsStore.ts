@@ -31,6 +31,7 @@ interface RecallItem {
   id?: string
   fact?: string
   score?: number
+  source?: string
   [key: string]: unknown
 }
 
@@ -45,6 +46,22 @@ interface IngestionProgress {
   chapters_processed?: number
   total_chapters?: number
   [key: string]: unknown
+}
+
+export interface BudgetReport {
+  max_context_tokens: number
+  available: number
+  entities_tokens: number
+  vector_tokens: number
+  tools_tokens: number
+  used_percent: number
+}
+
+export interface PipelineState {
+  stage: string
+  entity_count?: number
+  contradiction_count?: number
+  plot_hole_count?: number
 }
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/v1/ws`
@@ -67,6 +84,8 @@ interface WSState {
   recallItems: RecallItem[]
   graphPings: GraphPing[]
   ingestionProgress: Record<string, IngestionProgress>
+  pipeline: PipelineState | null
+  budget: BudgetReport | null
   connect: (token: string) => void
   disconnect: () => void
   send: (msg: WSMessage) => void
@@ -114,6 +133,25 @@ export const useWSStore = create<WSState>((set, get) => {
       case 'graph_updated':
         set({ graphPings: [...get().graphPings, payload as GraphPing].slice(-200) })
         break
+      case 'analysis_progress': {
+        const p = payload as {
+          stage?: string
+          entity_count?: number
+          contradiction_count?: number
+          plot_hole_count?: number
+          budget?: BudgetReport
+        }
+        set({
+          pipeline: {
+            stage: p.stage ?? '',
+            entity_count: p.entity_count,
+            contradiction_count: p.contradiction_count,
+            plot_hole_count: p.plot_hole_count,
+          },
+          ...(p.budget ? { budget: p.budget } : {}),
+        })
+        break
+      }
       case 'ingestion_progress': {
         const progress = payload as IngestionProgress
         if (progress.job_id) {
@@ -197,6 +235,8 @@ export const useWSStore = create<WSState>((set, get) => {
     recallItems: [],
     graphPings: [],
     ingestionProgress: {},
+    pipeline: null,
+    budget: null,
 
     connect: (token: string) => {
       intentionalClose = false
@@ -225,6 +265,8 @@ export const useWSStore = create<WSState>((set, get) => {
         recallItems: [],
         graphPings: [],
         ingestionProgress: {},
+        pipeline: null,
+        budget: null,
       })
     },
   }

@@ -289,3 +289,113 @@
   border-radius: var(--r-sm);
   margin-bottom: 5px;
 }
+
+/* ── Live Pipeline stepper ────────────────────────────────────────── */
+.stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--muted-3);
+}
+
+.stepDot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-round);
+  background: var(--muted-3);
+  flex-shrink: 0;
+}
+
+.step_done { color: var(--success); }
+.step_done .stepDot { background: var(--success); }
+.step_active { color: var(--warning); font-weight: 600; }
+.step_active .stepDot { background: var(--warning); }
+
+.stepLabel { flex: 1; }
+.stepCount {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted-2);
+}
+
+/* ── Context Budget ───────────────────────────────────────────────── */
+.budgetBarTrack {
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--teal-soft);
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.budgetBarFill {
+  height: 100%;
+  background: var(--teal);
+  border-radius: var(--r-pill);
+}
+
+.budgetLegend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted-2);
+  margin-bottom: 6px;
+}
+
+.budgetBreakdown {
+  display: flex;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--muted-2);
+}
+
+/* ── Retrieval source badges ──────────────────────────────────────── */
+.sourceBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.sourceBadge {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  border: 1px solid;
+  text-transform: uppercase;
+}
+
+/* ── Entity Lifecycle ──────────────────────────────────────────────── */
+.lifecycleRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.lifecycleName {
+  flex: 1;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lifecycleChip {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  border: 1px solid;
+  text-transform: uppercase;
+}

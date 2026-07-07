@@ -151,6 +151,21 @@ export const api = {
       { method: 'POST', json: { query, k } }
     ),
 
+  getMemoryStatus: (universeId: string) =>
+    request<{
+      consolidated_count: number
+      entities: Array<{
+        id: string
+        name: string
+        type: string
+        relevance_score: number
+        status: string
+        consolidated: boolean
+        lifecycle: 'active' | 'decaying' | 'archived' | 'consolidated' | 'reactivated'
+        history: Array<{ score: number; recorded_at: string }>
+      }>
+    }>(`/universes/${universeId}/memory-status`),
+
   // Ingestion — multipart upload, bypasses `request()`'s JSON body handling
   // since the browser must set its own `Content-Type: multipart/form-data`
   // boundary. Progress is streamed separately over WS (`ingestion_progress`).

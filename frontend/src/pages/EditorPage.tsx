@@ -181,7 +181,7 @@ export default function EditorPage() {
       </div>
 
       {/* Context panel */}
-      <ContextPanel status={wsStatus} />
+      <ContextPanel status={wsStatus} universeId={workInfo?.universe_id || universeId} />
     </div>
   )
 }
