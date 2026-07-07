@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pgvector/pgvector-go"
 )
 
 type VectorRepo struct {
@@ -22,7 +23,7 @@ func (r *VectorRepo) SaveEntityEmbedding(ctx context.Context, entityID uuid.UUID
 		VALUES ($1, $2, $3, NOW(), NOW())
 		ON CONFLICT (entity_id) DO UPDATE SET description_embedding = $3, updated_at = NOW()
 	`
-	_, err := r.pool.Exec(ctx, query, uuid.New(), entityID, embedding)
+	_, err := r.pool.Exec(ctx, query, uuid.New(), entityID, pgvector.NewVector(embedding))
 	if err != nil {
 		return fmt.Errorf("save entity embedding: %w", err)
 	}
@@ -40,7 +41,7 @@ func (r *VectorRepo) FindSimilarEntity(ctx context.Context, universeID uuid.UUID
 	`
 	var entityID uuid.UUID
 	var distance float64
-	err := r.pool.QueryRow(ctx, query, embedding, universeID).Scan(&entityID, &distance)
+	err := r.pool.QueryRow(ctx, query, pgvector.NewVector(embedding), universeID).Scan(&entityID, &distance)
 	if err != nil {
 		return nil, 0, fmt.Errorf("find similar entity: %w", err)
 	}
@@ -57,7 +58,7 @@ func (r *VectorRepo) SaveParagraphEmbedding(ctx context.Context, chapterID uuid.
 		INSERT INTO paragraph_embeddings (id, chapter_id, paragraph_index, paragraph_node_id, content, embedding, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, NOW())
 	`
-	_, err := r.pool.Exec(ctx, query, uuid.New(), chapterID, paragraphIndex, nodeID, content, embedding)
+	_, err := r.pool.Exec(ctx, query, uuid.New(), chapterID, paragraphIndex, nodeID, content, pgvector.NewVector(embedding))
 	if err != nil {
 		return fmt.Errorf("save paragraph embedding: %w", err)
 	}
@@ -74,7 +75,7 @@ func (r *VectorRepo) FindSimilarParagraphs(ctx context.Context, universeID uuid.
 		ORDER BY distance ASC
 		LIMIT $4
 	`
-	rows, err := r.pool.Query(ctx, query, embedding, universeID, excludeChapterID, limit)
+	rows, err := r.pool.Query(ctx, query, pgvector.NewVector(embedding), universeID, excludeChapterID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("find similar paragraphs: %w", err)
 	}
@@ -96,4 +97,46 @@ type SimilarParagraph struct {
 	ChapterID    uuid.UUID
 	ChapterTitle string
 	Distance     float64
+}
+
+type SimilarEntity struct {
+	ID       uuid.UUID
+	Name     string
+	Distance float64
+}
+
+func (r *VectorRepo) FindSimilarEntities(ctx context.Context, universeID uuid.UUID, embedding []float32, limit int) ([]SimilarEntity, error) {
+	query := `
+		SELECT e.id, e.name, ee.description_embedding <=> $1 AS distance
+		FROM entities e
+		JOIN entity_embeddings ee ON e.id = ee.entity_id
+		WHERE e.universe_id = $2
+		ORDER BY distance ASC
+		LIMIT $3
+	`
+	rows, err := r.pool.Query(ctx, query, pgvector.NewVector(embedding), universeID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("find similar entities: %w", err)
+	}
+	defer rows.Close()
+
+	var results []SimilarEntity
+	for rows.Next() {
+		var se SimilarEntity
+		if err := rows.Scan(&se.ID, &se.Name, &se.Distance); err != nil {
+			return nil, fmt.Errorf("scan similar entity: %w", err)
+		}
+		results = append(results, se)
+	}
+	return results, nil
+}
+
+// SetHNSWSearchParams tunes recall vs. speed for the session. efSearch is an int,
+// not a string — that type is the SQL-injection safety boundary here (same sharp-edge
+// class as escapeCypherString for AGE, which can't use bind params inside $$ blocks).
+func (r *VectorRepo) SetHNSWSearchParams(ctx context.Context, efSearch int) error {
+	if _, err := r.pool.Exec(ctx, fmt.Sprintf("SET hnsw.ef_search = %d", efSearch)); err != nil {
+		return fmt.Errorf("set hnsw.ef_search: %w", err)
+	}
+	return nil
 }

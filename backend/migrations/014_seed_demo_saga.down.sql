@@ -2,10 +2,15 @@
 -- Deletes all data seeded in 014_seed_demo_saga.up.sql by template universe FK.
 -- Template universe row and demo user are preserved (owned by migration 013).
 
--- AGE graph cleanup: delete all vertices and edges for the template graph
-SELECT * FROM cypher('universe_00000000-0000-0000-0000-000000000002',
-    $$ MATCH (n) DETACH DELETE n $$)
-AS (a agtype);
+-- AGE graph cleanup: drop the template graph entirely (not just its rows) so
+-- this down migration is safe to re-run and the up migration's create_graph()
+-- doesn't fail with "graph already exists" on a second apply — this was
+-- previously untested since no migration set ran past 014 more than once.
+-- LOAD/search_path mirrors the up migration's preamble: drop_graph() lives in
+-- ag_catalog and isn't reachable unqualified without it on a fresh session.
+LOAD 'age';
+SET search_path = ag_catalog, "$user", public;
+SELECT drop_graph('universe_00000000-0000-0000-0000-000000000002', true);
 
 -- Delete in FK-dependent order (reverse of seed)
 
