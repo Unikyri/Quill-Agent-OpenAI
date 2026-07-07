@@ -46,8 +46,8 @@ beforeEach(() => {
 describe('ContradictionsPage', () => {
   it('shows loading state initially', () => {
     mockGetContradictions.mockReturnValue(new Promise(() => {}))
-    renderPage()
-    expect(screen.getByTestId('loading-state')).toBeInTheDocument()
+    const { container } = renderPage()
+    expect(container.querySelector('.skeleton')).toBeInTheDocument()
   })
 
   it('renders contradiction cards on load', async () => {
@@ -63,9 +63,11 @@ describe('ContradictionsPage', () => {
       expect(screen.getByText('Character age mismatch')).toBeInTheDocument()
       expect(screen.getByText('Timeline conflict')).toBeInTheDocument()
     })
-    // "high" and "low" appear in both filter buttons and severity badges
-    expect(screen.getAllByText('high').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('low').length).toBeGreaterThanOrEqual(1)
+    // Filter buttons render capitalized ("High"/"Low"); severity badges render full uppercase ("HIGH"/"LOW")
+    expect(screen.getByRole('button', { name: 'High' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Low' })).toBeInTheDocument()
+    expect(screen.getByText('HIGH')).toBeInTheDocument()
+    expect(screen.getByText('LOW')).toBeInTheDocument()
   })
 
   it('shows empty state when no contradictions', async () => {
@@ -82,7 +84,7 @@ describe('ContradictionsPage', () => {
     renderPage()
 
     await waitFor(() => {
-      expect(screen.getByTestId('error-state')).toBeInTheDocument()
+      expect(screen.getByText('Could not load')).toBeInTheDocument()
       expect(screen.getByText('Server down')).toBeInTheDocument()
     })
   })
@@ -102,10 +104,8 @@ describe('ContradictionsPage', () => {
     })
 
     const user = userEvent.setup()
-    // Click the "high" filter button (the button, not the severity badge)
-    const highButtons = screen.getAllByText('high')
-    const filterBtn = highButtons.find((el) => el.tagName === 'BUTTON')!
-    await user.click(filterBtn)
+    // Click the "High" filter button (capitalized; distinct from the "HIGH" severity badge)
+    await user.click(screen.getByRole('button', { name: 'High' }))
 
     // "High issue" still visible, "Low issue" filtered out
     expect(screen.getByText('High issue')).toBeInTheDocument()
@@ -129,7 +129,7 @@ describe('ContradictionsPage', () => {
     await user.click(screen.getByText('Resolve'))
 
     // Confirm dialog was shown
-    expect(window.confirm).toHaveBeenCalledWith('Mark this contradiction as resolved?')
+    expect(window.confirm).toHaveBeenCalledWith('Mark as resolved?')
 
     await waitFor(() => {
       expect(screen.getByText('✓ Resolved')).toBeInTheDocument()

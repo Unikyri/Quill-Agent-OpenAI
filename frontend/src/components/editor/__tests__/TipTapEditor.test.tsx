@@ -100,7 +100,7 @@ describe('TipTapEditor — paragraph submit on idle', () => {
   it('renders the editor and toolbar', () => {
     const { getByTestId, getByTitle } = render(<TipTapEditor {...defaultProps} />)
     expect(getByTestId('editor-content')).toBeInTheDocument()
-    expect(getByTitle('Bold (Ctrl+B)')).toBeInTheDocument()
+    expect(getByTitle('Bold (⌘B)')).toBeInTheDocument()
   })
 
   it('does NOT send paragraph_submit before 5000ms idle', () => {
