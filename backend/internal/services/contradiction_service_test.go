@@ -509,6 +509,59 @@ func TestCheckSemanticEmptyContradiction(t *testing.T) {
 	}
 }
 
+// TestCheckSemanticParsesFencedJSON is an approval test for CheckSemantic's
+// fence-stripping fallback: the agent's final answer sometimes arrives wrapped
+// in markdown code fences despite instructions to return raw JSON. This must
+// keep working whether the fallback is the old inline hack or the shared
+// parseJSONLoose helper.
+func TestCheckSemanticParsesFencedJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]interface{}{
+			"choices": []map[string]interface{}{
+				{
+					"message": map[string]interface{}{
+						"role":    "assistant",
+						"content": "```json\n[{\"type\":\"semantic\",\"description\":\"fenced contradiction\",\"evidence_a\":\"a\",\"evidence_b\":\"b\",\"severity\":\"low\"}]\n```",
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	qwenSvc := NewQwenService(&config.Config{
+		QwenBaseURL:          srv.URL,
+		QwenAPIKey:           "test",
+		QwenMaxConcurrency:   1,
+		QwenTurboConcurrency: 1,
+	}, nil)
+	qwenSvc.client.Timeout = 5 * time.Second
+
+	exec := &mockExecutor{}
+	cfg := config.Config{MaxContradictionCandidates: 5}
+	svc := NewContradictionService(nil, nil, nil, qwenSvc, exec, cfg.MaxContradictionCandidates, nil)
+
+	entities := []ResolvedEntity{
+		{Entity: models.Entity{ID: uuid.New(), Type: "character", Name: "Fenced Entity", Description: "test"}, MentionText: "mention", IsNew: false},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	contradictions, err := svc.CheckSemantic(ctx, uuid.New(), uuid.New(), "test text", entities)
+	if err != nil {
+		t.Fatalf("CheckSemantic: %v", err)
+	}
+	if len(contradictions) != 1 {
+		t.Fatalf("expected 1 contradiction from fenced JSON, got %d", len(contradictions))
+	}
+	if contradictions[0].Description != "fenced contradiction" {
+		t.Errorf("unexpected description: %q", contradictions[0].Description)
+	}
+}
+
 // mockExecutor implements ToolExecutor for testing.
 type mockExecutor struct{}
 

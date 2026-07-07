@@ -4,9 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -217,16 +215,8 @@ IMPORTANT: Use the tools to gather context BEFORE making your decision. Only ret
 	}
 
 	var agentContras []agentContradiction
-	if err := json.Unmarshal([]byte(answer), &agentContras); err != nil {
-		// ponytail: if JSON parse fails, strip markdown fences and retry
-		cleaned := strings.TrimSpace(answer)
-		cleaned = strings.TrimPrefix(cleaned, "```json")
-		cleaned = strings.TrimPrefix(cleaned, "```")
-		cleaned = strings.TrimSuffix(cleaned, "```")
-		cleaned = strings.TrimSpace(cleaned)
-		if err2 := json.Unmarshal([]byte(cleaned), &agentContras); err2 != nil {
-			return nil, fmt.Errorf("parse agent contradiction JSON: %w (original: %w)", err2, err)
-		}
+	if err := parseJSONLoose(answer, &agentContras); err != nil {
+		return nil, fmt.Errorf("parse agent contradiction JSON: %w", err)
 	}
 
 	contradictions := make([]models.Contradiction, 0, len(agentContras))

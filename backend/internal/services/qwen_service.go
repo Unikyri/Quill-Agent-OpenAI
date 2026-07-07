@@ -63,11 +63,17 @@ func (s *QwenService) HealthCheck(ctx context.Context) error {
 }
 
 type QwenRequest struct {
-	Model      string        `json:"model"`
-	Messages   []QwenMessage `json:"messages"`
-	Format     interface{}   `json:"format,omitempty"`
-	Tools      []QwenTool    `json:"tools,omitempty"`
-	ToolChoice interface{}   `json:"tool_choice,omitempty"`
+	Model          string          `json:"model"`
+	Messages       []QwenMessage   `json:"messages"`
+	ResponseFormat *ResponseFormat `json:"response_format,omitempty"`
+	Tools          []QwenTool      `json:"tools,omitempty"`
+	ToolChoice     interface{}     `json:"tool_choice,omitempty"`
+}
+
+// ResponseFormat requests structured JSON output from the model. DashScope
+// requires the prompt to also mention "json" somewhere when this is set.
+type ResponseFormat struct {
+	Type string `json:"type"`
 }
 
 type QwenMessage struct {
@@ -275,6 +281,7 @@ Respond with ONLY valid JSON in this format:
 			{Role: "system", Content: "You extract narrative entities. Return only JSON."},
 			{Role: "user", Content: prompt},
 		},
+		ResponseFormat: &ResponseFormat{Type: "json_object"},
 	}
 
 	respBody, err := s.callWithSemaphore(ctx, s.turboSem, "qwen-turbo", payload)
@@ -371,6 +378,7 @@ Return JSON array of relationships:
 			{Role: "system", Content: "You analyze narrative relationships. Return only JSON."},
 			{Role: "user", Content: prompt},
 		},
+		ResponseFormat: &ResponseFormat{Type: "json_object"},
 	}
 
 	respBody, err := s.callWithSemaphore(ctx, s.turboSem, "qwen-turbo", payload)
@@ -428,6 +436,7 @@ func (s *QwenService) CheckContradictions(ctx context.Context, candidates []Cont
 			{Role: "system", Content: "You detect narrative contradictions. Return only JSON."},
 			{Role: "user", Content: prompt},
 		},
+		ResponseFormat: &ResponseFormat{Type: "json_object"},
 	}
 
 	respBody, err := s.callWithSemaphore(ctx, s.maxSem, "qwen-max", payload)
@@ -446,7 +455,7 @@ func (s *QwenService) CheckContradictions(ctx context.Context, candidates []Cont
 
 	content := qwenResp.Choices[0].Message.Content
 	var results []contradictionResult
-	if err := json.Unmarshal([]byte(content), &results); err != nil {
+	if err := parseJSONLoose(content, &results); err != nil {
 		return nil, fmt.Errorf("unmarshal results: %w", err)
 	}
 
@@ -476,6 +485,22 @@ func (s *QwenService) CheckContradictions(ctx context.Context, candidates []Cont
 	}
 
 	return contradictions, nil
+}
+
+// parseJSONLoose unmarshals s into v, falling back to stripping markdown code
+// fences (```json ... ``` or ``` ... ```) and retrying once. Defensive
+// fallback for models that wrap JSON in fences despite response_format being
+// set — the ONE place this fence-stripping logic lives.
+func parseJSONLoose(s string, v any) error {
+	if err := json.Unmarshal([]byte(s), v); err == nil {
+		return nil
+	}
+	cleaned := strings.TrimSpace(s)
+	cleaned = strings.TrimPrefix(cleaned, "```json")
+	cleaned = strings.TrimPrefix(cleaned, "```")
+	cleaned = strings.TrimSuffix(cleaned, "```")
+	cleaned = strings.TrimSpace(cleaned)
+	return json.Unmarshal([]byte(cleaned), v)
 }
 
 // contradictionResult mirrors Qwen's JSON response per candidate.
