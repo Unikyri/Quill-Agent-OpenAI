@@ -14,18 +14,20 @@ import (
 )
 
 type EntityService struct {
-	pool       *pgxpool.Pool
-	entityRepo *repositories.EntityRepo
-	vectorRepo *repositories.VectorRepo
-	qwenSvc    *QwenService
+	pool        *pgxpool.Pool
+	entityRepo  *repositories.EntityRepo
+	vectorRepo  *repositories.VectorRepo
+	qwenSvc     *QwenService
+	historyRepo *repositories.EntityRelevanceHistoryRepo
 }
 
 func NewEntityService(pool *pgxpool.Pool, entityRepo *repositories.EntityRepo, vectorRepo *repositories.VectorRepo, qwenSvc *QwenService) *EntityService {
 	return &EntityService{
-		pool:       pool,
-		entityRepo: entityRepo,
-		vectorRepo: vectorRepo,
-		qwenSvc:    qwenSvc,
+		pool:        pool,
+		entityRepo:  entityRepo,
+		vectorRepo:  vectorRepo,
+		qwenSvc:     qwenSvc,
+		historyRepo: repositories.NewEntityRelevanceHistoryRepo(pool),
 	}
 }
 
@@ -165,6 +167,13 @@ func (s *EntityService) ResolveOrCreate(ctx context.Context, universeID uuid.UUI
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, "", false, err
+	}
+
+	// spec: entity creation writes the initial entity_relevance_history row (score 0.8)
+	if s.historyRepo != nil {
+		if err := s.historyRepo.AppendOne(ctx, newEntity.ID); err != nil {
+			log.Printf("[entity] append history for new entity %s: %v", newEntity.Name, err)
+		}
 	}
 
 	// Create node in AGE graph

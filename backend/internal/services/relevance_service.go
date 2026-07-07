@@ -22,12 +22,15 @@ type RelevanceService struct {
 	lambda           float64
 	archiveThreshold float64
 	consolidationSvc Consolidator
+	historyRepo      *repositories.EntityRelevanceHistoryRepo
 }
 
 // NewRelevanceService creates a relevance service with the given decay lambda
 // and archive threshold. lambda controls the decay rate per chapter advance;
 // archiveThreshold is the score below which entities get archived.
 // consolidationSvc may be nil — deconsolidation on reactivate will be skipped.
+// historyRepo defaults to a pool-backed instance; override via
+// SetHistoryRepo in tests if needed.
 func NewRelevanceService(pool *pgxpool.Pool, entityRepo *repositories.EntityRepo, lambda, archiveThreshold float64, consolidationSvc Consolidator) *RelevanceService {
 	return &RelevanceService{
 		pool:             pool,
@@ -35,6 +38,7 @@ func NewRelevanceService(pool *pgxpool.Pool, entityRepo *repositories.EntityRepo
 		lambda:           lambda,
 		archiveThreshold: archiveThreshold,
 		consolidationSvc: consolidationSvc,
+		historyRepo:      repositories.NewEntityRelevanceHistoryRepo(pool),
 	}
 }
 
@@ -69,6 +73,13 @@ func (s *RelevanceService) Reactivate(ctx context.Context, entityID uuid.UUID) e
 
 	if err := tx.Commit(ctx); err != nil {
 		return err
+	}
+
+	// spec: reactivation writes one entity_relevance_history row
+	if s.historyRepo != nil {
+		if err := s.historyRepo.AppendOne(ctx, entityID); err != nil {
+			log.Printf("[relevance] append history for reactivated entity %s: %v", entityID, err)
+		}
 	}
 
 	// spec: after reactivation, deconsolidate (nil-safe)
@@ -106,6 +117,14 @@ func (s *RelevanceService) DecayAll(ctx context.Context, universeID uuid.UUID) e
 	`, universeID, s.archiveThreshold)
 	if err != nil {
 		return err
+	}
+
+	// spec: piggyback one set-based snapshot INSERT...SELECT after the bulk
+	// decay+archive UPDATEs, capturing every entity's post-decay score/status.
+	if s.historyRepo != nil {
+		if err := s.historyRepo.AppendSnapshot(ctx, universeID); err != nil {
+			log.Printf("[relevance] append decay snapshot for universe %s: %v", universeID, err)
+		}
 	}
 
 	// Fire-and-forget consolidation goroutines for newly-archived entities
