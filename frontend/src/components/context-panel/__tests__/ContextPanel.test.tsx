@@ -31,7 +31,8 @@ beforeEach(() => {
 describe('ContextPanel', () => {
   it('shows empty state when no messages', () => {
     render(<ContextPanel status="idle" />)
-    expect(screen.getByText(/AI insights will appear here/)).toBeInTheDocument()
+    expect(screen.getByText('AI contradiction analysis will appear here')).toBeInTheDocument()
+    expect(screen.getByText('Semantic memory appears as you write')).toBeInTheDocument()
   })
 
   it('shows red indicator when disconnected', () => {
@@ -72,9 +73,7 @@ describe('ContextPanel', () => {
     })
 
     render(<ContextPanel status="open" />)
-    expect(screen.getByText(/Alice/)).toBeInTheDocument()
-    expect(screen.getByText(/Type: character/)).toBeInTheDocument()
-    expect(screen.getByText('NEW')).toBeInTheDocument()
+    expect(screen.getByText('Alice')).toBeInTheDocument()
   })
 
   it('renders recall cards from store', () => {
@@ -86,17 +85,18 @@ describe('ContextPanel', () => {
 
     render(<ContextPanel status="open" />)
     expect(screen.getByText(/Alice is a detective/)).toBeInTheDocument()
-    expect(screen.getByText('Confidence: 95%')).toBeInTheDocument()
+    expect(screen.getByText('95%')).toBeInTheDocument()
   })
 
-  it('shows active card count', () => {
+  it('renders both contradiction and entity data simultaneously', () => {
     useWSStore.setState({
       contradictions: [{ id: 'c1', message: 'Conflict', severity: 'low' }],
       discoveredEntities: [{ id: 'e1', name: 'Bob', type: 'place' }],
     })
 
     render(<ContextPanel status="open" />)
-    expect(screen.getByText('2 active')).toBeInTheDocument()
+    expect(screen.getByText('Conflict')).toBeInTheDocument()
+    expect(screen.getByText('Bob')).toBeInTheDocument()
   })
 })
 

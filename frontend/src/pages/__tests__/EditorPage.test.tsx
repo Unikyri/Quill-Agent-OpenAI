@@ -13,11 +13,13 @@ vi.mock('react-router-dom', async () => {
 })
 
 const mockGetChapter = vi.fn()
+const mockGetWork = vi.fn()
 const mockListChapters = vi.fn()
 const mockCreateChapter = vi.fn()
 vi.mock('../../lib/api', () => ({
   api: {
     getChapter: (...args: unknown[]) => mockGetChapter(...args),
+    getWork: (...args: unknown[]) => mockGetWork(...args),
     listChapters: (...args: unknown[]) => mockListChapters(...args),
     createChapter: (...args: unknown[]) => mockCreateChapter(...args),
   },
@@ -71,6 +73,7 @@ describe('EditorPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockListChapters.mockResolvedValue({ chapters: [] })
+    mockGetWork.mockResolvedValue({ work: { id: 'work-1', title: 'Test Work', universe_id: 'uni-1' } })
   })
 
   it('shows a loading state until the chapter resolves', () => {
@@ -104,10 +107,10 @@ describe('EditorPage', () => {
     })
     renderPage()
 
-    await waitFor(() => expect(screen.getByText('Chapter Two')).toBeInTheDocument())
+    const chapterTwoBtn = await screen.findByRole('button', { name: /Chapter Two/ })
 
     const user = userEvent.setup()
-    await user.click(screen.getByText('Chapter Two'))
+    await user.click(chapterTwoBtn)
     expect(mockNavigate).toHaveBeenCalledWith('/universe/uni-1/editor/ch-2')
   })
 

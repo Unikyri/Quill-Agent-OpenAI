@@ -40,8 +40,8 @@ beforeEach(() => {
 describe('TimelinePage', () => {
   it('shows loading state initially', () => {
     mockGetTimeline.mockReturnValue(new Promise(() => {}))
-    renderPage()
-    expect(screen.getByTestId('loading-state')).toBeInTheDocument()
+    const { container } = renderPage()
+    expect(container.querySelector('.skeleton')).toBeInTheDocument()
   })
 
   it('shows empty state when no events', async () => {
@@ -58,7 +58,7 @@ describe('TimelinePage', () => {
     renderPage()
 
     await waitFor(() => {
-      expect(screen.getByTestId('error-state')).toBeInTheDocument()
+      expect(screen.getByText('Could not load timeline')).toBeInTheDocument()
       expect(screen.getByText('Fetch failed')).toBeInTheDocument()
     })
   })
