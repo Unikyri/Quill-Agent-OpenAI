@@ -127,6 +127,11 @@ func (r *GraphRepo) CreateEdge(ctx context.Context, graphName, sourceEntityID, t
 func (r *GraphRepo) CreateGraphTx(ctx context.Context, tx pgx.Tx, universeID string) error {
 	graphName := "universe_" + universeID
 	return r.withAgeTx(tx, func(c *pgx.Conn) error {
+		// AGE requires create_graph() before running Cypher against the graph
+		// (same requirement as the non-Tx CreateGraph above).
+		if _, err := c.Exec(ctx, fmt.Sprintf(`SELECT create_graph('%s')`, graphName)); err != nil {
+			return err
+		}
 		query := fmt.Sprintf(`SELECT * FROM cypher(%s, $$ CREATE (g:Graph {name: '%s'}) RETURN g $$) AS (g agtype)`,
 			quoteGraph(graphName), graphName)
 		_, err := c.Exec(ctx, query)
