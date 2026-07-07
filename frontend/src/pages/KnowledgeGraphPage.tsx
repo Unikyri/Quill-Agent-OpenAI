@@ -5,6 +5,7 @@ import { useWSStore } from '../stores/wsStore'
 import { UniverseContext } from '../contexts/UniverseContext'
 import GraphCanvas from '../components/knowledge-graph/GraphCanvas'
 import GraphControls from '../components/knowledge-graph/GraphControls'
+import PageStatus from '../components/shared/PageStatus'
 import styles from './KnowledgeGraphPage.module.css'
 
 export default function KnowledgeGraphPage() {
@@ -14,6 +15,7 @@ export default function KnowledgeGraphPage() {
   const fetchGraph = useGraphStore((s) => s.fetchGraph)
   const refresh = useGraphStore((s) => s.refresh)
   const loading = useGraphStore((s) => s.loading)
+  const error = useGraphStore((s) => s.error)
   const nodes = useGraphStore((s) => s.nodes)
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId)
   const graphPings = useWSStore((s) => s.graphPings)
@@ -41,6 +43,16 @@ export default function KnowledgeGraphPage() {
     { label: 'Place', color: 'var(--node-place)' },
     { label: 'Object', color: 'var(--node-event)' },
   ]
+
+  if (loading || error) {
+    return (
+      <PageStatus
+        loading={loading}
+        error={error}
+        onRetry={() => universeId && fetchGraph(universeId)}
+      />
+    )
+  }
 
   return (
     <div className={styles.wrap}>
