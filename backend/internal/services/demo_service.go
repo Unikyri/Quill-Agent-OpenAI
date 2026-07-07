@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pgvector/pgvector-go"
 
 	"github.com/quill/backend/internal/repositories"
 )
@@ -68,19 +69,32 @@ func (s *DemoService) CloneUniverse(ctx context.Context, sessionID string) (stri
 	if err != nil {
 		return "", fmt.Errorf("query template works: %w", err)
 	}
-	defer workRows.Close()
+	var works []struct {
+		oldID, title, wtype, synopsis, status string
+		orderIdx                              int
+	}
 	for workRows.Next() {
-		var oldID, title, wtype, synopsis, status string
-		var orderIdx int
-		if err := workRows.Scan(&oldID, &title, &wtype, &orderIdx, &synopsis, &status); err != nil {
+		var item struct {
+			oldID, title, wtype, synopsis, status string
+			orderIdx                              int
+		}
+		if err := workRows.Scan(&item.oldID, &item.title, &item.wtype, &item.orderIdx, &item.synopsis, &item.status); err != nil {
+			workRows.Close()
 			return "", fmt.Errorf("scan work: %w", err)
 		}
+		works = append(works, item)
+	}
+	workRows.Close()
+	if err := workRows.Err(); err != nil {
+		return "", fmt.Errorf("iterate template works: %w", err)
+	}
+	for _, item := range works {
 		nid := uuid.New().String()
-		workMap[oldID] = nid
+		workMap[item.oldID] = nid
 		_, err = tx.Exec(ctx, `
 			INSERT INTO works (id, universe_id, title, type, order_index, synopsis, status, created_at, updated_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())`,
-			nid, newID, title, wtype, orderIdx, synopsis, status)
+			nid, newID, item.title, item.wtype, item.orderIdx, item.synopsis, item.status)
 		if err != nil {
 			return "", fmt.Errorf("insert work: %w", err)
 		}
@@ -94,20 +108,33 @@ func (s *DemoService) CloneUniverse(ctx context.Context, sessionID string) (stri
 	if err != nil {
 		return "", fmt.Errorf("query template chapters: %w", err)
 	}
-	defer chapterRows.Close()
+	var chapters []struct {
+		oldID, oldWorkID, title, content, rawText, status string
+		orderIdx, wordCount                               int
+	}
 	for chapterRows.Next() {
-		var oldID, oldWorkID, title, content, rawText, status string
-		var orderIdx, wordCount int
-		if err := chapterRows.Scan(&oldID, &oldWorkID, &title, &orderIdx, &content, &rawText, &wordCount, &status); err != nil {
+		var item struct {
+			oldID, oldWorkID, title, content, rawText, status string
+			orderIdx, wordCount                               int
+		}
+		if err := chapterRows.Scan(&item.oldID, &item.oldWorkID, &item.title, &item.orderIdx, &item.content, &item.rawText, &item.wordCount, &item.status); err != nil {
+			chapterRows.Close()
 			return "", fmt.Errorf("scan chapter: %w", err)
 		}
+		chapters = append(chapters, item)
+	}
+	chapterRows.Close()
+	if err := chapterRows.Err(); err != nil {
+		return "", fmt.Errorf("iterate template chapters: %w", err)
+	}
+	for _, item := range chapters {
 		nid := uuid.New().String()
-		chapterMap[oldID] = nid
-		newWorkID := workMap[oldWorkID]
+		chapterMap[item.oldID] = nid
+		newWorkID := workMap[item.oldWorkID]
 		_, err = tx.Exec(ctx, `
 			INSERT INTO chapters (id, work_id, title, order_index, content, raw_text, word_count, status, created_at, updated_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())`,
-			nid, newWorkID, title, orderIdx, content, rawText, wordCount, status)
+			nid, newWorkID, item.title, item.orderIdx, item.content, item.rawText, item.wordCount, item.status)
 		if err != nil {
 			return "", fmt.Errorf("insert chapter: %w", err)
 		}
@@ -120,29 +147,45 @@ func (s *DemoService) CloneUniverse(ctx context.Context, sessionID string) (stri
 	if err != nil {
 		return "", fmt.Errorf("query template entities: %w", err)
 	}
-	defer entityRows.Close()
+	var entities []struct {
+		oldID, etype, name, desc, status string
+		aliases                          []string
+		props                            []byte
+		relevance                        float64
+		lastChapterID                    *string
+	}
 	for entityRows.Next() {
-		var oldID, etype, name, desc, status string
-		var aliases []string
-		var props []byte
-		var relevance float64
-		var lastChapterID *string
-		if err := entityRows.Scan(&oldID, &etype, &name, &aliases, &desc, &props, &status, &relevance, &lastChapterID); err != nil {
+		var item struct {
+			oldID, etype, name, desc, status string
+			aliases                          []string
+			props                            []byte
+			relevance                        float64
+			lastChapterID                    *string
+		}
+		if err := entityRows.Scan(&item.oldID, &item.etype, &item.name, &item.aliases, &item.desc, &item.props, &item.status, &item.relevance, &item.lastChapterID); err != nil {
+			entityRows.Close()
 			return "", fmt.Errorf("scan entity: %w", err)
 		}
+		entities = append(entities, item)
+	}
+	entityRows.Close()
+	if err := entityRows.Err(); err != nil {
+		return "", fmt.Errorf("iterate template entities: %w", err)
+	}
+	for _, item := range entities {
 		nid := uuid.New().String()
-		entityMap[oldID] = nid
+		entityMap[item.oldID] = nid
 
 		var newLastChapterID *string
-		if lastChapterID != nil {
-			remapped := chapterMap[*lastChapterID]
+		if item.lastChapterID != nil {
+			remapped := chapterMap[*item.lastChapterID]
 			newLastChapterID = &remapped
 		}
 
 		_, err = tx.Exec(ctx, `
 			INSERT INTO entities (id, universe_id, type, name, aliases, description, properties, status, relevance_score, last_mentioned_chapter_id, created_at, updated_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())`,
-			nid, newID, etype, name, aliases, desc, props, status, relevance, newLastChapterID)
+			nid, newID, item.etype, item.name, item.aliases, item.desc, item.props, item.status, item.relevance, newLastChapterID)
 		if err != nil {
 			return "", fmt.Errorf("insert entity: %w", err)
 		}
@@ -156,19 +199,34 @@ func (s *DemoService) CloneUniverse(ctx context.Context, sessionID string) (stri
 	if err != nil {
 		return "", fmt.Errorf("query template mentions: %w", err)
 	}
-	defer mentionRows.Close()
+	var mentions []struct {
+		oldID, oldEntityID, oldChapterID, snippet, mtype string
+		nodeID                                            *string
+		pIdx                                              int
+	}
 	for mentionRows.Next() {
-		var oldID, oldEntityID, oldChapterID, nodeID, snippet, mtype string
-		var pIdx int
-		if err := mentionRows.Scan(&oldID, &oldEntityID, &oldChapterID, &pIdx, &nodeID, &snippet, &mtype); err != nil {
+		var item struct {
+			oldID, oldEntityID, oldChapterID, snippet, mtype string
+			nodeID                                            *string
+			pIdx                                              int
+		}
+		if err := mentionRows.Scan(&item.oldID, &item.oldEntityID, &item.oldChapterID, &item.pIdx, &item.nodeID, &item.snippet, &item.mtype); err != nil {
+			mentionRows.Close()
 			return "", fmt.Errorf("scan mention: %w", err)
 		}
-		newEntityID := entityMap[oldEntityID]
-		newChapterID := chapterMap[oldChapterID]
+		mentions = append(mentions, item)
+	}
+	mentionRows.Close()
+	if err := mentionRows.Err(); err != nil {
+		return "", fmt.Errorf("iterate template mentions: %w", err)
+	}
+	for _, item := range mentions {
+		newEntityID := entityMap[item.oldEntityID]
+		newChapterID := chapterMap[item.oldChapterID]
 		_, err = tx.Exec(ctx, `
 			INSERT INTO entity_mentions (id, entity_id, chapter_id, paragraph_index, paragraph_node_id, context_snippet, mention_type, created_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-			uuid.New().String(), newEntityID, newChapterID, pIdx, nodeID, snippet, mtype)
+			uuid.New().String(), newEntityID, newChapterID, item.pIdx, item.nodeID, item.snippet, item.mtype)
 		if err != nil {
 			return "", fmt.Errorf("insert mention: %w", err)
 		}
@@ -182,18 +240,33 @@ func (s *DemoService) CloneUniverse(ctx context.Context, sessionID string) (stri
 	if err != nil {
 		return "", fmt.Errorf("query template entity embeddings: %w", err)
 	}
-	defer embRows.Close()
+	var entityEmbeddings []struct {
+		oldID, oldEntityID string
+		embedding          []float32
+	}
 	for embRows.Next() {
-		var oldID, oldEntityID string
-		var embedding []float32
-		if err := embRows.Scan(&oldID, &oldEntityID, &embedding); err != nil {
+		var item struct {
+			oldID, oldEntityID string
+			embedding          []float32
+		}
+		var vec pgvector.Vector
+		if err := embRows.Scan(&item.oldID, &item.oldEntityID, &vec); err != nil {
+			embRows.Close()
 			return "", fmt.Errorf("scan entity embedding: %w", err)
 		}
-		newEntityID := entityMap[oldEntityID]
+		item.embedding = vec.Slice()
+		entityEmbeddings = append(entityEmbeddings, item)
+	}
+	embRows.Close()
+	if err := embRows.Err(); err != nil {
+		return "", fmt.Errorf("iterate template entity embeddings: %w", err)
+	}
+	for _, item := range entityEmbeddings {
+		newEntityID := entityMap[item.oldEntityID]
 		_, err = tx.Exec(ctx, `
 			INSERT INTO entity_embeddings (id, entity_id, description_embedding, created_at, updated_at)
 			VALUES ($1, $2, $3, NOW(), NOW())`,
-			uuid.New().String(), newEntityID, embedding)
+			uuid.New().String(), newEntityID, pgvector.NewVector(item.embedding))
 		if err != nil {
 			return "", fmt.Errorf("insert entity embedding: %w", err)
 		}
@@ -208,19 +281,35 @@ func (s *DemoService) CloneUniverse(ctx context.Context, sessionID string) (stri
 	if err != nil {
 		return "", fmt.Errorf("query template paragraph embeddings: %w", err)
 	}
-	defer paraRows.Close()
+	var paraEmbeddings []struct {
+		oldID, oldChapterID, nodeID, content string
+		pIdx                                 int
+		embedding                            []float32
+	}
 	for paraRows.Next() {
-		var oldID, oldChapterID, nodeID, content string
-		var pIdx int
-		var embedding []float32
-		if err := paraRows.Scan(&oldID, &oldChapterID, &pIdx, &nodeID, &content, &embedding); err != nil {
+		var item struct {
+			oldID, oldChapterID, nodeID, content string
+			pIdx                                 int
+			embedding                            []float32
+		}
+		var vec pgvector.Vector
+		if err := paraRows.Scan(&item.oldID, &item.oldChapterID, &item.pIdx, &item.nodeID, &item.content, &vec); err != nil {
+			paraRows.Close()
 			return "", fmt.Errorf("scan paragraph embedding: %w", err)
 		}
-		newChapterID := chapterMap[oldChapterID]
+		item.embedding = vec.Slice()
+		paraEmbeddings = append(paraEmbeddings, item)
+	}
+	paraRows.Close()
+	if err := paraRows.Err(); err != nil {
+		return "", fmt.Errorf("iterate template paragraph embeddings: %w", err)
+	}
+	for _, item := range paraEmbeddings {
+		newChapterID := chapterMap[item.oldChapterID]
 		_, err = tx.Exec(ctx, `
 			INSERT INTO paragraph_embeddings (id, chapter_id, paragraph_index, paragraph_node_id, content, embedding, created_at)
 			VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-			uuid.New().String(), newChapterID, pIdx, nodeID, content, embedding)
+			uuid.New().String(), newChapterID, item.pIdx, item.nodeID, item.content, pgvector.NewVector(item.embedding))
 		if err != nil {
 			return "", fmt.Errorf("insert paragraph embedding: %w", err)
 		}
@@ -234,35 +323,58 @@ func (s *DemoService) CloneUniverse(ctx context.Context, sessionID string) (stri
 	if err != nil {
 		return "", fmt.Errorf("query template contradictions: %w", err)
 	}
-	defer contraRows.Close()
+	var contradictions []struct {
+		oldID, severity, desc, suggestion, evidenceA, evidenceB, fingerprint, status string
+		oldEntityID, evAChID, evBChID                                               *string
+	}
 	for contraRows.Next() {
-		var oldID, severity, desc, suggestion, evidenceA, evidenceB, fingerprint, status string
-		var oldEntityID, evAChID, evBChID *string
-		if err := contraRows.Scan(&oldID, &oldEntityID, &severity, &desc, &suggestion,
-			&evidenceA, &evAChID, &evidenceB, &evBChID, &fingerprint, &status); err != nil {
+		var item struct {
+			oldID, severity, desc, suggestion, evidenceA, evidenceB, fingerprint, status string
+			oldEntityID, evAChID, evBChID                                               *string
+		}
+		if err := contraRows.Scan(&item.oldID, &item.oldEntityID, &item.severity, &item.desc, &item.suggestion,
+			&item.evidenceA, &item.evAChID, &item.evidenceB, &item.evBChID, &item.fingerprint, &item.status); err != nil {
+			contraRows.Close()
 			return "", fmt.Errorf("scan contradiction: %w", err)
 		}
-
+		contradictions = append(contradictions, item)
+	}
+	contraRows.Close()
+	if err := contraRows.Err(); err != nil {
+		return "", fmt.Errorf("iterate template contradictions: %w", err)
+	}
+	for _, item := range contradictions {
 		var newEntityID, newEvAChID, newEvBChID *string
-		if oldEntityID != nil {
-			remapped := entityMap[*oldEntityID]
+		if item.oldEntityID != nil {
+			remapped := entityMap[*item.oldEntityID]
 			newEntityID = &remapped
 		}
-		if evAChID != nil {
-			remapped := chapterMap[*evAChID]
+		if item.evAChID != nil {
+			remapped := chapterMap[*item.evAChID]
 			newEvAChID = &remapped
 		}
-		if evBChID != nil {
-			remapped := chapterMap[*evBChID]
+		if item.evBChID != nil {
+			remapped := chapterMap[*item.evBChID]
 			newEvBChID = &remapped
+		}
+
+		// fingerprint carries a table-wide UNIQUE constraint; copying it verbatim
+		// collides with the template's own row. Suffix with newID (unique per
+		// clone) so the insert satisfies the constraint — same remap spirit as
+		// the FK maps above, applied to a unique text column instead of an ID.
+		// ponytail: string-suffix workaround, not a fingerprint-scheme redesign —
+		// revisit if fingerprint dedup semantics ever need to span clones.
+		newFingerprint := item.fingerprint
+		if newFingerprint != "" {
+			newFingerprint = newFingerprint + ":" + newID
 		}
 
 		_, err = tx.Exec(ctx, `
 			INSERT INTO contradictions (id, universe_id, entity_id, severity, description, suggestion,
 			       evidence_a, evidence_a_chapter_id, evidence_b, evidence_b_chapter_id, fingerprint, status, created_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())`,
-			uuid.New().String(), newID, newEntityID, severity, desc, suggestion,
-			evidenceA, newEvAChID, evidenceB, newEvBChID, fingerprint, status)
+			uuid.New().String(), newID, newEntityID, item.severity, item.desc, item.suggestion,
+			item.evidenceA, newEvAChID, item.evidenceB, newEvBChID, newFingerprint, item.status)
 		if err != nil {
 			return "", fmt.Errorf("insert contradiction: %w", err)
 		}
@@ -276,32 +388,46 @@ func (s *DemoService) CloneUniverse(ctx context.Context, sessionID string) (stri
 	if err != nil {
 		return "", fmt.Errorf("query template timeline events: %w", err)
 	}
-	defer tlRows.Close()
+	var timelineEvents []struct {
+		oldID, title, desc, label       string
+		oldEventEntityID, oldChapterID  *string
+		tlPos                           *float64
+		participants                    []string
+	}
 	for tlRows.Next() {
-		var oldID, title, desc, label string
-		var oldEventEntityID, oldChapterID *string
-		var tlPos *float64
-		var participants []string
-		if err := tlRows.Scan(&oldID, &oldEventEntityID, &title, &desc, &tlPos, &label, &oldChapterID, &participants); err != nil {
+		var item struct {
+			oldID, title, desc, label      string
+			oldEventEntityID, oldChapterID *string
+			tlPos                          *float64
+			participants                   []string
+		}
+		if err := tlRows.Scan(&item.oldID, &item.oldEventEntityID, &item.title, &item.desc, &item.tlPos, &item.label, &item.oldChapterID, &item.participants); err != nil {
+			tlRows.Close()
 			return "", fmt.Errorf("scan timeline event: %w", err)
 		}
-
+		timelineEvents = append(timelineEvents, item)
+	}
+	tlRows.Close()
+	if err := tlRows.Err(); err != nil {
+		return "", fmt.Errorf("iterate template timeline events: %w", err)
+	}
+	for _, item := range timelineEvents {
 		var newEventEntityID, newChapterID *string
-		if oldEventEntityID != nil {
-			remapped := entityMap[*oldEventEntityID]
+		if item.oldEventEntityID != nil {
+			remapped := entityMap[*item.oldEventEntityID]
 			newEventEntityID = &remapped
 		}
-		if oldChapterID != nil {
-			remapped := chapterMap[*oldChapterID]
+		if item.oldChapterID != nil {
+			remapped := chapterMap[*item.oldChapterID]
 			newChapterID = &remapped
 		}
-		newParticipants := remapUUIDs(participants, entityMap)
+		newParticipants := remapUUIDs(item.participants, entityMap)
 
 		_, err = tx.Exec(ctx, `
 			INSERT INTO timeline_events (id, universe_id, event_entity_id, title, description,
 			       timeline_position, timeline_label, chapter_id, participants, created_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
-			uuid.New().String(), newID, newEventEntityID, title, desc, tlPos, label, newChapterID, newParticipants)
+			uuid.New().String(), newID, newEventEntityID, item.title, item.desc, item.tlPos, item.label, newChapterID, newParticipants)
 		if err != nil {
 			return "", fmt.Errorf("insert timeline event: %w", err)
 		}
@@ -314,26 +440,39 @@ func (s *DemoService) CloneUniverse(ctx context.Context, sessionID string) (stri
 	if err != nil {
 		return "", fmt.Errorf("query template plot holes: %w", err)
 	}
-	defer phRows.Close()
+	var plotHoles []struct {
+		oldID, title, desc, status string
+		relatedIDs                 []string
+		firstChID                  *string
+	}
 	for phRows.Next() {
-		var oldID, title, desc, status string
-		var relatedIDs []string
-		var firstChID *string
-		if err := phRows.Scan(&oldID, &title, &desc, &relatedIDs, &firstChID, &status); err != nil {
+		var item struct {
+			oldID, title, desc, status string
+			relatedIDs                 []string
+			firstChID                  *string
+		}
+		if err := phRows.Scan(&item.oldID, &item.title, &item.desc, &item.relatedIDs, &item.firstChID, &item.status); err != nil {
+			phRows.Close()
 			return "", fmt.Errorf("scan plot hole: %w", err)
 		}
-
+		plotHoles = append(plotHoles, item)
+	}
+	phRows.Close()
+	if err := phRows.Err(); err != nil {
+		return "", fmt.Errorf("iterate template plot holes: %w", err)
+	}
+	for _, item := range plotHoles {
 		var newFirstChID *string
-		if firstChID != nil {
-			remapped := chapterMap[*firstChID]
+		if item.firstChID != nil {
+			remapped := chapterMap[*item.firstChID]
 			newFirstChID = &remapped
 		}
-		newRelatedIDs := remapUUIDs(relatedIDs, entityMap)
+		newRelatedIDs := remapUUIDs(item.relatedIDs, entityMap)
 
 		_, err = tx.Exec(ctx, `
 			INSERT INTO plot_holes (id, universe_id, title, description, related_entity_ids, first_mentioned_chapter_id, status, created_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-			uuid.New().String(), newID, title, desc, newRelatedIDs, newFirstChID, status)
+			uuid.New().String(), newID, item.title, item.desc, newRelatedIDs, newFirstChID, item.status)
 		if err != nil {
 			return "", fmt.Errorf("insert plot hole: %w", err)
 		}
@@ -405,22 +544,35 @@ func (s *DemoService) cloneGraph(ctx context.Context, tx pgx.Tx, templateID, new
 	if err != nil {
 		return fmt.Errorf("query entities for graph nodes: %w", err)
 	}
-	defer entRows.Close()
+	var graphNodes []struct {
+		oldID, etype, name, status string
+		relevance                  float64
+	}
 	for entRows.Next() {
-		var oldID, etype, name, status string
-		var relevance float64
-		if err := entRows.Scan(&oldID, &etype, &name, &status, &relevance); err != nil {
+		var item struct {
+			oldID, etype, name, status string
+			relevance                  float64
+		}
+		if err := entRows.Scan(&item.oldID, &item.etype, &item.name, &item.status, &item.relevance); err != nil {
+			entRows.Close()
 			return fmt.Errorf("scan entity for node: %w", err)
 		}
-		newEntityID := entityMap[oldID]
+		graphNodes = append(graphNodes, item)
+	}
+	entRows.Close()
+	if err := entRows.Err(); err != nil {
+		return fmt.Errorf("iterate entities for graph nodes: %w", err)
+	}
+	for _, item := range graphNodes {
+		newEntityID := entityMap[item.oldID]
 		props := map[string]interface{}{
 			"entity_id":       newEntityID,
-			"name":            name,
-			"status":          status,
-			"relevance_score": relevance,
+			"name":            item.name,
+			"status":          item.status,
+			"relevance_score": item.relevance,
 		}
 		// ponytail: use entity type as graph node label directly
-		if err := s.graphRepo.CreateNodeTx(ctx, tx, newGraphName, etype, props); err != nil {
+		if err := s.graphRepo.CreateNodeTx(ctx, tx, newGraphName, item.etype, props); err != nil {
 			return fmt.Errorf("create node %s: %w", newEntityID, err)
 		}
 	}
@@ -433,10 +585,13 @@ func (s *DemoService) cloneGraph(ctx context.Context, tx pgx.Tx, templateID, new
 	if err != nil {
 		return fmt.Errorf("query graph edges: %w", err)
 	}
-	defer edgeRows.Close()
+	var graphEdges []struct {
+		srcID, relType, tgtID string
+	}
 	for edgeRows.Next() {
 		var srcRaw, relRaw, tgtRaw *string
 		if err := edgeRows.Scan(&srcRaw, &relRaw, &tgtRaw); err != nil {
+			edgeRows.Close()
 			return fmt.Errorf("scan edge row: %w", err)
 		}
 		if srcRaw == nil || relRaw == nil || tgtRaw == nil {
@@ -448,11 +603,19 @@ func (s *DemoService) cloneGraph(ctx context.Context, tx pgx.Tx, templateID, new
 		if srcID == "" || tgtID == "" || relType == "" {
 			continue
 		}
-
-		newSrcID := entityMap[srcID]
-		newTgtID := entityMap[tgtID]
-		if err := s.graphRepo.CreateEdgeTx(ctx, tx, newGraphName, newSrcID, newTgtID, relType, nil); err != nil {
-			return fmt.Errorf("create edge %s-[%s]->%s: %w", newSrcID, relType, newTgtID, err)
+		graphEdges = append(graphEdges, struct {
+			srcID, relType, tgtID string
+		}{srcID, relType, tgtID})
+	}
+	edgeRows.Close()
+	if err := edgeRows.Err(); err != nil {
+		return fmt.Errorf("iterate graph edges: %w", err)
+	}
+	for _, item := range graphEdges {
+		newSrcID := entityMap[item.srcID]
+		newTgtID := entityMap[item.tgtID]
+		if err := s.graphRepo.CreateEdgeTx(ctx, tx, newGraphName, newSrcID, newTgtID, item.relType, nil); err != nil {
+			return fmt.Errorf("create edge %s-[%s]->%s: %w", newSrcID, item.relType, newTgtID, err)
 		}
 	}
 

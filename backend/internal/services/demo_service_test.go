@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/pgvector/pgvector-go"
 
 	"github.com/quill/backend/internal/repositories"
 	"github.com/quill/backend/internal/testutil"
@@ -197,12 +198,21 @@ func TestCloneUniverseUUIDRemapNoOrphans(t *testing.T) {
 		t.Fatalf("CloneUniverse: %v", err)
 	}
 
-	// Verify every entity_mention references entities in the SAME universe
+	// Verify every entity_mention belonging to the CLONED universe (reached via
+	// chapter->work->universe, independent of entity_id) references an entity
+	// in that same cloned universe.
+	// ponytail: scoping via chapter_id/work_id (not entity_id) is deliberate —
+	// entity_id is exactly the field under test, so it can't be used to select
+	// "which mentions belong to this clone" without begging the question. An
+	// unscoped WHERE e.universe_id != $1 here would always count the
+	// template's own untouched seed mentions as false-positive orphans.
 	var orphanMentions int
 	if err := pool.QueryRow(ctx, `
 		SELECT COUNT(*) FROM entity_mentions em
+		JOIN chapters c ON em.chapter_id = c.id
+		JOIN works w ON c.work_id = w.id
 		JOIN entities e ON em.entity_id = e.id
-		WHERE e.universe_id != $1`, newID).Scan(&orphanMentions); err != nil {
+		WHERE w.universe_id = $1 AND e.universe_id != $1`, newID).Scan(&orphanMentions); err != nil {
 		t.Fatalf("count orphan mentions: %v", err)
 	}
 	if orphanMentions > 0 {
@@ -252,7 +262,7 @@ func TestCloneUniverseEmbeddingCopy(t *testing.T) {
 
 	// Find a template entity and its embedding, compare with clone
 	var oldEntityID, newEntityID string
-	var oldVec, newVec []float32
+	var oldVecRaw, newVecRaw pgvector.Vector
 
 	// Get one template entity + embedding
 	if err := pool.QueryRow(ctx, `
@@ -260,7 +270,7 @@ func TestCloneUniverseEmbeddingCopy(t *testing.T) {
 		FROM entities e
 		JOIN entity_embeddings ee ON e.id = ee.entity_id
 		WHERE e.universe_id = $1 AND e.name = 'Lyra Vane'
-		LIMIT 1`, templateUniverseID).Scan(&oldEntityID, &oldVec); err != nil {
+		LIMIT 1`, templateUniverseID).Scan(&oldEntityID, &oldVecRaw); err != nil {
 		t.Fatalf("query template Lyra embedding: %v", err)
 	}
 
@@ -270,9 +280,10 @@ func TestCloneUniverseEmbeddingCopy(t *testing.T) {
 		FROM entities e
 		JOIN entity_embeddings ee ON e.id = ee.entity_id
 		WHERE e.universe_id = $1 AND e.name = 'Lyra Vane'
-		LIMIT 1`, newID).Scan(&newEntityID, &newVec); err != nil {
+		LIMIT 1`, newID).Scan(&newEntityID, &newVecRaw); err != nil {
 		t.Fatalf("query clone Lyra embedding: %v", err)
 	}
+	oldVec, newVec := oldVecRaw.Slice(), newVecRaw.Slice()
 
 	// Vectors should match byte-for-byte
 	if len(oldVec) != len(newVec) {

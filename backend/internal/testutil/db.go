@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -84,6 +85,28 @@ func RunMigrationsUpTo(t *testing.T, pool *pgxpool.Pool, maxPrefix string) {
 	sort.Strings(upFiles)
 	sort.Strings(downFiles)
 
+	// Serialize the teardown+setup critical section across concurrent test
+	// packages sharing the same TEST_DATABASE_URL. Session-level advisory locks
+	// are bound to one physical connection, so a dedicated connection must be
+	// acquired (pool.Exec would grab an arbitrary pooled conn per call).
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("acquire dedicated connection for migration lock: %v", err)
+	}
+	defer func() {
+		// Explicit unlock is required: pgxpool reuses the physical connection,
+		// and a session-level lock persists across Release(), which would
+		// deadlock the next acquirer reusing this same connection.
+		_, _ = conn.Exec(ctx, `SELECT pg_advisory_unlock(hashtext('quill_test_migrations'))`)
+		conn.Release()
+	}()
+
+	lockCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	if _, err := conn.Exec(lockCtx, `SELECT pg_advisory_lock(hashtext('quill_test_migrations'))`); err != nil {
+		t.Fatalf("acquire migration advisory lock: %v", err)
+	}
+
 	// Reset state by tearing down all known migrations in reverse order.
 	// Down migrations silently ignore errors — the DB may not have the state yet.
 	for i := len(downFiles) - 1; i >= 0; i-- {
@@ -91,7 +114,7 @@ func RunMigrationsUpTo(t *testing.T, pool *pgxpool.Pool, maxPrefix string) {
 		if err != nil {
 			t.Fatalf("read down migration %s: %v", downFiles[i], err)
 		}
-		_, _ = pool.Exec(ctx, string(sql))
+		_, _ = conn.Exec(ctx, string(sql))
 	}
 
 	// ponytail: check AGE once before the up-migration loop
@@ -113,7 +136,7 @@ func RunMigrationsUpTo(t *testing.T, pool *pgxpool.Pool, maxPrefix string) {
 		if err != nil {
 			t.Fatalf("read migration %s: %v", f, err)
 		}
-		if _, err := pool.Exec(ctx, string(sql)); err != nil {
+		if _, err := conn.Exec(ctx, string(sql)); err != nil {
 			t.Fatalf("execute migration %s: %v", f, err)
 		}
 	}
