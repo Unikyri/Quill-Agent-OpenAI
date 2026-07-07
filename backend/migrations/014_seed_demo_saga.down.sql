@@ -12,6 +12,10 @@ LOAD 'age';
 SET search_path = ag_catalog, "$user", public;
 SELECT drop_graph('universe_00000000-0000-0000-0000-000000000002', true);
 
+-- ponytail: reset search_path immediately after the AGE call — same shared-
+-- connection leak as the up migration (see its RESET search_path comment).
+RESET search_path;
+
 -- Delete in FK-dependent order (reverse of seed)
 
 DELETE FROM timeline_events

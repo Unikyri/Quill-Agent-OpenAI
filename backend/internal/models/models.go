@@ -308,6 +308,7 @@ type ContextualRecallPayload struct {
 }
 
 type RecallItem struct {
+	ID       string    `json:"id"`
 	EntityID uuid.UUID `json:"entity_id"`
 	Fact     string    `json:"fact"`
 	Score    float64   `json:"score"`

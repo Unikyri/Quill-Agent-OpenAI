@@ -60,6 +60,42 @@ func (r *ConsolidationRepo) FindByEntityID(ctx context.Context, entityID uuid.UU
 	return cm, nil
 }
 
+// ConsolidatedHit is a ranked consolidated-memory result, scoped to a
+// universe via the entities join.
+type ConsolidatedHit struct {
+	EntityID uuid.UUID
+	Summary  string
+	Distance float64
+}
+
+// FindSimilarByEmbedding ranks consolidated memories by cosine distance to
+// queryEmbedding, joining entities to scope results to the given universe.
+func (r *ConsolidationRepo) FindSimilarByEmbedding(ctx context.Context, universeID uuid.UUID, queryEmbedding []float32, k int) ([]ConsolidatedHit, error) {
+	query := `
+		SELECT cm.entity_id, cm.summary, cm.embedding <=> $1 AS distance
+		FROM consolidated_memories cm
+		JOIN entities e ON cm.entity_id = e.id
+		WHERE e.universe_id = $2
+		ORDER BY distance ASC
+		LIMIT $3
+	`
+	rows, err := r.pool.Query(ctx, query, pgvector.NewVector(queryEmbedding), universeID, k)
+	if err != nil {
+		return nil, fmt.Errorf("find similar consolidated memories: %w", err)
+	}
+	defer rows.Close()
+
+	var hits []ConsolidatedHit
+	for rows.Next() {
+		var h ConsolidatedHit
+		if err := rows.Scan(&h.EntityID, &h.Summary, &h.Distance); err != nil {
+			return nil, fmt.Errorf("scan consolidated hit: %w", err)
+		}
+		hits = append(hits, h)
+	}
+	return hits, nil
+}
+
 // DeleteByEntityID removes the consolidated memory row for a given entity.
 // spec: idempotent — no error when no row exists.
 func (r *ConsolidationRepo) DeleteByEntityID(ctx context.Context, entityID uuid.UUID) error {

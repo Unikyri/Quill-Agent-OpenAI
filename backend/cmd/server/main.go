@@ -99,6 +99,8 @@ func main() {
 	relevSvc := services.NewRelevanceService(pool, entityRepo, cfg.DecayLambda, cfg.ArchiveThreshold, consolidationSvc)
 	chapterSvc := services.NewChapterService(pool, chapterRepo, workRepo, relevSvc)
 	memorySvc := services.NewMemoryService(graphRepo, entityRepo, vectorRepo)
+	memorySvc.SetConsolidationRepo(consolidationRepo)
+	memorySvc.SetBudgetMgr(budgetMgr)
 
 	// QuillExecutor dispatches agent tool calls (vector search + graph queries)
 	// to the appropriate repos. UniverseID is set per-call by the agent loop.

@@ -56,3 +56,46 @@ func TestConsolidatedMemorySerialization(t *testing.T) {
 		t.Errorf("after round-trip: Summary = %q, want %q", restored.Summary, cm.Summary)
 	}
 }
+
+// TestRecallItemGenericID proves RecallItem carries a generic ID identifying
+// the result regardless of source (vector/paragraph hits have no EntityID,
+// so ID is their only identity).
+func TestRecallItemGenericID(t *testing.T) {
+	vectorItem := RecallItem{
+		ID:       "chapter-123:some snippet",
+		EntityID: uuid.Nil,
+		Fact:     "some snippet",
+		Score:    0.8,
+		Source:   "vector",
+	}
+	if vectorItem.ID == "" {
+		t.Error("vector-sourced RecallItem.ID should not be empty")
+	}
+	if vectorItem.EntityID != uuid.Nil {
+		t.Error("vector-sourced RecallItem.EntityID should be uuid.Nil")
+	}
+
+	entityID := uuid.New()
+	graphItem := RecallItem{
+		ID:       entityID.String(),
+		EntityID: entityID,
+		Fact:     "Related: Bob",
+		Score:    0.5,
+		Source:   "graph",
+	}
+	if graphItem.ID != entityID.String() {
+		t.Errorf("graph-sourced RecallItem.ID = %q, want %q", graphItem.ID, entityID.String())
+	}
+
+	data, err := json.Marshal(vectorItem)
+	if err != nil {
+		t.Fatalf("marshal RecallItem: %v", err)
+	}
+	var restored RecallItem
+	if err := json.Unmarshal(data, &restored); err != nil {
+		t.Fatalf("unmarshal RecallItem: %v", err)
+	}
+	if restored.ID != vectorItem.ID {
+		t.Errorf("after round-trip: ID = %q, want %q", restored.ID, vectorItem.ID)
+	}
+}

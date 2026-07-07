@@ -23,11 +23,11 @@ type ParagraphSubmitter interface {
 // RecallRequester is the interface that Hub uses to fetch contextual recall
 // results. MemoryService satisfies this interface.
 type RecallRequester interface {
-	Recall(ctx context.Context, universeID uuid.UUID, queryEmbedding []float32, k int) ([]models.RecallItem, error)
+	RecallWithQuery(ctx context.Context, universeID uuid.UUID, queryEmbedding []float32, queryText string, k int) ([]models.RecallItem, error)
 }
 
 // EmbeddingProvider is the interface that Hub uses to embed query text before
-// calling RecallRequester.Recall. QwenService satisfies this interface via
+// calling RecallRequester.RecallWithQuery. QwenService satisfies this interface via
 // its GenerateEmbedding method.
 type EmbeddingProvider interface {
 	GenerateEmbedding(ctx context.Context, text string) ([]float32, error)
@@ -323,7 +323,7 @@ func (h *Hub) handleRecallRequest(userID uuid.UUID, msg WSMessage) {
 		}
 	}
 
-	items, err := h.recaller.Recall(context.Background(), payload.UniverseID, embedding, payload.K)
+	items, err := h.recaller.RecallWithQuery(context.Background(), payload.UniverseID, embedding, payload.Query, payload.K)
 	if err != nil {
 		log.Printf("[ws] recall: %v", err)
 		errMsg, _ := NewMessage(TypeError, map[string]string{"error": err.Error()})

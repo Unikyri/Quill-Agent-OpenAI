@@ -209,6 +209,99 @@ func TestEntityRepoFindNewlyArchivableNoMatches(t *testing.T) {
 	}
 }
 
+// setupChapterFixture creates a work+chapter under the given universe so tests
+// can seed entity_mentions rows keyed by (chapter_id, paragraph_index).
+func setupChapterFixture(t *testing.T, pool *pgxpool.Pool, universeID uuid.UUID) uuid.UUID {
+	t.Helper()
+	ctx := context.Background()
+	workID := uuid.New()
+	if _, err := pool.Exec(ctx, "INSERT INTO works (id, universe_id, title, type) VALUES ($1,$2,$3,$4)",
+		workID, universeID, "Test Work", "novel"); err != nil {
+		t.Fatalf("insert work: %v", err)
+	}
+	chapterID := uuid.New()
+	if _, err := pool.Exec(ctx, "INSERT INTO chapters (id, work_id, title, order_index) VALUES ($1,$2,$3,$4)",
+		chapterID, workID, "Chapter 1", 0); err != nil {
+		t.Fatalf("insert chapter: %v", err)
+	}
+	return chapterID
+}
+
+func createTestMention(t *testing.T, pool *pgxpool.Pool, entityID, chapterID uuid.UUID, paragraphIndex int) {
+	t.Helper()
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx,
+		"INSERT INTO entity_mentions (id, entity_id, chapter_id, paragraph_index) VALUES ($1,$2,$3,$4)",
+		uuid.New(), entityID, chapterID, paragraphIndex); err != nil {
+		t.Fatalf("insert mention: %v", err)
+	}
+}
+
+// TestEntityIDsForParagraphsBatchedLookup proves the batched join returns
+// entity IDs grouped by (chapter_id, paragraph_index) key, covering multiple
+// keys and multiple entities per key in one call.
+func TestEntityIDsForParagraphsBatchedLookup(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "006")
+	universe := setupEntityRepoFixtures(t, pool)
+	chapterID := setupChapterFixture(t, pool, universe.ID)
+
+	entityA := createTestEntity(t, pool, universe.ID, "Entity A", 0.9, "active")
+	entityB := createTestEntity(t, pool, universe.ID, "Entity B", 0.8, "active")
+
+	createTestMention(t, pool, entityA.ID, chapterID, 3)
+	createTestMention(t, pool, entityB.ID, chapterID, 3)
+	createTestMention(t, pool, entityA.ID, chapterID, 7)
+
+	ctx := context.Background()
+	repo := NewEntityRepo(pool)
+
+	keys := []ParagraphKey{
+		{ChapterID: chapterID, ParagraphIndex: 3},
+		{ChapterID: chapterID, ParagraphIndex: 7},
+	}
+	got, err := repo.EntityIDsForParagraphs(ctx, keys)
+	if err != nil {
+		t.Fatalf("EntityIDsForParagraphs: %v", err)
+	}
+
+	key3 := ParagraphKey{ChapterID: chapterID, ParagraphIndex: 3}
+	key7 := ParagraphKey{ChapterID: chapterID, ParagraphIndex: 7}
+
+	entities3 := map[uuid.UUID]bool{}
+	for _, id := range got[key3] {
+		entities3[id] = true
+	}
+	if !entities3[entityA.ID] || !entities3[entityB.ID] {
+		t.Errorf("key3 entities = %v, want both %v and %v", got[key3], entityA.ID, entityB.ID)
+	}
+	if len(got[key3]) != 2 {
+		t.Errorf("key3 len = %d, want 2", len(got[key3]))
+	}
+
+	if len(got[key7]) != 1 || got[key7][0] != entityA.ID {
+		t.Errorf("key7 = %v, want [%v]", got[key7], entityA.ID)
+	}
+}
+
+// TestEntityIDsForParagraphsEmptyKeys proves an empty input short-circuits to
+// an empty map without issuing a query.
+func TestEntityIDsForParagraphsEmptyKeys(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "006")
+
+	ctx := context.Background()
+	repo := NewEntityRepo(pool)
+
+	got, err := repo.EntityIDsForParagraphs(ctx, []ParagraphKey{})
+	if err != nil {
+		t.Fatalf("EntityIDsForParagraphs empty: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("expected empty map, got %d entries", len(got))
+	}
+}
+
 // TestTouchBatchEmpty is safe with empty slice
 func TestEntityRepoTouchBatchEmpty(t *testing.T) {
 	pool := testutil.SetupTestDB(t)

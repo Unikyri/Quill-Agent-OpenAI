@@ -195,6 +195,45 @@ func (r *GraphRepo) GetNeighbors(ctx context.Context, graphName, entityID string
 	return neighbors, err
 }
 
+// GetNeighborsBatch resolves 1-hop neighbors for ALL given seed entity IDs in
+// a single Cypher call (spec: "Graph Pipeline Uses Batched Neighbor Lookup"),
+// instead of issuing one GetNeighbors call per seed. Matches n.entity_id
+// against the seed list via a Cypher IN clause, keeping the seed's entity_id
+// in the RETURN so rows can be grouped back into a per-seed map.
+func (r *GraphRepo) GetNeighborsBatch(ctx context.Context, graphName string, entityIDs []string) (map[string][]models.GraphNeighbor, error) {
+	result := make(map[string][]models.GraphNeighbor)
+	if len(entityIDs) == 0 {
+		return result, nil
+	}
+
+	quoted := make([]string, len(entityIDs))
+	for i, id := range entityIDs {
+		quoted[i] = fmt.Sprintf("'%s'", escapeCypherString(id))
+	}
+	idList := strings.Join(quoted, ", ")
+
+	err := r.withAgeConn(ctx, func(c *pgx.Conn) error {
+		query := fmt.Sprintf(`SELECT * FROM cypher(%s, $$ MATCH (n)-[r]-(m) WHERE n.entity_id IN [%s] RETURN n.entity_id AS seed_id, type(r) AS rel_type, properties(r) AS rel_props, m $$) AS (seed_id agtype, rel_type agtype, rel_props agtype, m agtype)`,
+			quoteGraph(graphName), idList)
+		rows, err := c.Query(ctx, query)
+		if err != nil {
+			return fmt.Errorf("get neighbors batch: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var seedID string
+			var n models.GraphNeighbor
+			if err := rows.Scan(&seedID, &n.RelType, &n.RelProps, &n.Node); err != nil {
+				return fmt.Errorf("scan neighbor batch: %w", err)
+			}
+			seedID = strings.Trim(seedID, `"`)
+			result[seedID] = append(result[seedID], n)
+		}
+		return nil
+	})
+	return result, err
+}
+
 // FullQuery returns all nodes and edges for a universe's graph.
 func (r *GraphRepo) FullQuery(ctx context.Context, graphName string) ([]GraphNode, []GraphEdge, error) {
 	var nodes []GraphNode

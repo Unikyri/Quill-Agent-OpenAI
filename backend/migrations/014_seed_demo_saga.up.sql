@@ -1049,3 +1049,8 @@ AS (r agtype);
 SELECT * FROM cypher('universe_00000000-0000-0000-0000-000000000002',
     $$ MATCH (a {entity_id: '00000000-0000-0000-0000-000000000141'}), (b {entity_id: '00000000-0000-0000-0000-000000000140'}) CREATE (a)-[:MAPS]->(b) $$)
 AS (r agtype);
+
+-- ponytail: reset search_path so later migrations applied over the same
+-- session/connection (test harness runs all migration files on one shared
+-- conn) don't create their tables inside ag_catalog instead of public.
+RESET search_path;

@@ -75,6 +75,85 @@ func TestConsolidationRepoCreateAndFind(t *testing.T) {
 	}
 }
 
+// TestConsolidationRepoFindSimilarByEmbeddingFiltersByUniverse proves the
+// entities join scopes results to the given universe_id — consolidated
+// memories from another universe must never leak into the ranked output.
+func TestConsolidationRepoFindSimilarByEmbeddingFiltersByUniverse(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "017")
+	ctx := context.Background()
+	repo := NewConsolidationRepo(pool)
+
+	universeA := setupConsolidationFixtures(t, pool)
+	universeB := setupConsolidationFixtures(t, pool)
+
+	entityA := createTestEntity(t, pool, universeA.ID, "Merlin", 0.8, "archived")
+	entityB := createTestEntity(t, pool, universeB.ID, "Gandalf", 0.8, "archived")
+
+	embA := makeEmbedding(0.0)
+	embB := makeEmbedding(3.0)
+
+	if err := repo.Create(ctx, &models.ConsolidatedMemory{
+		ID: uuid.New(), EntityID: entityA.ID, Summary: "Merlin summary", Embedding: embA,
+	}); err != nil {
+		t.Fatalf("create A: %v", err)
+	}
+	if err := repo.Create(ctx, &models.ConsolidatedMemory{
+		ID: uuid.New(), EntityID: entityB.ID, Summary: "Gandalf summary", Embedding: embB,
+	}); err != nil {
+		t.Fatalf("create B: %v", err)
+	}
+
+	hits, err := repo.FindSimilarByEmbedding(ctx, universeA.ID, embA, 10)
+	if err != nil {
+		t.Fatalf("FindSimilarByEmbedding: %v", err)
+	}
+	if len(hits) != 1 {
+		t.Fatalf("len(hits) = %d, want 1 (only universe A)", len(hits))
+	}
+	if hits[0].EntityID != entityA.ID {
+		t.Errorf("hits[0].EntityID = %v, want %v", hits[0].EntityID, entityA.ID)
+	}
+	if hits[0].Summary != "Merlin summary" {
+		t.Errorf("hits[0].Summary = %q, want %q", hits[0].Summary, "Merlin summary")
+	}
+}
+
+// TestConsolidationRepoFindSimilarByEmbeddingRanksByDistance triangulates
+// with two same-universe rows at different cosine distances from the query.
+func TestConsolidationRepoFindSimilarByEmbeddingRanksByDistance(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "017")
+	ctx := context.Background()
+	repo := NewConsolidationRepo(pool)
+
+	universe := setupConsolidationFixtures(t, pool)
+	near := createTestEntity(t, pool, universe.ID, "Near", 0.8, "archived")
+	far := createTestEntity(t, pool, universe.ID, "Far", 0.8, "archived")
+
+	if err := repo.Create(ctx, &models.ConsolidatedMemory{
+		ID: uuid.New(), EntityID: near.ID, Summary: "near", Embedding: makeEmbedding(0.1),
+	}); err != nil {
+		t.Fatalf("create near: %v", err)
+	}
+	if err := repo.Create(ctx, &models.ConsolidatedMemory{
+		ID: uuid.New(), EntityID: far.ID, Summary: "far", Embedding: makeEmbedding(2.0),
+	}); err != nil {
+		t.Fatalf("create far: %v", err)
+	}
+
+	hits, err := repo.FindSimilarByEmbedding(ctx, universe.ID, makeEmbedding(0.0), 10)
+	if err != nil {
+		t.Fatalf("FindSimilarByEmbedding: %v", err)
+	}
+	if len(hits) != 2 {
+		t.Fatalf("len(hits) = %d, want 2", len(hits))
+	}
+	if hits[0].EntityID != near.ID {
+		t.Errorf("hits[0].EntityID = %v, want nearest (%v) first", hits[0].EntityID, near.ID)
+	}
+}
+
 func TestConsolidationRepoDeleteIsIdempotent(t *testing.T) {
 	pool := testutil.SetupTestDB(t)
 	testutil.RunMigrationsUpTo(t, pool, "017")

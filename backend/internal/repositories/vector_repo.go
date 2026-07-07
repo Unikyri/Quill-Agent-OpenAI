@@ -67,7 +67,7 @@ func (r *VectorRepo) SaveParagraphEmbedding(ctx context.Context, chapterID uuid.
 
 func (r *VectorRepo) FindSimilarParagraphs(ctx context.Context, universeID uuid.UUID, embedding []float32, excludeChapterID uuid.UUID, limit int) ([]SimilarParagraph, error) {
 	query := `
-		SELECT pe.content, pe.chapter_id, c.title, pe.embedding <=> $1 AS distance
+		SELECT pe.content, pe.chapter_id, c.title, pe.paragraph_index, pe.embedding <=> $1 AS distance
 		FROM paragraph_embeddings pe
 		JOIN chapters c ON pe.chapter_id = c.id
 		JOIN works w ON c.work_id = w.id
@@ -84,7 +84,7 @@ func (r *VectorRepo) FindSimilarParagraphs(ctx context.Context, universeID uuid.
 	var results []SimilarParagraph
 	for rows.Next() {
 		var sp SimilarParagraph
-		if err := rows.Scan(&sp.Content, &sp.ChapterID, &sp.ChapterTitle, &sp.Distance); err != nil {
+		if err := rows.Scan(&sp.Content, &sp.ChapterID, &sp.ChapterTitle, &sp.ParagraphIndex, &sp.Distance); err != nil {
 			return nil, fmt.Errorf("scan similar paragraph: %w", err)
 		}
 		results = append(results, sp)
@@ -93,10 +93,11 @@ func (r *VectorRepo) FindSimilarParagraphs(ctx context.Context, universeID uuid.
 }
 
 type SimilarParagraph struct {
-	Content      string
-	ChapterID    uuid.UUID
-	ChapterTitle string
-	Distance     float64
+	Content        string
+	ChapterID      uuid.UUID
+	ChapterTitle   string
+	ParagraphIndex int
+	Distance       float64
 }
 
 type SimilarEntity struct {
@@ -129,6 +130,44 @@ func (r *VectorRepo) FindSimilarEntities(ctx context.Context, universeID uuid.UU
 		results = append(results, se)
 	}
 	return results, nil
+}
+
+// KeywordHit is a full-text search result over paragraph_embeddings.content,
+// ranked by PostgreSQL's ts_rank via the migration 018 tsvector/GIN index.
+type KeywordHit struct {
+	Content      string
+	ChapterID    uuid.UUID
+	ChapterTitle string
+	Rank         float64
+}
+
+// KeywordSearch ranks paragraphs by full-text match against queryText using
+// websearch_to_tsquery, scoped to the given universe.
+func (r *VectorRepo) KeywordSearch(ctx context.Context, universeID uuid.UUID, queryText string, limit int) ([]KeywordHit, error) {
+	query := `
+		SELECT pe.content, pe.chapter_id, c.title, ts_rank(pe.content_tsv, websearch_to_tsquery('english', $1)) AS rank
+		FROM paragraph_embeddings pe
+		JOIN chapters c ON pe.chapter_id = c.id
+		JOIN works w ON c.work_id = w.id
+		WHERE w.universe_id = $2 AND pe.content_tsv @@ websearch_to_tsquery('english', $1)
+		ORDER BY rank DESC
+		LIMIT $3
+	`
+	rows, err := r.pool.Query(ctx, query, queryText, universeID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("keyword search: %w", err)
+	}
+	defer rows.Close()
+
+	var hits []KeywordHit
+	for rows.Next() {
+		var h KeywordHit
+		if err := rows.Scan(&h.Content, &h.ChapterID, &h.ChapterTitle, &h.Rank); err != nil {
+			return nil, fmt.Errorf("scan keyword hit: %w", err)
+		}
+		hits = append(hits, h)
+	}
+	return hits, nil
 }
 
 // SetHNSWSearchParams tunes recall vs. speed for the session. efSearch is an int,

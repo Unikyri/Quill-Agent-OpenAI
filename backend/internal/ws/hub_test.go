@@ -255,21 +255,21 @@ func (m *mockParagraphSubmitter) SubmitParagraph(ctx context.Context, workID, ch
 	return nil
 }
 
-// mockRecallRequester records calls to Recall.
+// mockRecallRequester records calls to RecallWithQuery.
 type mockRecallRequester struct {
 	called     bool
 	universeID uuid.UUID
 	k          int
 }
 
-func (m *mockRecallRequester) Recall(ctx context.Context, universeID uuid.UUID, queryEmbedding []float32, k int) ([]models.RecallItem, error) {
+func (m *mockRecallRequester) RecallWithQuery(ctx context.Context, universeID uuid.UUID, queryEmbedding []float32, queryText string, k int) ([]models.RecallItem, error) {
 	m.called = true
 	m.universeID = universeID
 	m.k = k
 	return nil, nil
 }
 
-// mockRecallRequesterWithEmbedding records the embedding passed to Recall.
+// mockRecallRequesterWithEmbedding records the embedding passed to RecallWithQuery.
 type mockRecallRequesterWithEmbedding struct {
 	called     bool
 	universeID uuid.UUID
@@ -277,7 +277,7 @@ type mockRecallRequesterWithEmbedding struct {
 	k          int
 }
 
-func (m *mockRecallRequesterWithEmbedding) Recall(ctx context.Context, universeID uuid.UUID, queryEmbedding []float32, k int) ([]models.RecallItem, error) {
+func (m *mockRecallRequesterWithEmbedding) RecallWithQuery(ctx context.Context, universeID uuid.UUID, queryEmbedding []float32, queryText string, k int) ([]models.RecallItem, error) {
 	m.called = true
 	m.universeID = universeID
 	m.embedding = queryEmbedding

@@ -215,6 +215,74 @@ func TestGraphRepoEdgeCRUD(t *testing.T) {
 	}
 }
 
+// TestGraphRepoGetNeighborsBatch verifies that neighbors for multiple seed
+// entities are resolved via a single batched Cypher call (spec: "Graph
+// Pipeline Uses Batched Neighbor Lookup"), not one GetNeighbors call per
+// seed. Correctness of the returned per-seed map is what this test asserts;
+// the "single call" property is enforced by GetNeighborsBatch's
+// implementation issuing exactly one cypher() query regardless of len(seeds).
+func TestGraphRepoGetNeighborsBatch(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "011")
+	if !testutil.CheckAGE(t, pool) {
+		t.Skip("Apache AGE extension not available; skipping graph-dependent test")
+	}
+	ctx := context.Background()
+	repo := NewGraphRepo(pool)
+	graphName := "universe_" + uuid.NewString()
+	if err := repo.CreateGraph(ctx, graphName); err != nil {
+		t.Fatalf("CreateGraph: %v", err)
+	}
+
+	e1 := uuid.NewString()
+	e2 := uuid.NewString()
+	e3 := uuid.NewString()
+
+	for _, e := range []string{e1, e2, e3} {
+		if err := repo.CreateNode(ctx, graphName, "Character", map[string]interface{}{
+			"entity_id": e, "name": "N" + e[:4], "status": "active", "relevance_score": 0.5,
+		}); err != nil {
+			t.Fatalf("create node %s: %v", e, err)
+		}
+	}
+
+	// e1 and e2 both know e3 — e3 should show up as a neighbor of both seeds.
+	if err := repo.CreateEdge(ctx, graphName, e1, e3, "KNOWS", nil); err != nil {
+		t.Fatalf("create edge e1-e3: %v", err)
+	}
+	if err := repo.CreateEdge(ctx, graphName, e2, e3, "KNOWS", nil); err != nil {
+		t.Fatalf("create edge e2-e3: %v", err)
+	}
+
+	result, err := repo.GetNeighborsBatch(ctx, graphName, []string{e1, e2})
+	if err != nil {
+		t.Fatalf("GetNeighborsBatch: %v", err)
+	}
+
+	if len(result[e1]) != 1 {
+		t.Errorf("expected 1 neighbor for e1, got %d", len(result[e1]))
+	}
+	if len(result[e2]) != 1 {
+		t.Errorf("expected 1 neighbor for e2, got %d", len(result[e2]))
+	}
+}
+
+// TestGraphRepoGetNeighborsBatchEmpty verifies the empty-input short-circuit
+// (no seeds → no query, mirroring EntityIDsForParagraphs' convention).
+func TestGraphRepoGetNeighborsBatchEmpty(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "011")
+	repo := NewGraphRepo(pool)
+
+	result, err := repo.GetNeighborsBatch(context.Background(), "universe_"+uuid.NewString(), nil)
+	if err != nil {
+		t.Fatalf("GetNeighborsBatch(empty): %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("expected empty map for empty seeds, got %d entries", len(result))
+	}
+}
+
 // TestEscapeCypherString verifies that the escapeCypherString helper
 // correctly escapes single quotes and backslashes for safe Cypher interpolation.
 //

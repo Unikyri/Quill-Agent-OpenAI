@@ -345,6 +345,55 @@ func (r *EntityRepo) ListByUniverseActive(ctx context.Context, universeID uuid.U
 	return entities, nil
 }
 
+// ParagraphKey identifies a paragraph by its owning chapter + index within
+// that chapter, matching the key paragraph_embeddings and entity_mentions
+// share.
+type ParagraphKey struct {
+	ChapterID      uuid.UUID
+	ParagraphIndex int
+}
+
+// EntityIDsForParagraphs resolves entity_mentions for a batch of paragraph
+// keys in a single query, so vector hits can be joined to their mentioned
+// entities without one query per paragraph. Empty input short-circuits
+// without hitting the database.
+func (r *EntityRepo) EntityIDsForParagraphs(ctx context.Context, keys []ParagraphKey) (map[ParagraphKey][]uuid.UUID, error) {
+	result := make(map[ParagraphKey][]uuid.UUID)
+	if len(keys) == 0 {
+		return result, nil
+	}
+
+	chapterIDs := make([]uuid.UUID, len(keys))
+	paragraphIndexes := make([]int, len(keys))
+	for i, k := range keys {
+		chapterIDs[i] = k.ChapterID
+		paragraphIndexes[i] = k.ParagraphIndex
+	}
+
+	query := `
+		SELECT chapter_id, paragraph_index, entity_id
+		FROM entity_mentions
+		WHERE (chapter_id, paragraph_index) IN (
+			SELECT * FROM UNNEST($1::uuid[], $2::int[])
+		)
+	`
+	rows, err := r.pool.Query(ctx, query, chapterIDs, paragraphIndexes)
+	if err != nil {
+		return nil, fmt.Errorf("entity ids for paragraphs: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var key ParagraphKey
+		var entityID uuid.UUID
+		if err := rows.Scan(&key.ChapterID, &key.ParagraphIndex, &entityID); err != nil {
+			return nil, fmt.Errorf("scan entity id for paragraph: %w", err)
+		}
+		result[key] = append(result[key], entityID)
+	}
+	return result, nil
+}
+
 func (r *EntityRepo) MergeProperties(existing json.RawMessage, newData json.RawMessage) json.RawMessage {
 	if existing == nil {
 		return newData

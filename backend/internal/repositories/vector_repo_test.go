@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/pgvector/pgvector-go"
 	"github.com/quill/backend/internal/testutil"
 )
@@ -97,6 +100,177 @@ func TestFindSimilarEntitiesRespectsThreshold(t *testing.T) {
 		if r.Distance > threshold {
 			t.Errorf("filtered result exceeds threshold: %+v", r)
 		}
+	}
+}
+
+// TestMigration018AddsFullTextIndex proves the up migration adds content_tsv
+// (GENERATED tsvector) + a GIN index on paragraph_embeddings, and the down
+// migration removes both cleanly.
+func TestMigration018AddsFullTextIndex(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "018")
+	ctx := context.Background()
+
+	var colExists bool
+	if err := pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='paragraph_embeddings' AND column_name='content_tsv')`,
+	).Scan(&colExists); err != nil {
+		t.Fatalf("check content_tsv column: %v", err)
+	}
+	if !colExists {
+		t.Error("expected paragraph_embeddings.content_tsv column to exist post-up")
+	}
+
+	var idxExists bool
+	if err := pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM pg_indexes WHERE tablename='paragraph_embeddings' AND indexname='idx_paragraph_embeddings_content_tsv')`,
+	).Scan(&idxExists); err != nil {
+		t.Fatalf("check GIN index: %v", err)
+	}
+	if !idxExists {
+		t.Error("expected idx_paragraph_embeddings_content_tsv GIN index to exist post-up")
+	}
+
+	// Run the down migration directly and verify rollback.
+	downSQL, err := os.ReadFile(filepath.Join("..", "..", "migrations", "018_add_fulltext_index.down.sql"))
+	if err != nil {
+		t.Fatalf("read down migration: %v", err)
+	}
+	if _, err := pool.Exec(ctx, string(downSQL)); err != nil {
+		t.Fatalf("execute down migration: %v", err)
+	}
+
+	if err := pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='paragraph_embeddings' AND column_name='content_tsv')`,
+	).Scan(&colExists); err != nil {
+		t.Fatalf("check content_tsv column post-down: %v", err)
+	}
+	if colExists {
+		t.Error("expected paragraph_embeddings.content_tsv column to be gone post-down")
+	}
+
+	if err := pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM pg_indexes WHERE tablename='paragraph_embeddings' AND indexname='idx_paragraph_embeddings_content_tsv')`,
+	).Scan(&idxExists); err != nil {
+		t.Fatalf("check GIN index post-down: %v", err)
+	}
+	if idxExists {
+		t.Error("expected idx_paragraph_embeddings_content_tsv to be gone post-down")
+	}
+}
+
+// TestFindSimilarParagraphsPopulatesParagraphIndex proves the SELECT/Scan
+// carries paragraph_index through to SimilarParagraph.ParagraphIndex (needed
+// to join entity_mentions for vector-seeded graph context).
+func TestFindSimilarParagraphsPopulatesParagraphIndex(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "018")
+	universe := setupEntityRepoFixtures(t, pool)
+	ctx := context.Background()
+
+	workID := uuid.New()
+	if _, err := pool.Exec(ctx, "INSERT INTO works (id, universe_id, title, type) VALUES ($1,$2,$3,$4)", workID, universe.ID, "Test Work", "novel"); err != nil {
+		t.Fatalf("insert work: %v", err)
+	}
+	chapterID := uuid.New()
+	if _, err := pool.Exec(ctx, "INSERT INTO chapters (id, work_id, title, order_index) VALUES ($1,$2,$3,$4)", chapterID, workID, "Chapter 1", 0); err != nil {
+		t.Fatalf("insert chapter: %v", err)
+	}
+
+	vecRepo := NewVectorRepo(pool)
+	if err := vecRepo.SaveParagraphEmbedding(ctx, chapterID, 3, "node-3", "third paragraph text", makeEmbedding(0.1)); err != nil {
+		t.Fatalf("save paragraph embedding: %v", err)
+	}
+	if err := vecRepo.SaveParagraphEmbedding(ctx, chapterID, 7, "node-7", "seventh paragraph text", makeEmbedding(0.2)); err != nil {
+		t.Fatalf("save paragraph embedding: %v", err)
+	}
+
+	results, err := vecRepo.FindSimilarParagraphs(ctx, universe.ID, makeEmbedding(0.0), uuid.Nil, 10)
+	if err != nil {
+		t.Fatalf("FindSimilarParagraphs: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("len(results) = %d, want 2", len(results))
+	}
+
+	gotIndexes := map[int]bool{}
+	for _, r := range results {
+		gotIndexes[r.ParagraphIndex] = true
+	}
+	if !gotIndexes[3] || !gotIndexes[7] {
+		t.Errorf("expected ParagraphIndex 3 and 7 populated, got %+v", results)
+	}
+}
+
+// TestKeywordSearchFindsTextMatch proves KeywordSearch finds a paragraph via
+// full-text match (websearch_to_tsquery) using the migration 018 tsvector/GIN
+// index — a query embedding never enters this path.
+func TestKeywordSearchFindsTextMatch(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "018")
+	universe := setupEntityRepoFixtures(t, pool)
+	ctx := context.Background()
+
+	workID := uuid.New()
+	if _, err := pool.Exec(ctx, "INSERT INTO works (id, universe_id, title, type) VALUES ($1,$2,$3,$4)", workID, universe.ID, "Test Work", "novel"); err != nil {
+		t.Fatalf("insert work: %v", err)
+	}
+	chapterID := uuid.New()
+	if _, err := pool.Exec(ctx, "INSERT INTO chapters (id, work_id, title, order_index) VALUES ($1,$2,$3,$4)", chapterID, workID, "Chapter 1", 0); err != nil {
+		t.Fatalf("insert chapter: %v", err)
+	}
+
+	vecRepo := NewVectorRepo(pool)
+	if err := vecRepo.SaveParagraphEmbedding(ctx, chapterID, 0, "node-0", "the dragon breathed fire over the castle", makeEmbedding(0.1)); err != nil {
+		t.Fatalf("save paragraph embedding: %v", err)
+	}
+	if err := vecRepo.SaveParagraphEmbedding(ctx, chapterID, 1, "node-1", "completely unrelated content about taxes", makeEmbedding(0.2)); err != nil {
+		t.Fatalf("save paragraph embedding: %v", err)
+	}
+
+	hits, err := vecRepo.KeywordSearch(ctx, universe.ID, "dragon castle", 10)
+	if err != nil {
+		t.Fatalf("KeywordSearch: %v", err)
+	}
+	if len(hits) != 1 {
+		t.Fatalf("len(hits) = %d, want 1", len(hits))
+	}
+	if hits[0].Content != "the dragon breathed fire over the castle" {
+		t.Errorf("hits[0].Content = %q, want the dragon paragraph", hits[0].Content)
+	}
+	if hits[0].ChapterID != chapterID {
+		t.Errorf("hits[0].ChapterID = %v, want %v", hits[0].ChapterID, chapterID)
+	}
+}
+
+// TestKeywordSearchNoMatchReturnsEmpty triangulates with a query that matches
+// nothing — proves the ranking path doesn't return unrelated rows.
+func TestKeywordSearchNoMatchReturnsEmpty(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "018")
+	universe := setupEntityRepoFixtures(t, pool)
+	ctx := context.Background()
+
+	workID := uuid.New()
+	if _, err := pool.Exec(ctx, "INSERT INTO works (id, universe_id, title, type) VALUES ($1,$2,$3,$4)", workID, universe.ID, "Test Work", "novel"); err != nil {
+		t.Fatalf("insert work: %v", err)
+	}
+	chapterID := uuid.New()
+	if _, err := pool.Exec(ctx, "INSERT INTO chapters (id, work_id, title, order_index) VALUES ($1,$2,$3,$4)", chapterID, workID, "Chapter 1", 0); err != nil {
+		t.Fatalf("insert chapter: %v", err)
+	}
+
+	vecRepo := NewVectorRepo(pool)
+	if err := vecRepo.SaveParagraphEmbedding(ctx, chapterID, 0, "node-0", "the dragon breathed fire over the castle", makeEmbedding(0.1)); err != nil {
+		t.Fatalf("save paragraph embedding: %v", err)
+	}
+
+	hits, err := vecRepo.KeywordSearch(ctx, universe.ID, "spreadsheet accounting ledger", 10)
+	if err != nil {
+		t.Fatalf("KeywordSearch: %v", err)
+	}
+	if len(hits) != 0 {
+		t.Errorf("expected no matches, got %d: %+v", len(hits), hits)
 	}
 }
 
