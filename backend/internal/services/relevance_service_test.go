@@ -144,6 +144,98 @@ func TestRelevanceServiceDecayAll(t *testing.T) {
 	}
 }
 
+// TestRelevanceServiceReactivateAppendsHistoryRow proves Reactivate writes a
+// single entity_relevance_history row reflecting the post-reactivation
+// score/status (spec: Relevance history persistence requirement).
+func TestRelevanceServiceReactivateAppendsHistoryRow(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "019")
+	ctx := context.Background()
+
+	user := svcCreateTestUser(t, ctx, pool)
+	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
+	e := svcCreateTestEntity(t, ctx, pool, universe.ID, "Reactivated Guy", 0.05, "archived")
+
+	repo := repositories.NewEntityRepo(pool)
+	historyRepo := repositories.NewEntityRelevanceHistoryRepo(pool)
+	svc := NewRelevanceService(pool, repo, 0.1, 0.15, nil)
+	svc.historyRepo = historyRepo
+
+	if err := svc.Reactivate(ctx, e.ID); err != nil {
+		t.Fatalf("Reactivate failed: %v", err)
+	}
+
+	points, err := historyRepo.ListRecentByUniverse(ctx, universe.ID, 30)
+	if err != nil {
+		t.Fatalf("ListRecentByUniverse: %v", err)
+	}
+	if len(points) != 1 {
+		t.Fatalf("len(points) = %d, want 1", len(points))
+	}
+	if points[0].EntityID != e.ID {
+		t.Errorf("EntityID = %v, want %v", points[0].EntityID, e.ID)
+	}
+	if points[0].RelevanceScore != 0.8 {
+		t.Errorf("RelevanceScore = %f, want 0.8", points[0].RelevanceScore)
+	}
+	if points[0].Status != "active" {
+		t.Errorf("Status = %q, want active", points[0].Status)
+	}
+}
+
+// TestRelevanceServiceDecayAllAppendsHistoryForArchivedFlip proves DecayAll
+// snapshots every entity's post-decay score/status into
+// entity_relevance_history, including entities that flipped to archived.
+func TestRelevanceServiceDecayAllAppendsHistoryForArchivedFlip(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "019")
+	ctx := context.Background()
+
+	user := svcCreateTestUser(t, ctx, pool)
+	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
+
+	high := svcCreateTestEntity(t, ctx, pool, universe.ID, "High Scorer", 0.9, "active")
+	low := svcCreateTestEntity(t, ctx, pool, universe.ID, "Low Scorer", 0.16, "active")
+
+	repo := repositories.NewEntityRepo(pool)
+	historyRepo := repositories.NewEntityRelevanceHistoryRepo(pool)
+	svc := NewRelevanceService(pool, repo, 0.1, 0.15, nil)
+	svc.historyRepo = historyRepo
+
+	if err := svc.DecayAll(ctx, universe.ID); err != nil {
+		t.Fatalf("DecayAll failed: %v", err)
+	}
+
+	points, err := historyRepo.ListRecentByUniverse(ctx, universe.ID, 30)
+	if err != nil {
+		t.Fatalf("ListRecentByUniverse: %v", err)
+	}
+	if len(points) != 2 {
+		t.Fatalf("len(points) = %d, want 2 (one snapshot row per entity)", len(points))
+	}
+
+	byEntity := map[uuid.UUID]repositories.RelevanceHistoryPoint{}
+	for _, p := range points {
+		byEntity[p.EntityID] = p
+	}
+
+	lowPoint, ok := byEntity[low.ID]
+	if !ok {
+		t.Fatalf("no history row for archived-flip entity %v", low.ID)
+	}
+	if lowPoint.Status != "archived" {
+		t.Errorf("low entity history status = %q, want archived", lowPoint.Status)
+	}
+
+	highPoint, ok := byEntity[high.ID]
+	if !ok {
+		t.Fatalf("no history row for entity %v", high.ID)
+	}
+	if highPoint.Status != "active" {
+		t.Errorf("high entity history status = %q, want active", highPoint.Status)
+	}
+}
+
 // ── Consolidation hook tests (require TEST_DATABASE_URL) ──
 
 // spec: CRITICAL #4 — DecayAll triggers async consolidation for newly-archived entities
