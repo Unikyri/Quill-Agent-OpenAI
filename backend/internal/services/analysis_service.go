@@ -12,6 +12,7 @@ import (
 
 	"github.com/quill/backend/internal/models"
 	"github.com/quill/backend/internal/repositories"
+	"github.com/quill/backend/internal/ws"
 )
 
 // analysisJob represents a single paragraph to analyze.
@@ -249,6 +250,11 @@ func (s *AnalysisService) processJob(ctx context.Context, job analysisJob) (*Ana
 		}
 	}
 
+	entityCount := len(result.Entities)
+	s.sendProgress(job.UserID, job.ChapterID, "entities_extracted", func(p *models.AnalysisProgressPayload) {
+		p.EntityCount = &entityCount
+	})
+
 	// 2. Deterministic contradiction checks (deceased/alive rules)
 	if s.contraSvc != nil && len(resolvedEntities) > 0 {
 		deterministic, err := s.contraSvc.CheckDeterministic(ctx, job.UniverseID, job.ChapterID, resolvedEntities)
@@ -343,14 +349,24 @@ func (s *AnalysisService) processJob(ctx context.Context, job analysisJob) (*Ana
 	// ── Enrichment Pass (Qwen-Max) ──
 
 	// 4. Semantic contradiction checks via Qwen-Max
+	s.sendProgress(job.UserID, job.ChapterID, "checking_contradictions", nil)
 	if s.contraSvc != nil && len(resolvedEntities) > 0 {
-		semantic, err := s.contraSvc.CheckSemantic(ctx, job.UniverseID, job.ChapterID, job.Text, resolvedEntities)
+		semantic, err := s.contraSvc.CheckSemantic(ctx, job.UniverseID, job.ChapterID, job.Text, resolvedEntities, func(stage string, tc *QwenToolCall) {
+			// ponytail: forward streamed tool-call progress under the same
+			// checking_contradictions stage — no new WS stage invented for
+			// per-tool-call granularity, matching the design's 5-stage list.
+			s.sendProgress(job.UserID, job.ChapterID, "checking_contradictions", nil)
+		})
 		if err != nil {
 			log.Printf("[analysis] semantic check: %v", err)
 		} else {
 			result.Contradictions = append(result.Contradictions, semantic...)
 		}
 	}
+	contradictionCount := len(result.Contradictions)
+	s.sendProgress(job.UserID, job.ChapterID, "contradictions_checked", func(p *models.AnalysisProgressPayload) {
+		p.ContradictionCount = &contradictionCount
+	})
 
 	// 5. Scan for plot holes
 	if s.plotHoleSvc != nil {
@@ -361,6 +377,10 @@ func (s *AnalysisService) processJob(ctx context.Context, job analysisJob) (*Ana
 			result.PlotHoles = holes
 		}
 	}
+	plotHoleCount := len(result.PlotHoles)
+	s.sendProgress(job.UserID, job.ChapterID, "plot_holes_scanned", func(p *models.AnalysisProgressPayload) {
+		p.PlotHoleCount = &plotHoleCount
+	})
 
 	// 6. Contextual recall after analysis
 	if s.memorySvc != nil && len(resolvedEntities) > 0 {
@@ -380,6 +400,21 @@ func (s *AnalysisService) processJob(ctx context.Context, job analysisJob) (*Ana
 				log.Printf("[analysis] send contextual_recall: %v", err)
 			}
 		}
+	}
+
+	// 7. Report context budget usage, if a budget manager is configured.
+	// ponytail: input tokens coarse-estimated from job.Text alone (no access
+	// to the exact system/user prompts CheckSemantic built) — good enough for
+	// a progress indicator, apply refines if a precise figure is needed.
+	if s.qwenSvc != nil && s.qwenSvc.budgetMgr != nil {
+		mgr := s.qwenSvc.budgetMgr
+		alloc := mgr.ComputeBudget(0, mgr.tok.CountTokens(job.Text))
+		report := alloc.Report(mgr.maxContextTokens)
+		s.sendProgress(job.UserID, job.ChapterID, "context_budget", func(p *models.AnalysisProgressPayload) {
+			p.Budget = report
+		})
+	} else {
+		s.sendProgress(job.UserID, job.ChapterID, "context_budget", nil)
 	}
 
 	log.Printf("[analysis] work=%s chapter=%s: %d entities, %d contradictions, %d plot holes",
@@ -450,6 +485,38 @@ func (s *AnalysisService) extractEntities(ctx context.Context, universeID uuid.U
 		}
 
 	return resolved, nil
+}
+
+// sendProgress emits an analysis_progress WS message for a single processJob
+// pipeline stage. mut may be nil; when provided it sets stage-specific
+// fields (counts, budget) on the payload before it's sent.
+//
+// ponytail: fires unconditionally at each of the 5 documented stages,
+// regardless of whether that stage's underlying step actually ran (e.g. nil
+// entitySvc) — the stage marks "pipeline reached here", counts just stay
+// zero/omitted when there's nothing to report. Matches existing
+// hub.SendToUser error handling elsewhere in processJob: log and continue,
+// never abort the pipeline.
+func (s *AnalysisService) sendProgress(userID, chapterID uuid.UUID, stage string, mut func(*models.AnalysisProgressPayload)) {
+	if s.hub == nil {
+		return
+	}
+
+	payload := models.AnalysisProgressPayload{Stage: stage, ChapterID: chapterID}
+	if mut != nil {
+		mut(&payload)
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("[analysis] marshal progress %s: %v", stage, err)
+		return
+	}
+
+	msg := models.WSMessage{Type: ws.TypeAnalysisProgress, Payload: payloadBytes}
+	if err := s.hub.SendToUser(userID, msg); err != nil {
+		log.Printf("[analysis] send progress %s: %v", stage, err)
+	}
 }
 
 // broadcastResult pushes the analysis result to the user's WebSocket connection.

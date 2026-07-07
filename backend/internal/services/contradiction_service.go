@@ -122,7 +122,12 @@ func (s *ContradictionService) CheckDeterministic(ctx context.Context, universeI
 //
 // chapterID is threaded into the candidate fingerprint so contradictions are
 // scoped to the originating chapter context.
-func (s *ContradictionService) CheckSemantic(ctx context.Context, universeID uuid.UUID, chapterID uuid.UUID, text string, entities []ResolvedEntity) ([]models.Contradiction, error) {
+//
+// onProgress is optional (variadic so existing call sites are unaffected).
+// When a non-nil progress sink is provided, CheckSemantic drives the agent
+// loop via RunAgentLoopStream instead of the synchronous RunAgentLoop, and
+// forwards each completed-tool-call event to it.
+func (s *ContradictionService) CheckSemantic(ctx context.Context, universeID uuid.UUID, chapterID uuid.UUID, text string, entities []ResolvedEntity, onProgress ...func(stage string, tc *QwenToolCall)) ([]models.Contradiction, error) {
 	if s.qwenSvc == nil || s.executor == nil {
 		return nil, nil
 	}
@@ -200,7 +205,18 @@ IMPORTANT: Use the tools to gather context BEFORE making your decision. Only ret
 		},
 	}
 
-	answer, err := s.qwenSvc.RunAgentLoop(ctx, messages, tools, s.executor, 5)
+	var progress func(stage string, tc *QwenToolCall)
+	if len(onProgress) > 0 {
+		progress = onProgress[0]
+	}
+
+	var answer string
+	var err error
+	if progress != nil {
+		answer, err = s.qwenSvc.RunAgentLoopStream(ctx, messages, tools, s.executor, 5, progress)
+	} else {
+		answer, err = s.qwenSvc.RunAgentLoop(ctx, messages, tools, s.executor, 5)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("check semantic: %w", err)
 	}

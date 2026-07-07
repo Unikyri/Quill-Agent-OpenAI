@@ -103,6 +103,45 @@ func TestFitToBudgetAllFit(t *testing.T) {
 	}
 }
 
+// TestBudgetAllocationReportPercentMath verifies BudgetAllocation.Report's
+// percentage math: UsedPercent reflects how much of maxContext was consumed
+// by system/user/reserve overhead (i.e. maxContext - Available), not the
+// splits themselves.
+func TestBudgetAllocationReportPercentMath(t *testing.T) {
+	alloc := BudgetAllocation{
+		EntitiesTokens: 3500,
+		VectorTokens:   4000,
+		ToolsTokens:    2500,
+		Available:      10000,
+	}
+
+	report := alloc.Report(30000)
+
+	if report.MaxContextTokens != 30000 {
+		t.Errorf("MaxContextTokens = %d, want 30000", report.MaxContextTokens)
+	}
+	if report.Available != 10000 {
+		t.Errorf("Available = %d, want 10000", report.Available)
+	}
+	if report.EntitiesTokens != 3500 || report.VectorTokens != 4000 || report.ToolsTokens != 2500 {
+		t.Errorf("splits not carried through: %+v", report)
+	}
+	// used = 30000 - 10000 = 20000; usedPercent = 20000/30000*100 = 66.666...
+	wantPercent := float64(30000-10000) / float64(30000) * 100
+	if report.UsedPercent != wantPercent {
+		t.Errorf("UsedPercent = %v, want %v", report.UsedPercent, wantPercent)
+	}
+}
+
+// TestBudgetAllocationReportZeroMaxContext guards against division by zero.
+func TestBudgetAllocationReportZeroMaxContext(t *testing.T) {
+	alloc := BudgetAllocation{Available: 0}
+	report := alloc.Report(0)
+	if report.UsedPercent != 0 {
+		t.Errorf("UsedPercent = %v, want 0 when maxContext is 0", report.UsedPercent)
+	}
+}
+
 func TestFitToBudgetEmpty(t *testing.T) {
 	tok := NewTokenizer()
 	mgr := NewContextBudgetManager(tok, 30000, 2000)

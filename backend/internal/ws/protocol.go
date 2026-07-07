@@ -14,14 +14,15 @@ const (
 	TypeRecallRequest   = "recall_request"
 
 	// Server → Client
-	TypeAuthOK            = "auth_ok"
-	TypeAuthError         = "auth_error"
-	TypeAnalysisResult    = "analysis_result"
+	TypeAuthOK             = "auth_ok"
+	TypeAuthError          = "auth_error"
+	TypeAnalysisResult     = "analysis_result"
 	TypeContradictionAlert = "contradiction_alert"
-	TypeContextualRecall  = "contextual_recall"
+	TypeContextualRecall   = "contextual_recall"
 	TypeEntityDiscovered   = "entity_discovered"
 	TypeGraphUpdated       = "graph_updated"
 	TypeIngestionProgress  = "ingestion_progress"
+	TypeAnalysisProgress   = "analysis_progress"
 	TypeError              = "error"
 )
 

@@ -18,6 +18,38 @@ type BudgetAllocation struct {
 	Available      int
 }
 
+// BudgetReport is a serializable summary of a BudgetAllocation, suitable for
+// sending over the WS progress channel (BudgetAllocation itself has no
+// maxContext/percent-used view baked in).
+type BudgetReport struct {
+	MaxContextTokens int     `json:"max_context_tokens"`
+	Available        int     `json:"available"`
+	EntitiesTokens   int     `json:"entities_tokens"`
+	VectorTokens     int     `json:"vector_tokens"`
+	ToolsTokens      int     `json:"tools_tokens"`
+	UsedPercent      float64 `json:"used_percent"`
+}
+
+// Report summarizes a into a BudgetReport against maxContext, the context
+// window size the allocation was computed under. UsedPercent is the share of
+// maxContext consumed by system/user/response overhead (maxContext -
+// Available), floored at 0 to avoid division by zero when maxContext is 0.
+func (a BudgetAllocation) Report(maxContext int) BudgetReport {
+	var usedPercent float64
+	if maxContext > 0 {
+		used := maxContext - a.Available
+		usedPercent = float64(used) / float64(maxContext) * 100
+	}
+	return BudgetReport{
+		MaxContextTokens: maxContext,
+		Available:        a.Available,
+		EntitiesTokens:   a.EntitiesTokens,
+		VectorTokens:     a.VectorTokens,
+		ToolsTokens:      a.ToolsTokens,
+		UsedPercent:      usedPercent,
+	}
+}
+
 // ContextBudgetManager allocates a fixed context-window token budget across
 // entities, vector memories, and tool results, and fits ranked items into a
 // given budget.

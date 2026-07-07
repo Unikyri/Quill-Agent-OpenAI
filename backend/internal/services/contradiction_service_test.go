@@ -562,6 +562,54 @@ func TestCheckSemanticParsesFencedJSON(t *testing.T) {
 	}
 }
 
+// TestCheckSemanticUsesStreamingWhenProgressProvided is the RED/GREEN proof
+// for task 4.3: CheckSemantic must drive the agent loop via
+// RunAgentLoopStream (not the synchronous RunAgentLoop) when a progress sink
+// is supplied. The mock server only speaks SSE (text/event-stream, "data: "
+// framed lines) — RunAgentLoop's single-shot JSON unmarshal would fail to
+// parse that body, so a passing test proves the streaming path was taken.
+func TestCheckSemanticUsesStreamingWhenProgressProvided(t *testing.T) {
+	round := 0
+	server := newSSEServerFunc(t, func() []string {
+		round++
+		if round == 1 {
+			return []string{
+				`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"search_vector_memory","arguments":"{\"query\":\"dragon\"}"}}]},"finish_reason":null}]}`,
+				`{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}`,
+				`[DONE]`,
+			}
+		}
+		return []string{
+			`{"choices":[{"delta":{"content":"[{\"type\":\"semantic\",\"description\":\"streamed contradiction\",\"evidence_a\":\"a\",\"evidence_b\":\"b\",\"severity\":\"low\"}]"},"finish_reason":null}]}`,
+			`{"choices":[{"delta":{},"finish_reason":"stop"}]}`,
+			`[DONE]`,
+		}
+	})
+	defer server.Close()
+
+	qwenSvc := newStreamTestService(server.URL)
+	exec := &mockExecutor{}
+	svc := NewContradictionService(nil, nil, nil, qwenSvc, exec, 5, nil)
+
+	entities := []ResolvedEntity{
+		{Entity: models.Entity{ID: uuid.New(), Type: "character", Name: "Test Entity", Description: "A test character"}},
+	}
+
+	var progressCalls int
+	contradictions, err := svc.CheckSemantic(context.Background(), uuid.New(), uuid.New(), "test text", entities, func(stage string, tc *QwenToolCall) {
+		progressCalls++
+	})
+	if err != nil {
+		t.Fatalf("CheckSemantic (streaming): %v", err)
+	}
+	if progressCalls == 0 {
+		t.Error("expected onProgress to fire at least once via the streaming path")
+	}
+	if len(contradictions) != 1 || contradictions[0].Description != "streamed contradiction" {
+		t.Fatalf("unexpected contradictions: %+v", contradictions)
+	}
+}
+
 // mockExecutor implements ToolExecutor for testing.
 type mockExecutor struct{}
 

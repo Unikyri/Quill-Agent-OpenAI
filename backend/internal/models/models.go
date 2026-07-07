@@ -303,6 +303,22 @@ type GraphUpdatedPayload struct {
 	Action     string    `json:"action"`
 }
 
+// AnalysisProgressPayload is the payload for analysis_progress WS messages,
+// emitted at each real processJob pipeline stage. Count fields are pointers
+// so a stage that has no meaningful count (e.g. checking_contradictions,
+// which fires before the check runs) can omit it from the JSON entirely.
+// Budget holds a services.BudgetReport for the context_budget stage; kept as
+// interface{} here (not a concrete services type) since models is a
+// lower-level package that services depends on, not the other way around.
+type AnalysisProgressPayload struct {
+	Stage              string      `json:"stage"`
+	ChapterID          uuid.UUID   `json:"chapter_id"`
+	EntityCount        *int        `json:"entity_count,omitempty"`
+	ContradictionCount *int        `json:"contradiction_count,omitempty"`
+	PlotHoleCount      *int        `json:"plot_hole_count,omitempty"`
+	Budget             interface{} `json:"budget,omitempty"`
+}
+
 type ContextualRecallPayload struct {
 	Items []RecallItem `json:"items"`
 }

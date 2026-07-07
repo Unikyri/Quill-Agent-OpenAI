@@ -392,6 +392,109 @@ func TestExtractEntities_ActiveEntityNoReactivate(t *testing.T) {
 	}
 }
 
+// stageRecordingHub is a fake AnalysisHub that records every message sent,
+// in send order — used to assert analysis_progress stage ordering.
+type stageRecordingHub struct {
+	mu       sync.Mutex
+	messages []models.WSMessage
+	types    []string
+}
+
+func (h *stageRecordingHub) SendToUser(userID uuid.UUID, msg models.WSMessage) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.messages = append(h.messages, msg)
+	h.types = append(h.types, msg.Type)
+	return nil
+}
+
+// rawProgressPayloads returns the raw JSON payload of every analysis_progress
+// message sent, in send order.
+func (h *stageRecordingHub) rawProgressPayloads() []json.RawMessage {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	var payloads []json.RawMessage
+	for _, m := range h.messages {
+		if m.Type == "analysis_progress" {
+			payloads = append(payloads, m.Payload)
+		}
+	}
+	return payloads
+}
+
+// TestSendProgressNilHubNoop verifies sendProgress is a no-op guard when hub is nil.
+func TestSendProgressNilHubNoop(t *testing.T) {
+	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	// Should not panic with a nil hub.
+	svc.sendProgress(uuid.New(), uuid.New(), "entities_extracted", nil)
+}
+
+// TestSendProgressSendsPayload verifies sendProgress builds and sends an
+// analysis_progress WSMessage carrying the given stage and mutated fields.
+func TestSendProgressSendsPayload(t *testing.T) {
+	hub := &stageRecordingHub{}
+	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, hub, nil)
+
+	chapterID := uuid.New()
+	count := 3
+	svc.sendProgress(uuid.New(), chapterID, "entities_extracted", func(p *models.AnalysisProgressPayload) {
+		p.EntityCount = &count
+	})
+
+	if len(hub.types) != 1 || hub.types[0] != "analysis_progress" {
+		t.Fatalf("expected one analysis_progress message, got %v", hub.types)
+	}
+}
+
+// TestProcessJobEmitsProgressInPipelineOrder verifies the 5 real pipeline
+// stages fire via sendProgress in the documented relative order, even with
+// all downstream dependencies nil (each stage's guard being unmet just means
+// its count/budget field stays empty — the stage itself still marks that the
+// pipeline reached that point). This keeps the test DB-free and fast.
+func TestProcessJobEmitsProgressInPipelineOrder(t *testing.T) {
+	hub := &stageRecordingHub{}
+	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, hub, nil)
+
+	job := analysisJob{
+		WorkID:     uuid.New(),
+		ChapterID:  uuid.New(),
+		UniverseID: uuid.New(),
+		Text:       "Some paragraph text.",
+		UserID:     uuid.New(),
+	}
+
+	_, err := svc.processJob(context.Background(), job)
+	if err != nil {
+		t.Fatalf("processJob: %v", err)
+	}
+
+	wantOrder := []string{
+		"entities_extracted",
+		"checking_contradictions",
+		"contradictions_checked",
+		"plot_holes_scanned",
+		"context_budget",
+	}
+
+	var gotStages []string
+	for _, tBytes := range hub.rawProgressPayloads() {
+		var p models.AnalysisProgressPayload
+		if err := json.Unmarshal(tBytes, &p); err != nil {
+			t.Fatalf("unmarshal progress payload: %v", err)
+		}
+		gotStages = append(gotStages, p.Stage)
+	}
+
+	if len(gotStages) != len(wantOrder) {
+		t.Fatalf("stage count = %d, want %d: got %v", len(gotStages), len(wantOrder), gotStages)
+	}
+	for i, want := range wantOrder {
+		if gotStages[i] != want {
+			t.Errorf("stage[%d] = %q, want %q (full order: %v)", i, gotStages[i], want, gotStages)
+		}
+	}
+}
+
 // ── Integration tests (require DB) ──
 
 // TestAnalysisServiceFullPipeline runs the analysis pipeline end-to-end.
