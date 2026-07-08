@@ -146,6 +146,7 @@ func main() {
 	timelineH := handlers.NewTimelineHandler(timelineSvc, timelineRepo)
 	plotHoleH := handlers.NewPlotHoleHandler(plotHoleSvc).WithRepo(plotHoleRepo)
 	graphH := handlers.NewGraphHandler(graphRepo, memorySvc, entityRepo, qwenSvc)
+	graphH.SetDecayer(relevSvc)
 	ingestionH := handlers.NewIngestionHandler(ingestionSvc)
 
 	// ── Fiber App ──
@@ -211,6 +212,7 @@ func main() {
 	api.Post("/universes/:id/recall", graphH.Recall)
 	api.Post("/universes/:id/recall/explain", graphH.RecallExplain)
 	api.Get("/universes/:id/memory-status", graphH.MemoryStatus)
+	api.Post("/universes/:id/decay", graphH.RunDecay)
 	api.Post("/universes/:id/ingest", ingestionH.Ingest)
 
 	// WebSocket route (gated by config)

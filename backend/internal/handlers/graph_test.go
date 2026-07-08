@@ -228,6 +228,81 @@ type stubQuerierErr struct{ msg string }
 
 func (e *stubQuerierErr) Error() string { return e.msg }
 
+// fakeDecayer is a test double for the Decayer interface.
+type fakeDecayer struct {
+	called bool
+	gotID  uuid.UUID
+	err    error
+}
+
+func (f *fakeDecayer) DecayAll(_ context.Context, universeID uuid.UUID) error {
+	f.called = true
+	f.gotID = universeID
+	return f.err
+}
+
+func TestGraphHandlerRunDecayInvalidID(t *testing.T) {
+	app := fiber.New()
+	h := NewGraphHandler(repositories.NewGraphRepo(nil), services.NewMemoryService(nil, nil, nil), repositories.NewEntityRepo(nil), nil)
+	app.Post("/api/v1/universes/:id/decay", h.RunDecay)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/universes/bad/decay", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestGraphHandlerRunDecaySuccess(t *testing.T) {
+	app := fiber.New()
+	h := NewGraphHandler(repositories.NewGraphRepo(nil), services.NewMemoryService(nil, nil, nil), repositories.NewEntityRepo(nil), nil)
+	fake := &fakeDecayer{}
+	h.SetDecayer(fake)
+	app.Post("/api/v1/universes/:id/decay", h.RunDecay)
+
+	universeID := uuid.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/universes/"+universeID.String()+"/decay", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fake.called {
+		t.Fatal("expected DecayAll to be called")
+	}
+	if fake.gotID != universeID {
+		t.Errorf("expected DecayAll called with %s, got %s", universeID, fake.gotID)
+	}
+
+	var body map[string]bool
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !body["ok"] {
+		t.Errorf(`expected {"ok":true}, got %v`, body)
+	}
+}
+
+func TestGraphHandlerRunDecayNoDecayer(t *testing.T) {
+	app := fiber.New()
+	h := NewGraphHandler(repositories.NewGraphRepo(nil), services.NewMemoryService(nil, nil, nil), repositories.NewEntityRepo(nil), nil)
+	app.Post("/api/v1/universes/:id/decay", h.RunDecay)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/universes/"+uuid.New().String()+"/decay", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	if resp.StatusCode < 500 {
+		t.Errorf("expected 5xx when no decayer wired, got %d", resp.StatusCode)
+	}
+}
+
 func TestGraphHandlerFullGraphMissingGraph(t *testing.T) {
 	app := fiber.New()
 

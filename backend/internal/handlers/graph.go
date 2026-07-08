@@ -26,12 +26,19 @@ type queryEmbedder interface {
 	GenerateEmbedding(ctx context.Context, text string) ([]float32, error)
 }
 
+// Decayer is the subset of *services.RelevanceService used to trigger a
+// decay run. Local interface (mirrors the queryEmbedder convention above).
+type Decayer interface {
+	DecayAll(ctx context.Context, universeID uuid.UUID) error
+}
+
 // GraphHandler serves graph-related REST endpoints.
 type GraphHandler struct {
 	graphRepo  graphQuerier
 	memorySvc  *services.MemoryService
 	entityRepo *repositories.EntityRepo
 	embedder   queryEmbedder
+	decayer    Decayer
 }
 
 // NewGraphHandler creates a graph handler. embedder is nil-allowed: a nil
@@ -49,6 +56,13 @@ func NewGraphHandler(graphRepo *repositories.GraphRepo, memorySvc *services.Memo
 		panic("entityRepo required")
 	}
 	return &GraphHandler{graphRepo: graphRepo, memorySvc: memorySvc, entityRepo: entityRepo, embedder: embedder}
+}
+
+// SetDecayer wires the decay trigger post-construction, mirroring the
+// optional-setter convention (see queryEmbedder's nil-safe handling above)
+// so the 4 positional NewGraphHandler call sites stay untouched.
+func (h *GraphHandler) SetDecayer(d Decayer) {
+	h.decayer = d
 }
 
 // FullGraph returns all nodes and edges for a universe's graph.
@@ -257,4 +271,29 @@ func (h *GraphHandler) MemoryStatus(c *fiber.Ctx) error {
 	return c.JSON(status)
 }
 
+// RunDecay triggers a decay run for a universe (normally fired on chapter
+// advance via ChapterService; exposed here so the frontend can trigger it
+// on demand for the memory-theater demo page).
+// POST /api/v1/universes/:id/decay
+func (h *GraphHandler) RunDecay(c *fiber.Ctx) error {
+	universeID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fiber.Map{"code": "VALIDATION_ERROR", "message": "Invalid universe ID"},
+		})
+	}
 
+	if h.decayer == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": fiber.Map{"code": "NOT_CONFIGURED", "message": "decay not available"},
+		})
+	}
+
+	if err := h.decayer.DecayAll(c.Context(), universeID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fiber.Map{"code": "INTERNAL_ERROR", "message": err.Error()},
+		})
+	}
+
+	return c.JSON(fiber.Map{"ok": true})
+}
