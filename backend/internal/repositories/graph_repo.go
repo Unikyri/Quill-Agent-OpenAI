@@ -55,22 +55,39 @@ func escapeCypherString(s string) string {
 }
 
 // withAgeTx loads AGE + sets search_path on a transaction's connection,
-// then runs fn. Avoids pool.Acquire inside a transaction — prevents deadlock
-// when pool is saturated by concurrent requests.
+// then runs fn, restoring the original search_path afterward. Avoids
+// pool.Acquire inside a transaction — prevents deadlock when pool is
+// saturated by concurrent requests, and avoids search_path poisoning (AGE's
+// ag_catalog has internal tables named "entities" that shadow the public
+// schema if search_path is left pointing at ag_catalog first).
 func (r *GraphRepo) withAgeTx(tx pgx.Tx, fn func(conn *pgx.Conn) error) error {
 	c := tx.Conn()
-	if _, err := c.Exec(context.Background(), "LOAD 'age'"); err != nil {
+	ctx := context.Background()
+	if _, err := c.Exec(ctx, "LOAD 'age'"); err != nil {
 		return fmt.Errorf("load age: %w", err)
 	}
-	if _, err := c.Exec(context.Background(), `SET search_path = ag_catalog, "$user", public`); err != nil {
+
+	var prev string
+	if err := c.QueryRow(ctx, "SHOW search_path").Scan(&prev); err != nil {
+		return fmt.Errorf("capture search_path: %w", err)
+	}
+	if _, err := c.Exec(ctx, `SET search_path = ag_catalog, "$user", public`); err != nil {
 		return fmt.Errorf("set search_path: %w", err)
 	}
-	return fn(c)
+
+	err := fn(c)
+	if _, rerr := c.Exec(ctx, `SELECT set_config('search_path', $1, false)`, prev); rerr != nil && err == nil {
+		err = fmt.Errorf("restore search_path: %w", rerr)
+	}
+	return err
 }
 
 // withAgeConn acquires a dedicated connection, loads AGE + sets search_path,
-// runs fn, then releases. This ensures AGE is available regardless of pool state.
-// AfterConnect in pgxpool doesn't reliably persist LOAD across all connections.
+// runs fn, restores search_path, then releases. This ensures AGE is available
+// regardless of pool state, and avoids search_path poisoning of the pool
+// (AGE's ag_catalog has internal tables named "entities" that shadow the
+// public schema). AfterConnect in pgxpool doesn't reliably persist LOAD
+// across all connections.
 func (r *GraphRepo) withAgeConn(ctx context.Context, fn func(conn *pgx.Conn) error) error {
 	conn, err := r.pool.Acquire(ctx)
 	if err != nil {
@@ -81,16 +98,21 @@ func (r *GraphRepo) withAgeConn(ctx context.Context, fn func(conn *pgx.Conn) err
 		conn.Release()
 		return fmt.Errorf("load age: %w", err)
 	}
+
+	var prev string
+	if err := c.QueryRow(ctx, "SHOW search_path").Scan(&prev); err != nil {
+		conn.Release()
+		return fmt.Errorf("capture search_path: %w", err)
+	}
 	if _, err := c.Exec(ctx, `SET search_path = ag_catalog, "$user", public`); err != nil {
 		conn.Release()
 		return fmt.Errorf("set search_path: %w", err)
 	}
+
 	err = fn(c)
-	// Reset search_path before returning the connection to the pool so
-	// subsequent unqualified queries resolve to public.*, not ag_catalog.*.
-	// ponytail: one SET per AGE call is cheaper than schema-qualifying every
-	// repo query; revert if connection pinning becomes preferred.
-	_, _ = c.Exec(ctx, `SET search_path = "$user", public`)
+	if _, rerr := c.Exec(ctx, `SELECT set_config('search_path', $1, false)`, prev); rerr != nil && err == nil {
+		err = fmt.Errorf("restore search_path: %w", rerr)
+	}
 	conn.Release()
 	return err
 }

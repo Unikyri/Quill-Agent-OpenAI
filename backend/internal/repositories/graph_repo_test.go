@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -9,6 +10,52 @@ import (
 
 	"github.com/quill/backend/internal/testutil"
 )
+
+// TestGraphRepoWithAgeTxRestoresSearchPath is a regression test for
+// search_path poisoning: withAgeTx sets search_path to ag_catalog first so
+// AGE functions resolve, but must restore the pre-existing value before
+// returning control to the caller — otherwise the pooled connection keeps
+// resolving unqualified queries (e.g. "entities") against ag_catalog's
+// internal tables instead of public.
+func TestGraphRepoWithAgeTxRestoresSearchPath(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "011")
+	if !testutil.CheckAGE(t, pool) {
+		t.Skip("Apache AGE extension not available; skipping graph-dependent test")
+	}
+
+	ctx := context.Background()
+	repo := NewGraphRepo(pool)
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin tx: %v", err)
+	}
+	defer tx.Rollback(ctx)
+
+	c := tx.Conn()
+
+	var before string
+	if err := c.QueryRow(ctx, "SHOW search_path").Scan(&before); err != nil {
+		t.Fatalf("show search_path (before): %v", err)
+	}
+
+	if err := repo.CreateGraphTx(ctx, tx, uuid.NewString()); err != nil {
+		t.Fatalf("CreateGraphTx: %v", err)
+	}
+
+	var after string
+	if err := c.QueryRow(ctx, "SHOW search_path").Scan(&after); err != nil {
+		t.Fatalf("show search_path (after): %v", err)
+	}
+
+	if after != before {
+		t.Errorf("search_path not restored: before=%q after=%q", before, after)
+	}
+	if strings.Contains(after, "ag_catalog") {
+		t.Errorf("search_path still poisoned with ag_catalog: %q", after)
+	}
+}
 
 func setupGraphTest(t *testing.T, pool *pgxpool.Pool) (string, string, string) {
 	t.Helper()
