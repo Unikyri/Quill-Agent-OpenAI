@@ -1,0 +1,46 @@
+{
+  "queries": [
+    {
+      "id": "q1",
+      "query": "Who secretly serves the Hollow Chorus?",
+      "relevant_entity_names": ["Kael Drystan"],
+      "note": "Kael Drystan is a Crown operative with a secret allegiance to the Hollow Chorus."
+    },
+    {
+      "id": "q2",
+      "query": "Where is Seraphine Vane imprisoned?",
+      "relevant_entity_names": ["Seraphine Vane", "Hollow Reach"],
+      "note": "Oracle Iyana reveals that Seraphine Vane is alive and imprisoned in Hollow Reach."
+    },
+    {
+      "id": "q3",
+      "query": "Which faction caused the Sundering?",
+      "relevant_entity_names": ["The Sundering", "The Crown"],
+      "note": "The Crown caused the Sundering; official history falsely blames the Hollow Chorus."
+    },
+    {
+      "id": "q4",
+      "query": "Who is Lyra Vane's mentor?",
+      "relevant_entity_names": ["Oracle Iyana"],
+      "note": "Oracle Iyana is the blind seer who mentors Lyra Vane."
+    },
+    {
+      "id": "q5",
+      "query": "Where does Maven Voss operate from?",
+      "relevant_entity_names": ["Maven Voss", "Echo Spire"],
+      "note": "Maven Voss is the Warden archivist who works in the Echo Spire."
+    },
+    {
+      "id": "q6",
+      "query": "What is the Convergence dependent on?",
+      "relevant_entity_names": ["The First Echo"],
+      "note": "The Convergence prophecy depends on the First Echo being found or destroyed."
+    }
+  ],
+  "forgetting_timeline": {
+    "total_chapters": 3,
+    "should_be_archived": ["Marshal Eron", "Veiled Council"],
+    "must_stay_active": ["Lyra Vane", "Oracle Iyana", "Echo Magic"]
+  },
+  "consolidation_targets": ["Oracle Iyana", "Echo Magic"]
+}
