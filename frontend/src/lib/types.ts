@@ -20,3 +20,37 @@ export interface MemoryStatusEntity {
   lifecycle: Lifecycle
   history: MemoryHistoryPoint[]
 }
+
+// Mirrors backend RRFContribution/ExplainedItem (fuse_rrf_explain.go) and the
+// /recall/explain response shape. Centralized here (S3 Memory Theater Slice D,
+// obs #265) so api.ts, FusionExplorer, and BudgetTheater share one definition.
+export interface RRFContribution {
+  pipeline: string
+  rank: number
+  delta: number
+}
+
+export interface ExplainedItem {
+  id: string
+  entity_id: string
+  fact: string
+  rrf_score: number
+  contributions: RRFContribution[]
+  fit_in_budget: boolean
+}
+
+export interface RecallBudget {
+  max_context_tokens: number
+  available: number
+  entities_tokens: number
+  vector_tokens: number
+  tools_tokens: number
+  used_percent: number
+}
+
+export interface RecallExplanation {
+  query: string
+  pipeline_sizes: Record<string, number>
+  items: ExplainedItem[]
+  budget: RecallBudget
+}

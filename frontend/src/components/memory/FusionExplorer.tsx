@@ -1,38 +1,11 @@
 import { useState } from 'react'
 import { api } from '../../lib/api'
+import type { RecallExplanation } from '../../lib/types'
 import styles from './FusionExplorer.module.css'
 
 interface FusionExplorerProps {
   universeId: string
-}
-
-interface RRFContribution {
-  pipeline: string
-  rank: number
-  delta: number
-}
-
-interface ExplainedItem {
-  id: string
-  entity_id: string
-  fact: string
-  rrf_score: number
-  contributions: RRFContribution[]
-  fit_in_budget: boolean
-}
-
-interface RecallExplanation {
-  query: string
-  pipeline_sizes: Record<string, number>
-  items: ExplainedItem[]
-  budget: {
-    max_context_tokens: number
-    available: number
-    entities_tokens: number
-    vector_tokens: number
-    tools_tokens: number
-    used_percent: number
-  }
+  onResult?: (result: RecallExplanation) => void
 }
 
 // Same 5 RRF pipelines + colors as ContextPanel's SOURCE_META, re-declared
@@ -47,7 +20,7 @@ const PIPELINE_META: Record<string, { color: string }> = {
   consolidated: { color: 'var(--node-event)' },
 }
 
-export default function FusionExplorer({ universeId }: FusionExplorerProps) {
+export default function FusionExplorer({ universeId, onResult }: FusionExplorerProps) {
   const [query, setQuery] = useState('')
   const [result, setResult] = useState<RecallExplanation | null>(null)
   const [loading, setLoading] = useState(false)
@@ -59,6 +32,7 @@ export default function FusionExplorer({ universeId }: FusionExplorerProps) {
     try {
       const res = await api.recallExplain(universeId, query, 10)
       setResult(res)
+      onResult?.(res)
     } catch {
       setError('Failed to explain recall — try again')
     } finally {

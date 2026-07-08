@@ -15,6 +15,7 @@ import EditorPage from './pages/EditorPage'
 import EditorRedirect from './pages/EditorRedirect'
 import EntityRedirect from './pages/EntityRedirect'
 import EntitiesPage from './pages/EntitiesPage'
+import MemoryInspectorPage from './pages/MemoryInspectorPage'
 
 // ponytail: lazy-loaded — keeps landing page out of main bundle
 const LandingPage = lazy(() => import('./pages/LandingPage'))
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="contradictions" element={<ContradictionsPage />} />
           <Route path="plot-holes" element={<PlotHolesPage />} />
           <Route path="ingest" element={<IngestPage />} />
+          <Route path="memory" element={<MemoryInspectorPage />} />
         </Route>
         {/* Legacy redirects */}
         <Route path="/work/:workId" element={<ProtectedRoute><WorkRedirect /></ProtectedRoute>} />
