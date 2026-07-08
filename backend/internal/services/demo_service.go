@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -579,55 +578,17 @@ func (s *DemoService) cloneGraph(ctx context.Context, tx pgx.Tx, templateID, new
 
 	// 3. Create edges: query template graph for all relationships
 	templateGraphName := "universe_" + templateID
-	edgeQuery := fmt.Sprintf(`LOAD 'age'; SET search_path = ag_catalog, "$user", public; SELECT * FROM cypher('%s', $$ MATCH (a)-[r]->(b) WHERE a.entity_id IS NOT NULL AND b.entity_id IS NOT NULL RETURN a.entity_id, type(r), b.entity_id $$) AS (src agtype, rel agtype, tgt agtype)`,
-		templateGraphName)
-	edgeRows, err := tx.Query(ctx, edgeQuery, pgx.QueryExecModeSimpleProtocol)
+	tmplEdges, err := s.graphRepo.QueryTemplateEdgesTx(ctx, tx, templateGraphName)
 	if err != nil {
 		return fmt.Errorf("query graph edges: %w", err)
 	}
-	var graphEdges []struct {
-		srcID, relType, tgtID string
-	}
-	for edgeRows.Next() {
-		var srcRaw, relRaw, tgtRaw *string
-		if err := edgeRows.Scan(&srcRaw, &relRaw, &tgtRaw); err != nil {
-			edgeRows.Close()
-			return fmt.Errorf("scan edge row: %w", err)
-		}
-		if srcRaw == nil || relRaw == nil || tgtRaw == nil {
-			continue
-		}
-		srcID := extractQuotedValue(*srcRaw)
-		relType := extractQuotedValue(*relRaw)
-		tgtID := extractQuotedValue(*tgtRaw)
-		if srcID == "" || tgtID == "" || relType == "" {
-			continue
-		}
-		graphEdges = append(graphEdges, struct {
-			srcID, relType, tgtID string
-		}{srcID, relType, tgtID})
-	}
-	edgeRows.Close()
-	if err := edgeRows.Err(); err != nil {
-		return fmt.Errorf("iterate graph edges: %w", err)
-	}
-	for _, item := range graphEdges {
-		newSrcID := entityMap[item.srcID]
-		newTgtID := entityMap[item.tgtID]
-		if err := s.graphRepo.CreateEdgeTx(ctx, tx, newGraphName, newSrcID, newTgtID, item.relType, nil); err != nil {
-			return fmt.Errorf("create edge %s-[%s]->%s: %w", newSrcID, item.relType, newTgtID, err)
+	for _, item := range tmplEdges {
+		newSrcID := entityMap[item.Source]
+		newTgtID := entityMap[item.Target]
+		if err := s.graphRepo.CreateEdgeTx(ctx, tx, newGraphName, newSrcID, newTgtID, item.RelType, nil); err != nil {
+			return fmt.Errorf("create edge %s-[%s]->%s: %w", newSrcID, item.RelType, newTgtID, err)
 		}
 	}
 
 	return nil
-}
-
-// extractQuotedValue strips surrounding double-quotes from an agtype string value.
-// agtype represents strings as "value" (quoted), so we just trim the outer quotes.
-func extractQuotedValue(agtypeStr string) string {
-	s := strings.TrimSpace(agtypeStr)
-	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
-		return s[1 : len(s)-1]
-	}
-	return s
 }

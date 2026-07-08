@@ -855,8 +855,14 @@ WHERE NOT EXISTS (SELECT 1 FROM plot_holes WHERE id = '00000000-0000-0000-0000-0
 LOAD 'age';
 SET search_path = ag_catalog, "$user", public;
 
--- Create the graph if it doesn't exist
-SELECT create_graph('universe_00000000-0000-0000-0000-000000000002');
+-- Create the graph if it doesn't exist (idempotent — create_graph() itself
+-- errors if the graph already exists, so guard it explicitly)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM ag_catalog.ag_graph WHERE name = 'universe_00000000-0000-0000-0000-000000000002') THEN
+        PERFORM create_graph('universe_00000000-0000-0000-0000-000000000002');
+    END IF;
+END $$;
 
 -- Graph name: universe_{templateUUID}. The graph should already exist from migration 013
 -- or will be created on first use. Seed nodes and edges unconditionally via cypher.

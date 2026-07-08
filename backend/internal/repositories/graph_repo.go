@@ -27,6 +27,14 @@ type GraphEdge struct {
 	Properties map[string]interface{} `json:"properties"`
 }
 
+// TemplateEdge is a lightweight (source, relType, target) edge tuple used
+// when cloning a template graph's edges (see QueryTemplateEdgesTx).
+type TemplateEdge struct {
+	Source  string
+	RelType string
+	Target  string
+}
+
 type GraphRepo struct {
 	pool *pgxpool.Pool
 }
@@ -180,6 +188,41 @@ func (r *GraphRepo) CreateNodeTx(ctx context.Context, tx pgx.Tx, graphName, labe
 		_, err := c.Exec(ctx, query)
 		return err
 	})
+}
+
+// QueryTemplateEdgesTx returns all (source, relType, target) edges in
+// graphName, run inside the transaction's connection via withAgeTx (loads
+// AGE, captures + restores search_path — no raw LOAD/SET string left
+// dangling on the pooled connection).
+func (r *GraphRepo) QueryTemplateEdgesTx(ctx context.Context, tx pgx.Tx, graphName string) ([]TemplateEdge, error) {
+	var edges []TemplateEdge
+	err := r.withAgeTx(tx, func(c *pgx.Conn) error {
+		query := fmt.Sprintf(`SELECT * FROM cypher(%s, $$ MATCH (a)-[r]->(b) WHERE a.entity_id IS NOT NULL AND b.entity_id IS NOT NULL RETURN a.entity_id, type(r), b.entity_id $$) AS (src agtype, rel agtype, tgt agtype)`,
+			quoteGraph(graphName))
+		rows, err := c.Query(ctx, query)
+		if err != nil {
+			return fmt.Errorf("query template edges: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var srcRaw, relRaw, tgtRaw *string
+			if err := rows.Scan(&srcRaw, &relRaw, &tgtRaw); err != nil {
+				return fmt.Errorf("scan template edge: %w", err)
+			}
+			if srcRaw == nil || relRaw == nil || tgtRaw == nil {
+				continue
+			}
+			src := strings.Trim(*srcRaw, `"`)
+			rel := strings.Trim(*relRaw, `"`)
+			tgt := strings.Trim(*tgtRaw, `"`)
+			if src == "" || rel == "" || tgt == "" {
+				continue
+			}
+			edges = append(edges, TemplateEdge{Source: src, RelType: rel, Target: tgt})
+		}
+		return rows.Err()
+	})
+	return edges, err
 }
 
 func (r *GraphRepo) CreateEdgeTx(ctx context.Context, tx pgx.Tx, graphName, sourceEntityID, targetEntityID, relType string, properties map[string]interface{}) error {
@@ -349,7 +392,14 @@ func collectGraphRows(rows pgx.Rows) ([]GraphNode, []GraphEdge, error) {
 		if rStr != nil {
 			key := *rStr
 			if _, exists := edgeMap[key]; !exists {
-				edgeMap[key] = GraphEdge{ID: key, Type: "relationship", Properties: map[string]interface{}{"raw": *rStr}}
+				var source, target string
+				if nStr != nil {
+					source = extractProp(*nStr, "entity_id")
+				}
+				if mStr != nil {
+					target = extractProp(*mStr, "entity_id")
+				}
+				edgeMap[key] = GraphEdge{ID: key, Source: source, Target: target, Type: "relationship", Properties: map[string]interface{}{"raw": *rStr}}
 			}
 		}
 	}

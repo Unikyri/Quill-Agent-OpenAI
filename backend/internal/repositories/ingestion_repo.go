@@ -38,9 +38,9 @@ func (r *IngestionRepo) Create(ctx context.Context, jobID, universeID, workID uu
 // FindByID fetches a single ingestion job by its ID.
 func (r *IngestionRepo) FindByID(ctx context.Context, jobID uuid.UUID) (*models.IngestionJob, error) {
 	query := `
-		SELECT id, universe_id, work_id, filename, file_type,
+		SELECT id, universe_id, work_id, filename, COALESCE(file_type, ''),
 		       status, total_chapters_detected, chapters_processed,
-		       entities_extracted, error_message, started_at, completed_at, created_at
+		       entities_extracted, COALESCE(error_message, ''), started_at, completed_at, created_at
 		FROM ingestion_jobs
 		WHERE id = $1
 	`
@@ -79,8 +79,8 @@ func (r *IngestionRepo) UpdateStatus(ctx context.Context, jobID uuid.UUID, statu
 		UPDATE ingestion_jobs
 		SET status = $2,
 		    error_message = CASE WHEN $3 = '' THEN error_message ELSE $3 END,
-		    started_at   = CASE WHEN $2 = 'running' THEN $4 ELSE started_at END,
-		    completed_at = CASE WHEN $2 IN ('completed', 'failed') THEN $4 ELSE completed_at END
+		    started_at   = CASE WHEN $2::varchar = 'running' THEN $4 ELSE started_at END,
+		    completed_at = CASE WHEN $2::varchar IN ('completed', 'failed') THEN $4 ELSE completed_at END
 		WHERE id = $1
 	`
 	_, err := r.pool.Exec(ctx, query, jobID, status, errorMsg, now)
