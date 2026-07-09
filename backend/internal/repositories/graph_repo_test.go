@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -10,6 +11,126 @@ import (
 
 	"github.com/quill/backend/internal/testutil"
 )
+
+// maliciousRelType/Label breaks out of the Cypher `[:%s]`/`n:%s` interpolation
+// slot to attempt an unrelated DETACH DELETE — the injection class this guard
+// closes.
+const maliciousCypherIdentifier = `x}]->(n) DETACH DELETE n //`
+
+// TestGraphRepoRejectsInvalidCypherIdentifiers verifies that CreateNode,
+// CreateEdge, and DeleteEdge reject relType/label values that are not valid
+// bare Cypher identifiers, returning ErrInvalidIdentifier and creating no
+// graph row — and that legitimate identifiers still work unchanged.
+func TestGraphRepoRejectsInvalidCypherIdentifiers(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "011")
+	if !testutil.CheckAGE(t, pool) {
+		t.Skip("Apache AGE extension not available; skipping graph-dependent test")
+	}
+	ctx := context.Background()
+	repo := NewGraphRepo(pool)
+
+	t.Run("malicious label rejected, no node created", func(t *testing.T) {
+		uid := uuid.NewString()
+		if err := repo.CreateGraph(ctx, uid); err != nil {
+			t.Fatalf("CreateGraph: %v", err)
+		}
+		graphName := "universe_" + uid
+
+		err := repo.CreateNode(ctx, graphName, maliciousCypherIdentifier, map[string]interface{}{
+			"entity_id": uuid.NewString(), "name": "X", "status": "active", "relevance_score": 0.5,
+		})
+		if !errors.Is(err, ErrInvalidIdentifier) {
+			t.Fatalf("CreateNode with malicious label: got err=%v, want ErrInvalidIdentifier", err)
+		}
+
+		nodes, _, qerr := repo.FullQuery(ctx, graphName)
+		if qerr != nil {
+			t.Fatalf("FullQuery: %v", qerr)
+		}
+		if len(nodes) != 0 {
+			t.Errorf("expected 0 nodes created for rejected label, got %d", len(nodes))
+		}
+	})
+
+	t.Run("malicious relType rejected, no edge created", func(t *testing.T) {
+		graphName, e1, e2 := setupGraphTest(t, pool)
+
+		err := repo.CreateEdge(ctx, graphName, e1, e2, maliciousCypherIdentifier, nil)
+		if !errors.Is(err, ErrInvalidIdentifier) {
+			t.Fatalf("CreateEdge with malicious relType: got err=%v, want ErrInvalidIdentifier", err)
+		}
+
+		// Only the ALLY_OF edge from setupGraphTest should exist — no node
+		// deleted, no extra edge created by the injected fragment.
+		_, edges, qerr := repo.NHopTraversal(ctx, graphName, e1, 1)
+		if qerr != nil {
+			t.Fatalf("NHopTraversal: %v", qerr)
+		}
+		if len(edges) != 1 {
+			t.Errorf("expected 1 pre-existing edge (no injection side effects), got %d", len(edges))
+		}
+		nodes, _, qerr := repo.FullQuery(ctx, graphName)
+		if qerr != nil {
+			t.Fatalf("FullQuery: %v", qerr)
+		}
+		if len(nodes) != 2 {
+			t.Errorf("expected 2 pre-existing nodes (DETACH DELETE must not have run), got %d", len(nodes))
+		}
+	})
+
+	t.Run("malicious relType rejected by DeleteEdge, edge untouched", func(t *testing.T) {
+		graphName, e1, e2 := setupGraphTest(t, pool)
+
+		err := repo.DeleteEdge(ctx, graphName, e1, e2, maliciousCypherIdentifier)
+		if !errors.Is(err, ErrInvalidIdentifier) {
+			t.Fatalf("DeleteEdge with malicious relType: got err=%v, want ErrInvalidIdentifier", err)
+		}
+
+		_, edges, qerr := repo.NHopTraversal(ctx, graphName, e1, 1)
+		if qerr != nil {
+			t.Fatalf("NHopTraversal: %v", qerr)
+		}
+		if len(edges) != 1 {
+			t.Errorf("expected existing ALLY_OF edge to survive rejected DeleteEdge, got %d edges", len(edges))
+		}
+	})
+
+	t.Run("valid identifiers still succeed (regression)", func(t *testing.T) {
+		uid := uuid.NewString()
+		if err := repo.CreateGraph(ctx, uid); err != nil {
+			t.Fatalf("CreateGraph: %v", err)
+		}
+		graphName := "universe_" + uid
+		e1 := uuid.NewString()
+		e2 := uuid.NewString()
+
+		if err := repo.CreateNode(ctx, graphName, "Character", map[string]interface{}{
+			"entity_id": e1, "name": "A", "status": "active", "relevance_score": 0.5,
+		}); err != nil {
+			t.Fatalf("CreateNode(Character): %v", err)
+		}
+		if err := repo.CreateNode(ctx, graphName, "Character", map[string]interface{}{
+			"entity_id": e2, "name": "B", "status": "active", "relevance_score": 0.5,
+		}); err != nil {
+			t.Fatalf("CreateNode(Character): %v", err)
+		}
+		if err := repo.CreateEdge(ctx, graphName, e1, e2, "ALLY_OF", nil); err != nil {
+			t.Fatalf("CreateEdge(ALLY_OF): %v", err)
+		}
+
+		nodes, edges, err := repo.FullQuery(ctx, graphName)
+		if err != nil {
+			t.Fatalf("FullQuery: %v", err)
+		}
+		if len(nodes) != 2 {
+			t.Errorf("expected 2 nodes, got %d", len(nodes))
+		}
+		if len(edges) != 1 {
+			t.Errorf("expected 1 edge, got %d", len(edges))
+		}
+	})
+}
 
 // TestGraphRepoWithAgeTxRestoresSearchPath is a regression test for
 // search_path poisoning: withAgeTx sets search_path to ag_catalog first so

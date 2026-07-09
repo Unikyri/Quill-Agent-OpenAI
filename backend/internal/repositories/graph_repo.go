@@ -2,7 +2,9 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -10,6 +12,25 @@ import (
 
 	"github.com/quill/backend/internal/models"
 )
+
+// identifierRe matches a valid bare Cypher identifier (label or relType).
+// relType/label values are interpolated directly into Cypher strings (they
+// cannot be parameterized or quoted like string-literal values), so anything
+// not matching this shape is rejected outright rather than escaped.
+var identifierRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// ErrInvalidIdentifier is returned when a relType or label is not a valid
+// bare Cypher identifier — see validCypherIdentifier.
+var ErrInvalidIdentifier = errors.New("invalid cypher identifier")
+
+// validCypherIdentifier rejects (never sanitizes) relType/label values that
+// aren't safe to interpolate as a bare Cypher identifier.
+func validCypherIdentifier(s string) error {
+	if !identifierRe.MatchString(s) {
+		return fmt.Errorf("%w: %q", ErrInvalidIdentifier, s)
+	}
+	return nil
+}
 
 // GraphNode represents a node returned from graph queries.
 type GraphNode struct {
@@ -135,6 +156,9 @@ func (r *GraphRepo) CreateGraph(ctx context.Context, universeID string) error {
 }
 
 func (r *GraphRepo) CreateNode(ctx context.Context, graphName, label string, properties map[string]interface{}) error {
+	if err := validCypherIdentifier(label); err != nil {
+		return err
+	}
 	return r.withAgeConn(ctx, func(c *pgx.Conn) error {
 		query := fmt.Sprintf(`SELECT * FROM cypher(%s, $$ CREATE (n:%s {entity_id: '%s', name: '%s', status: '%s', relevance_score: %v}) RETURN n $$) AS (n agtype)`,
 			quoteGraph(graphName), label,
@@ -148,6 +172,9 @@ func (r *GraphRepo) CreateNode(ctx context.Context, graphName, label string, pro
 }
 
 func (r *GraphRepo) CreateEdge(ctx context.Context, graphName, sourceEntityID, targetEntityID, relType string, properties map[string]interface{}) error {
+	if err := validCypherIdentifier(relType); err != nil {
+		return err
+	}
 	return r.withAgeConn(ctx, func(c *pgx.Conn) error {
 		query := fmt.Sprintf(`SELECT * FROM cypher(%s, $$ MATCH (x {entity_id: '%s'}), (y {entity_id: '%s'}) CREATE (x)-[:%s]->(y) $$) AS (r agtype)`,
 			quoteGraph(graphName),
@@ -178,6 +205,9 @@ func (r *GraphRepo) CreateGraphTx(ctx context.Context, tx pgx.Tx, universeID str
 }
 
 func (r *GraphRepo) CreateNodeTx(ctx context.Context, tx pgx.Tx, graphName, label string, properties map[string]interface{}) error {
+	if err := validCypherIdentifier(label); err != nil {
+		return err
+	}
 	return r.withAgeTx(tx, func(c *pgx.Conn) error {
 		query := fmt.Sprintf(`SELECT * FROM cypher(%s, $$ CREATE (n:%s {entity_id: '%s', name: '%s', status: '%s', relevance_score: %v}) RETURN n $$) AS (n agtype)`,
 			quoteGraph(graphName), label,
@@ -226,6 +256,9 @@ func (r *GraphRepo) QueryTemplateEdgesTx(ctx context.Context, tx pgx.Tx, graphNa
 }
 
 func (r *GraphRepo) CreateEdgeTx(ctx context.Context, tx pgx.Tx, graphName, sourceEntityID, targetEntityID, relType string, properties map[string]interface{}) error {
+	if err := validCypherIdentifier(relType); err != nil {
+		return err
+	}
 	return r.withAgeTx(tx, func(c *pgx.Conn) error {
 		query := fmt.Sprintf(`SELECT * FROM cypher(%s, $$ MATCH (x {entity_id: '%s'}), (y {entity_id: '%s'}) CREATE (x)-[:%s]->(y) $$) AS (r agtype)`,
 			quoteGraph(graphName),
@@ -327,6 +360,9 @@ func (r *GraphRepo) FullQuery(ctx context.Context, graphName string) ([]GraphNod
 
 // DeleteEdge removes a relationship between two nodes in the graph.
 func (r *GraphRepo) DeleteEdge(ctx context.Context, graphName, sourceEntityID, targetEntityID, relType string) error {
+	if err := validCypherIdentifier(relType); err != nil {
+		return err
+	}
 	return r.withAgeConn(ctx, func(c *pgx.Conn) error {
 		query := fmt.Sprintf(`SELECT * FROM cypher(%s, $$ MATCH (x {entity_id: '%s'})-[r:%s]->(y {entity_id: '%s'}) DELETE r $$) AS (a agtype)`,
 			quoteGraph(graphName), escapeCypherString(sourceEntityID), relType, escapeCypherString(targetEntityID))
