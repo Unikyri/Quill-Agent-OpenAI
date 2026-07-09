@@ -30,6 +30,10 @@ func SetupTestDB(t *testing.T) *pgxpool.Pool {
 	poolCfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		return pgxvector.RegisterTypes(ctx, conn)
 	}
+	// Cap MaxConns regardless of host core count or connection-string
+	// overrides — concurrent test packages sharing one Postgres instance can
+	// otherwise exceed max_connections on high-core CI/dev machines.
+	poolCfg.MaxConns = 8
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		t.Fatalf("connect to test db: %v", err)
