@@ -144,10 +144,30 @@ scroll-linked choreography.
 
 ---
 
+## Data visualization (Memory Theater)
+
+The Memory Inspector (`/universe/:id/memory`) renders the memory subsystem as charts. Same rule as icons:
+**inline SVG only, no charting library** — hand-drawn `<polyline>`/`<rect>`/`<line>` in the component,
+sized by `viewBox`, colored with palette tokens (never hardcoded hex).
+
+- **Decay timeline** (`DecayTimeline`): a multi-line score-over-time chart. Each entity is one
+  `<polyline>` colored by lifecycle — `active` = `--success-2`, `dormant`/decaying = warm node tokens
+  (`--node-event`/`--node-worldrule`), `archived` = `--muted-3`. The archive threshold is a dashed
+  `--muted-3` horizontal line; crossing points get ▼/▲ markers. Axis/labels use `--mono`.
+- **Fusion explorer** (`FusionExplorer`): the five RRF pipelines as columns, the fused result list, and
+  per-item contribution chips — chips use `--teal`/`--teal-soft` (and `--gold-ink` for emphasis), same
+  sunken-surface + `--r-pill` treatment as elsewhere.
+- **Budget theater** (`BudgetTheater`): token-budget bars (`--r-md`), warm fill for fitted items, muted
+  for dropped — reusing the progress-bar tone (`--success` fitted, `--muted-*` dropped), not new colors.
+
+Charts must read like the rest of the manuscript: warm ground, thin `--line` gridlines/borders, `--mono`
+numerals, subtle motion only (no animated axes). If a chart needs a color that isn't already a palette
+token, that's a signal to reuse an existing one, not to add a hex.
+
 ## Emotional Tone
 
 - Calm, creative control, intimate, thoughtful — now paired with a slightly more "product" teal/gold
-  accent so data (entities, contradictions, timeline) reads clearly against the manuscript backdrop.
+  accent so data (entities, contradictions, timeline, memory) reads clearly against the manuscript backdrop.
 
 ---
 
