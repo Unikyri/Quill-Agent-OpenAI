@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { useAuthStore } from './stores/authStore'
 import LoginPage from './pages/LoginPage'
@@ -38,6 +38,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  // Hydrate the user from the stored token on mount, so a reloaded session
+  // shows the real display_name instead of a "?" fallback until some other
+  // action happens to trigger it.
+  useEffect(() => {
+    useAuthStore.getState().init()
+  }, [])
+
   return (
     <BrowserRouter>
       <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--bg-app)' }} />}>

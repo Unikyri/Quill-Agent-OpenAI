@@ -52,9 +52,9 @@ services:
       QWEN_BASE_URL: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
       QWEN_MAX_MODEL: ${QWEN_MAX_MODEL:-qwen-max}
       QWEN_TURBO_MODEL: ${QWEN_TURBO_MODEL:-qwen-turbo}
-      QWEN_EMBEDDING_MODEL: text-embedding-v3
+      QWEN_EMBEDDING_MODEL: ${QWEN_EMBEDDING_MODEL:-text-embedding-v3}
       QWEN_API_TIMEOUT_SECONDS: ${QWEN_API_TIMEOUT_SECONDS:-120}
-      QWEN_EMBEDDING_DIMENSIONS: "1024"
+      QWEN_EMBEDDING_DIMENSIONS: "${QWEN_EMBEDDING_DIMENSIONS:-1024}"
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
       PORT: "8080"
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
