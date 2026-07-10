@@ -38,7 +38,7 @@ func TestIngestionRepoCRUD(t *testing.T) {
 	}
 
 	// Create
-	err := repo.Create(ctx, jobID, universeID, workID, "pending", filename, "")
+	err := repo.Create(ctx, jobID, universeID, workID, "pending", filename, "md", "")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -59,6 +59,9 @@ func TestIngestionRepoCRUD(t *testing.T) {
 	}
 	if job.Filename != filename {
 		t.Errorf("Filename: got %q, want %q", job.Filename, filename)
+	}
+	if job.FileType != "md" {
+		t.Errorf("FileType: got %q, want %q", job.FileType, "md")
 	}
 	if job.Status != "pending" {
 		t.Errorf("Status: got %q, want %q", job.Status, "pending")

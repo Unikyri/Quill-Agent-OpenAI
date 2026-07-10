@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
 	"github.com/quill/backend/internal/models"
+	"github.com/quill/backend/internal/services"
 )
 
 // IngestionStarter is the minimal service interface for the ingestion handler.
@@ -56,6 +58,11 @@ func (h *IngestionHandler) Ingest(c *fiber.Ctx) error {
 
 	jobID, duplicate, err := h.ingestionSvc.Start(c.Context(), universeID, f, file.Filename)
 	if err != nil {
+		if errors.Is(err, services.ErrUnsupportedFileType) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": fiber.Map{"code": "VALIDATION_ERROR", "message": err.Error()},
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fiber.Map{"code": "INTERNAL_ERROR", "message": err.Error()},
 		})

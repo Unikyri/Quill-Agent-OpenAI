@@ -64,6 +64,18 @@ describe('IngestPage', () => {
     expect(screen.getByText('Only .md, .txt, .pdf, and .docx files are supported')).toBeInTheDocument()
   })
 
+  it('rejects legacy .doc files without calling the API', async () => {
+    renderPage()
+    const input = screen.getByTestId('ingest-file-input') as HTMLInputElement
+    const file = new File(['binary'], 'manuscript.doc', { type: 'application/msword' })
+
+    const user = userEvent.setup()
+    await user.upload(input, file)
+
+    expect(mockIngestDocument).not.toHaveBeenCalled()
+    expect(screen.getByText('Only .md, .txt, .pdf, and .docx files are supported')).toBeInTheDocument()
+  })
+
   it('uploads an accepted file and lists it as a job', async () => {
     mockIngestDocument.mockResolvedValue({ job_id: 'job-1', status: 'accepted' })
     renderPage()

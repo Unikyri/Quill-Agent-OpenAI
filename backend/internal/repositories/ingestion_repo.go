@@ -24,12 +24,13 @@ func NewIngestionRepo(pool *pgxpool.Pool) *IngestionRepo {
 
 // Create inserts a new ingestion job with the given initial status.
 // contentHash may be empty (stored as NULL, exempt from the dedup index).
-func (r *IngestionRepo) Create(ctx context.Context, jobID, universeID, workID uuid.UUID, status, filename, contentHash string) error {
+// fileType may be empty (stored as NULL).
+func (r *IngestionRepo) Create(ctx context.Context, jobID, universeID, workID uuid.UUID, status, filename, fileType, contentHash string) error {
 	query := `
-		INSERT INTO ingestion_jobs (id, universe_id, work_id, filename, status, content_hash, created_at)
-		VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''), NOW())
+		INSERT INTO ingestion_jobs (id, universe_id, work_id, filename, file_type, status, content_hash, created_at)
+		VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, NULLIF($7, ''), NOW())
 	`
-	_, err := r.pool.Exec(ctx, query, jobID, universeID, workID, filename, status, contentHash)
+	_, err := r.pool.Exec(ctx, query, jobID, universeID, workID, filename, fileType, status, contentHash)
 	if err != nil {
 		return fmt.Errorf("create ingestion job: %w", err)
 	}

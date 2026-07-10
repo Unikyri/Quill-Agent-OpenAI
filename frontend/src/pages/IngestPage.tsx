@@ -5,7 +5,7 @@ import { useWSStore } from '../stores/wsStore'
 import { useWS } from '../hooks/useWS'
 import styles from './IngestPage.module.css'
 
-const ACCEPTED_EXTENSIONS = ['.md', '.txt', '.pdf', '.docx', '.doc']
+const ACCEPTED_EXTENSIONS = ['.md', '.txt', '.pdf', '.docx']
 
 interface IngestJob {
   jobId: string
