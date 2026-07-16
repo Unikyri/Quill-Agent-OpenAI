@@ -199,10 +199,10 @@ describe('IngestPage', () => {
     })
   })
 
-  it('shows live progress and step checklist from ingestion_progress WS state', async () => {
+  it('shows live action and ETA from ingestion_progress WS state without static steps', async () => {
     mockIngestDocument.mockResolvedValue({ job_id: 'job-1', status: 'accepted' })
     mockIngestionProgress = {
-      'job-1': { job_id: 'job-1', status: 'running', chapters_processed: 2, total_chapters: 4 },
+      'job-1': { job_id: 'job-1', status: 'running', chapters_processed: 2, total_chapters: 4, action: 'Extracting entities from chapter 2…', eta_seconds: 18 },
     }
     renderPage()
     const input = screen.getByTestId('ingest-file-input') as HTMLInputElement
@@ -213,6 +213,9 @@ describe('IngestPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Processing…')).toBeInTheDocument()
+      expect(screen.getByText(/Extracting entities from chapter 2/)).toBeInTheDocument()
+      expect(screen.getByText(/18s remaining/)).toBeInTheDocument()
+      expect(screen.queryByText('Split chapters')).not.toBeInTheDocument()
     })
   })
 

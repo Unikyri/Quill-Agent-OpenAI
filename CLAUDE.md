@@ -8,7 +8,7 @@ Quill — an AI-powered writing IDE for creative writers with persistent memory.
 
 - **Backend**: Go 1.22 (Fiber v2.52.x) + PostgreSQL 16 (pgvector + Apache AGE graph extension)
 - **Frontend**: React 18 + Vite + TypeScript, TipTap (editor), React Flow (graph viz), Zustand (state)
-- **AI**: Qwen Cloud API (qwen-max / qwen-turbo for generation, text-embedding-v3 for embeddings), OpenAI-compatible endpoint
+- **AI**: Qwen Cloud API (qwen-max / qwen-turbo for generation, text-embedding-v4 for embeddings), OpenAI-compatible endpoint
 
 ## Commands
 

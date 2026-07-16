@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/quill/backend/internal/config"
 )
@@ -106,6 +107,11 @@ func TestQwenServiceHealthCheckAcceptsOnlySuccessfulResponses(t *testing.T) {
 			svc := NewQwenService(&config.Config{
 				QwenBaseURL: server.URL + "/", QwenAPIKey: "test-key", QwenMaxConcurrency: 1, QwenTurboConcurrency: 1,
 			}, nil)
+			// Health checks exercise the same classified-429 retry path as model
+			// calls. Keep this unit test deterministic instead of sleeping on the
+			// provider backoff schedule.
+			svc.retrySleep = func(context.Context, time.Duration) error { return nil }
+			svc.jitter = func(time.Duration) time.Duration { return 0 }
 			err := svc.HealthCheck(context.Background())
 			if tc.wantErr && err == nil {
 				t.Fatalf("HealthCheck status %d returned nil error", tc.status)
@@ -745,7 +751,7 @@ func TestNoHardcodedModelLiteralsOutsideConstructor(t *testing.T) {
 	bodyAfterCtor := src[ctorStart+ctorEnd+len("\n}\n"):]
 	outsideCtor := bodyBeforeCtor + bodyAfterCtor
 
-	for _, literal := range []string{`"qwen-turbo"`, `"qwen-max"`, `"text-embedding-v3"`} {
+	for _, literal := range []string{`"qwen-turbo"`, `"qwen-max"`, `"text-embedding-v4"`} {
 		if strings.Contains(outsideCtor, literal) {
 			t.Errorf("hardcoded model literal %s found outside NewQwenService — use s.turboModel/s.maxModel/s.embModel instead", literal)
 		}

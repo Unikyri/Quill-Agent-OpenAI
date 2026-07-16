@@ -76,6 +76,7 @@ type EntityMention struct {
 	EntityID        uuid.UUID `json:"entity_id"`
 	ChapterID       uuid.UUID `json:"chapter_id"`
 	ParagraphIndex  int       `json:"paragraph_index"`
+	CharacterOffset int       `json:"character_offset"`
 	ParagraphNodeID string    `json:"paragraph_node_id,omitempty"`
 	ContextSnippet  string    `json:"context_snippet,omitempty"`
 	MentionType     string    `json:"mention_type,omitempty"`

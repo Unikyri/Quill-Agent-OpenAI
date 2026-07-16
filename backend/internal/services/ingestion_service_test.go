@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -59,7 +60,76 @@ type mockQwenForIngestion struct {
 	relationshipErr       error
 	relationshipMu        sync.Mutex
 	relationshipCallCount int
+	embeddingBatchSizes   []int
 }
+
+// boundedMapQwen blocks each provider task until the test releases it. This
+// makes MAP parallelism observable without timing sleeps.
+type boundedMapQwen struct {
+	mu      sync.Mutex
+	active  int
+	max     int
+	started chan struct{}
+	release <-chan struct{}
+}
+
+type middleBatchFailureQwen struct{ calls int }
+
+func (m *middleBatchFailureQwen) ExtractEntities(context.Context, string, string) (*ExtractedEntities, error) {
+	return nil, nil
+}
+func (m *middleBatchFailureQwen) AnalyzeRelationships(context.Context, string, []string) ([]map[string]interface{}, error) {
+	return nil, nil
+}
+func (m *middleBatchFailureQwen) GenerateEmbedding(context.Context, string) ([]float32, error) {
+	return make([]float32, 1024), nil
+}
+func (m *middleBatchFailureQwen) GenerateEmbeddingBatch(_ context.Context, texts []string) ([][]float32, error) {
+	m.calls++
+	if m.calls == 2 {
+		return nil, errors.New("middle batch unavailable")
+	}
+	result := make([][]float32, len(texts))
+	for i := range result {
+		result[i] = make([]float32, 1024)
+	}
+	return result, nil
+}
+
+func (m *boundedMapQwen) IngestionConcurrency() int { return 2 }
+func (m *boundedMapQwen) begin() {
+	m.mu.Lock()
+	m.active++
+	if m.active > m.max {
+		m.max = m.active
+	}
+	m.mu.Unlock()
+	m.started <- struct{}{}
+	<-m.release
+	m.mu.Lock()
+	m.active--
+	m.mu.Unlock()
+}
+func (m *boundedMapQwen) ExtractEntities(_ context.Context, text, _ string) (*ExtractedEntities, error) {
+	m.begin()
+	return &ExtractedEntities{Characters: []ExtractedEntity{{Type: "character", Name: text, Description: text}}}, nil
+}
+func (m *boundedMapQwen) AnalyzeRelationships(context.Context, string, []string) ([]map[string]interface{}, error) {
+	return nil, nil
+}
+func (m *boundedMapQwen) GenerateEmbedding(context.Context, string) ([]float32, error) {
+	return []float32{0.1}, nil
+}
+func (m *boundedMapQwen) GenerateEmbeddingBatch(_ context.Context, texts []string) ([][]float32, error) {
+	m.begin()
+	result := make([][]float32, len(texts))
+	for i := range result {
+		result[i] = []float32{0.1}
+	}
+	return result, nil
+}
+
+func (m *boundedMapQwen) maxActive() int { m.mu.Lock(); defer m.mu.Unlock(); return m.max }
 
 type recordingRelationshipEdgeWriter struct {
 	edges []recordedRelationshipEdge
@@ -99,11 +169,212 @@ func (m *mockQwenForIngestion) GenerateEmbedding(ctx context.Context, text strin
 }
 
 func (m *mockQwenForIngestion) GenerateEmbeddingBatch(ctx context.Context, texts []string) ([][]float32, error) {
+	m.relationshipMu.Lock()
+	m.embeddingBatchSizes = append(m.embeddingBatchSizes, len(texts))
+	m.relationshipMu.Unlock()
 	out := make([][]float32, len(texts))
 	for i := range texts {
 		out[i] = []float32{0.1, 0.2, 0.3}
 	}
 	return out, nil
+}
+
+func (m *mockQwenForIngestion) embeddingBatches() []int {
+	m.relationshipMu.Lock()
+	defer m.relationshipMu.Unlock()
+	return append([]int(nil), m.embeddingBatchSizes...)
+}
+
+func TestMapChunksIsWriteFreeAndPreservesMentionCoordinates(t *testing.T) {
+	qwen := &mockQwenForIngestion{extractResult: &ExtractedEntities{Characters: []ExtractedEntity{{Type: "character", Name: "Mira", Description: "captain"}}}}
+	// A nil pool/entity service is deliberate: MAP must still call only Qwen
+	// and return DTOs, never trying to resolve/write domain state.
+	svc := &IngestionService{qwenSvc: qwen}
+	chunks := []ingestionChunk{{title: "Arrival", content: "Mira arrives at Aurelia.\n\nThe ship departs."}}
+	results := svc.mapChunks(context.Background(), chunks, nil)
+	if len(results) != 1 || len(results[0].Embeddings) != 2 {
+		t.Fatalf("MAP result = %#v", results)
+	}
+	if len(results[0].Mentions) != 1 {
+		t.Fatalf("mentions = %#v", results[0].Mentions)
+	}
+	mention := results[0].Mentions[0]
+	if mention.ParagraphIndex != 0 || mention.Offset != 0 || !strings.Contains(mention.Snippet, "Mira") {
+		t.Fatalf("mention coordinates = %#v", mention)
+	}
+}
+
+func TestEmbedParagraphBatchesCapsProviderBatchesAtTen(t *testing.T) {
+	qwen := &mockQwenForIngestion{}
+	svc := &IngestionService{qwenSvc: qwen}
+	paragraphs := make([]mappedParagraph, 21)
+	for i := range paragraphs {
+		paragraphs[i] = mappedParagraph{Index: i, Text: fmt.Sprintf("paragraph %d", i)}
+	}
+	embeddings, err := svc.embedParagraphBatches(context.Background(), paragraphs)
+	if err != nil {
+		t.Fatalf("embedParagraphBatches: %v", err)
+	}
+	if got := qwen.embeddingBatches(); !reflect.DeepEqual(got, []int{10, 10, 1}) {
+		t.Fatalf("batch sizes = %v, want [10 10 1]", got)
+	}
+	if len(embeddings) != 21 {
+		t.Fatalf("embeddings = %d, want 21", len(embeddings))
+	}
+	for index, embedding := range embeddings {
+		if embedding == nil {
+			t.Fatalf("embedding %d was not retained", index)
+		}
+	}
+}
+
+func TestMapMentionsTrimLeadingWhitespaceAndSortForReduce(t *testing.T) {
+	paragraphs := mapParagraphs(0, "   Port greets Mira.")
+	extracted := &ExtractedEntities{
+		Characters: []ExtractedEntity{{Type: "character", Name: "Mira"}},
+		Places:     []ExtractedEntity{{Type: "place", Name: "Port"}},
+	}
+	mentions := mapExtractedMentions(extracted, paragraphs)
+	if len(mentions) != 2 || mentions[0].Entity.Name != "Mira" || mentions[0].Offset != 15 {
+		t.Fatalf("leading whitespace mention = %#v", mentions)
+	}
+	ordered := sortMentionsForReduce(mentions)
+	if ordered[0].Entity.Name != "Port" || ordered[0].Offset != 3 || ordered[1].Entity.Name != "Mira" {
+		t.Fatalf("document order = %#v", ordered)
+	}
+	reversed := sortMentionsForReduce([]extractedMention{
+		{Entity: repositories.ExtractedEntity{Name: "Late"}, ParagraphIndex: 0, Offset: 20},
+		{Entity: repositories.ExtractedEntity{Name: "Early"}, ParagraphIndex: 0, Offset: 2},
+	})
+	if reversed[0].Entity.Name != "Early" {
+		t.Fatalf("reduce order = %#v", reversed)
+	}
+}
+
+func TestReducePersistsSuccessfulEmbeddingBatchesAfterMiddleFailure(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "023")
+	ctx := context.Background()
+	user := svcCreateTestUser(t, ctx, pool)
+	universe := models.Universe{ID: uuid.New(), UserID: user.ID, Name: "Embedding Universe", GenreTags: []string{"fantasy"}}
+	if _, err := pool.Exec(ctx, "INSERT INTO universes (id,user_id,name,description,genre_tags) VALUES ($1,$2,$3,$4,$5)", universe.ID, universe.UserID, universe.Name, "", universe.GenreTags); err != nil {
+		t.Fatalf("create universe: %v", err)
+	}
+	work := svcCreateTestWork(t, ctx, pool, universe.ID)
+	chapter := svcCreateTestChapter(t, ctx, pool, work.ID, "Chapter", 1)
+	qwen := &middleBatchFailureQwen{}
+	svc := &IngestionService{vectorRepo: repositories.NewVectorRepo(pool), qwenSvc: qwen}
+	paragraphs := make([]mappedParagraph, 21)
+	for i := range paragraphs {
+		paragraphs[i] = mappedParagraph{Index: i, Text: fmt.Sprintf("paragraph %d", i), NodeID: fmt.Sprintf("node-%d", i)}
+	}
+	embeddings, err := svc.embedParagraphBatches(ctx, paragraphs)
+	if err == nil {
+		t.Fatal("expected middle batch failure")
+	}
+	if embeddings[0] == nil || embeddings[10] != nil || embeddings[20] == nil {
+		t.Fatalf("partial embeddings were not retained: first=%t middle=%t last=%t", embeddings[0] != nil, embeddings[10] != nil, embeddings[20] != nil)
+	}
+	svc.persistMappedEmbeddings(ctx, chapter.ID, paragraphs, embeddings)
+	rows, err := pool.Query(ctx, "SELECT paragraph_index FROM paragraph_embeddings WHERE chapter_id=$1 ORDER BY paragraph_index", chapter.ID)
+	if err != nil {
+		t.Fatalf("query persisted embeddings: %v", err)
+	}
+	defer rows.Close()
+	var indexes []int
+	for rows.Next() {
+		var index int
+		if err := rows.Scan(&index); err != nil {
+			t.Fatalf("scan embedding: %v", err)
+		}
+		indexes = append(indexes, index)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate embeddings: %v", err)
+	}
+	if len(indexes) != 11 || indexes[0] != 0 || indexes[9] != 9 || indexes[10] != 20 {
+		t.Fatalf("persisted indexes = %v, want 0..9,20", indexes)
+	}
+}
+
+func TestMapChunksBoundsAllProviderTasksAndReturnsDocumentOrder(t *testing.T) {
+	release := make(chan struct{})
+	qwen := &boundedMapQwen{started: make(chan struct{}, 16), release: release}
+	svc := &IngestionService{qwenSvc: qwen}
+	chunks := []ingestionChunk{{title: "first", content: "First"}, {title: "second", content: "Second"}, {title: "third", content: "Third"}}
+	done := make(chan []ingestionMapResult, 1)
+	go func() { done <- svc.mapChunks(context.Background(), chunks, nil) }()
+
+	// Exactly the throttle-derived bound may enter provider work before release.
+	<-qwen.started
+	<-qwen.started
+	if got := qwen.maxActive(); got != 2 {
+		t.Fatalf("active MAP provider tasks = %d, want 2", got)
+	}
+	close(release)
+	results := <-done
+	if len(results) != len(chunks) {
+		t.Fatalf("results = %d, want %d", len(results), len(chunks))
+	}
+	for index, result := range results {
+		if result.Index != index || result.Chunk.title != chunks[index].title {
+			t.Fatalf("result %d = %#v, want chunk %q", index, result, chunks[index].title)
+		}
+	}
+}
+
+func TestReduceMentionsSeriallyResolvesDuplicatesAndPersistsMentions(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	// Use the latest schema so this also proves the character offset survives
+	// REDUCE persistence. Natural-key conflict recovery itself is covered by
+	// the Phase 1 EntityService integration test.
+	testutil.RunMigrationsUpTo(t, pool, "023")
+	ctx := context.Background()
+	user := svcCreateTestUser(t, ctx, pool)
+	universe := models.Universe{ID: uuid.New(), UserID: user.ID, Name: "Test Universe", GenreTags: []string{"fantasy"}}
+	if _, err := pool.Exec(ctx, "INSERT INTO universes (id, user_id, name, description, genre_tags) VALUES ($1,$2,$3,$4,$5)", universe.ID, universe.UserID, universe.Name, "", universe.GenreTags); err != nil {
+		t.Fatalf("create universe: %v", err)
+	}
+	work := svcCreateTestWork(t, ctx, pool, universe.ID)
+	chapter := svcCreateTestChapter(t, ctx, pool, work.ID, "Arrival", 1)
+	entityRepo := repositories.NewEntityRepo(pool)
+	svc := &IngestionService{
+		pool:      pool,
+		entitySvc: NewEntityService(pool, entityRepo, nil, newErrorQwenService(t)),
+	}
+	mentions := []extractedMention{
+		{Entity: repositories.ExtractedEntity{Type: "character", Name: "James Holden", Description: "captain"}, ParagraphIndex: 0, Offset: 3, Snippet: "James Holden arrives."},
+		{Entity: repositories.ExtractedEntity{Type: "character", Name: "James Holden", Description: "captain of the Rocinante"}, ParagraphIndex: 1, Offset: 8, Snippet: "James Holden speaks."},
+	}
+
+	resolved := svc.reduceMentions(ctx, universe.ID, chapter.ID, mentions)
+	if len(resolved) != 2 {
+		t.Fatalf("resolved = %d, want 2", len(resolved))
+	}
+	if resolved[0].Entity.ID != resolved[1].Entity.ID {
+		t.Fatalf("duplicate mentions resolved to %s and %s", resolved[0].Entity.ID, resolved[1].Entity.ID)
+	}
+	entities, total, err := entityRepo.ListByUniverse(ctx, universe.ID, repositories.EntityFilters{Page: 1, Limit: 10})
+	if err != nil {
+		t.Fatalf("ListByUniverse: %v", err)
+	}
+	if total != 1 || len(entities) != 1 {
+		t.Fatalf("entities = %d/%d, want one natural-key entity", total, len(entities))
+	}
+	mentionsCount, err := entityRepo.CountMentions(ctx, resolved[0].Entity.ID)
+	if err != nil {
+		t.Fatalf("CountMentions: %v", err)
+	}
+	if mentionsCount != 2 {
+		t.Fatalf("mentions = %d, want 2", mentionsCount)
+	}
+	var offset int
+	if err := pool.QueryRow(ctx, "SELECT character_offset FROM entity_mentions WHERE entity_id=$1 AND paragraph_index=0", resolved[0].Entity.ID).Scan(&offset); err != nil {
+		t.Fatalf("select persisted offset: %v", err)
+	}
+	if offset != 3 {
+		t.Fatalf("persisted offset = %d, want 3", offset)
+	}
 }
 
 // ── Test: pipeline sequence ──

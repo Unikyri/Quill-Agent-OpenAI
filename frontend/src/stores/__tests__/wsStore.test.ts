@@ -315,13 +315,15 @@ describe('wsStore', () => {
       const ws = MockWebSocket.instances[0]
       ws.simulateMessage({
         type: 'ingestion_progress',
-        payload: { job_id: 'job-1', status: 'running', chapters_processed: 2, total_chapters: 5 },
+        payload: { job_id: 'job-1', status: 'running', chapters_processed: 2, total_chapters: 5, action: 'Extracting entities', eta_seconds: 12 },
       })
       expect(getStore().ingestionProgress['job-1']).toEqual({
         job_id: 'job-1',
         status: 'running',
         chapters_processed: 2,
         total_chapters: 5,
+        action: 'Extracting entities',
+        eta_seconds: 12,
       })
     })
 

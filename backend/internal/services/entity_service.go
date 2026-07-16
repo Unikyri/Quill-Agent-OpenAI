@@ -3,10 +3,12 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/quill/backend/internal/models"
@@ -102,7 +104,7 @@ func (s *EntityService) ResolveOrCreate(ctx context.Context, universeID uuid.UUI
 	defer tx.Rollback(ctx)
 
 	// Step 1: Exact name match
-	existing, err := s.entityRepo.FindByName(ctx, universeID, data.Name)
+	existing, err := s.entityRepo.FindByNaturalKey(ctx, universeID, data.Name, data.Type)
 	if err == nil && existing != nil {
 		prevStatus := existing.Status
 		merged := s.mergeEntity(existing, data)
@@ -131,7 +133,7 @@ func (s *EntityService) ResolveOrCreate(ctx context.Context, universeID uuid.UUI
 
 	// Step 2: Alias match
 	for _, alias := range data.Aliases {
-		existing, err = s.entityRepo.FindByAlias(ctx, universeID, alias)
+		existing, err = s.entityRepo.FindByAliasAndType(ctx, universeID, alias, data.Type)
 		if err == nil && existing != nil {
 			prevStatus := existing.Status
 			merged := s.mergeEntity(existing, data)
@@ -180,7 +182,31 @@ func (s *EntityService) ResolveOrCreate(ctx context.Context, universeID uuid.UUI
 	}
 
 	if err := s.entityRepo.Create(ctx, tx, newEntity); err != nil {
-		return nil, "", false, err
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+			return nil, "", false, err
+		}
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+			return nil, "", false, fmt.Errorf("rollback after entity natural-key conflict: %w", rollbackErr)
+		}
+		winner, fetchErr := s.entityRepo.FindByNaturalKey(ctx, universeID, data.Name, data.Type)
+		if fetchErr != nil {
+			return nil, "", false, fmt.Errorf("refetch entity after natural-key conflict: %w", fetchErr)
+		}
+		previousStatus := winner.Status
+		merged := s.mergeEntity(winner, data)
+		mergeTx, beginErr := s.pool.Begin(ctx)
+		if beginErr != nil {
+			return nil, "", false, fmt.Errorf("begin entity merge after natural-key conflict: %w", beginErr)
+		}
+		defer mergeTx.Rollback(ctx)
+		if updateErr := s.entityRepo.Update(ctx, mergeTx, merged); updateErr != nil {
+			return nil, "", false, fmt.Errorf("merge entity after natural-key conflict: %w", updateErr)
+		}
+		if commitErr := mergeTx.Commit(ctx); commitErr != nil {
+			return nil, "", false, fmt.Errorf("commit entity merge after natural-key conflict: %w", commitErr)
+		}
+		return merged, previousStatus, false, nil
 	}
 
 	if err := tx.Commit(ctx); err != nil {

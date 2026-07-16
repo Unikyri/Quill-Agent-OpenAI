@@ -50,9 +50,18 @@ services:
       DATABASE_URL: postgres://quill:${DB_PASSWORD:-quill_dev_password}@postgres:5432/quill?sslmode=disable
       QWEN_API_KEY: ${QWEN_API_KEY}
       QWEN_BASE_URL: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
-      QWEN_MAX_MODEL: ${QWEN_MAX_MODEL:-qwen-max}
-      QWEN_TURBO_MODEL: ${QWEN_TURBO_MODEL:-qwen-plus}
-      QWEN_EMBEDDING_MODEL: ${QWEN_EMBEDDING_MODEL:-text-embedding-v3}
+      QWEN_EXTRACTION_MODEL: ${QWEN_EXTRACTION_MODEL:-qwen-turbo}
+      QWEN_REASONING_MODEL: ${QWEN_REASONING_MODEL:-qwen-max}
+      QWEN_FALLBACK_MODEL: ${QWEN_FALLBACK_MODEL:-qwen-plus}
+      QWEN_FALLBACK_ON_429: ${QWEN_FALLBACK_ON_429:-false}
+      QWEN_EMBEDDING_MODEL: ${QWEN_EMBEDDING_MODEL:-text-embedding-v4}
+      LLM_TPM_TURBO: "${LLM_TPM_TURBO:-5000000}"
+      LLM_TPM_MAX: "${LLM_TPM_MAX:-1000000}"
+      LLM_RPM: "${LLM_RPM:-600}"
+      LLM_INTERACTIVE_RESERVE: "${LLM_INTERACTIVE_RESERVE:-0.30}"
+      LLM_MAX_CONCURRENCY: "${LLM_MAX_CONCURRENCY:-5}"
+      LLM_RAMP_STEP: "${LLM_RAMP_STEP:-1}"
+      QWEN_RETRY_MAX_ATTEMPTS: "${QWEN_RETRY_MAX_ATTEMPTS:-3}"
       QWEN_API_TIMEOUT_SECONDS: ${QWEN_API_TIMEOUT_SECONDS:-120}
       QWEN_EMBEDDING_DIMENSIONS: "${QWEN_EMBEDDING_DIMENSIONS:-1024}"
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}

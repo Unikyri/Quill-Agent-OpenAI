@@ -61,7 +61,7 @@ flowchart LR
 | Frontend | React 18, Vite, TypeScript, TipTap, Zustand |
 | Database | PostgreSQL 16, pgvector, Apache AGE |
 | Graph visualization | React Flow |
-| AI | Qwen Cloud (`qwen-max`, `qwen-turbo`, `text-embedding-v3`) |
+| AI | Qwen Cloud (`qwen-max`, `qwen-turbo`, `text-embedding-v4`) |
 
 ## Quick Start
 

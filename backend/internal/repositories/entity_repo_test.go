@@ -3,6 +3,8 @@ package repositories
 import (
 	"context"
 	"math"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
@@ -357,5 +359,166 @@ func TestFindByFuzzyName(t *testing.T) {
 				t.Errorf("FindByFuzzyName returned %v, want %v", got.ID, tc.wantID)
 			}
 		})
+	}
+}
+
+func TestEntityNaturalKeyMigrationConsolidatesDuplicatesAndAllowsTypedNames(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "021")
+	ctx := context.Background()
+
+	user := createTestUser(t, ctx, pool)
+	universe := &models.Universe{ID: uuid.New(), UserID: user.ID, Name: "Natural Key Test", GenreTags: []string{"fantasy"}}
+	universeRepo := NewUniverseRepo(pool)
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin universe tx: %v", err)
+	}
+	defer tx.Rollback(ctx)
+	if err := universeRepo.Create(ctx, tx, universe); err != nil {
+		t.Fatalf("create universe: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit universe: %v", err)
+	}
+
+	workID := uuid.New()
+	chapterID := uuid.New()
+	if _, err := pool.Exec(ctx, "INSERT INTO works (id, universe_id, title, type, order_index) VALUES ($1,$2,$3,$4,$5)", workID, universe.ID, "Work", "novel", 0); err != nil {
+		t.Fatalf("insert work: %v", err)
+	}
+	if _, err := pool.Exec(ctx, "INSERT INTO chapters (id, work_id, title, order_index) VALUES ($1,$2,$3,$4)", chapterID, workID, "Chapter", 0); err != nil {
+		t.Fatalf("insert chapter: %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, "DROP INDEX idx_entities_name_unique"); err != nil {
+		t.Fatalf("drop legacy name index: %v", err)
+	}
+	winnerID := uuid.New()
+	loserID := uuid.New()
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO entities (id, universe_id, type, name, aliases, description, status, relevance_score)
+		VALUES ($1,$2,'character','Aurelia Station',ARRAY['The Station'],'short','active',0.8),
+		       ($3,$2,'character','aurelia station',ARRAY['Aurelia'],'the longer canonical description','active',0.8)
+	`, winnerID, universe.ID, loserID); err != nil {
+		t.Fatalf("seed duplicate entities: %v", err)
+	}
+	if _, err := pool.Exec(ctx, "INSERT INTO entity_mentions (id, entity_id, chapter_id, paragraph_index) VALUES ($1,$2,$3,$4)", uuid.New(), loserID, chapterID, 0); err != nil {
+		t.Fatalf("seed duplicate mention: %v", err)
+	}
+	embeddingID := uuid.New()
+	if _, err := pool.Exec(ctx, "INSERT INTO entity_embeddings (id, entity_id) VALUES ($1,$2)", embeddingID, loserID); err != nil {
+		t.Fatalf("seed duplicate embedding: %v", err)
+	}
+
+	var graphRepo *GraphRepo
+	graphName := "universe_" + universe.ID.String()
+	if testutil.CheckAGE(t, pool) {
+		graphRepo = NewGraphRepo(pool)
+		if err := graphRepo.CreateGraph(ctx, universe.ID.String()); err != nil {
+			t.Fatalf("create duplicate graph: %v", err)
+		}
+		for _, entity := range []models.Entity{
+			{ID: winnerID, Name: "Aurelia Station", Type: "character", Status: "active", RelevanceScore: 0.8},
+			{ID: loserID, Name: "aurelia station", Type: "character", Status: "active", RelevanceScore: 0.8},
+		} {
+			if err := graphRepo.CreateNode(ctx, graphName, entity.Type, map[string]interface{}{
+				"entity_id":       entity.ID.String(),
+				"name":            entity.Name,
+				"status":          entity.Status,
+				"relevance_score": entity.RelevanceScore,
+			}); err != nil {
+				t.Fatalf("create duplicate graph node: %v", err)
+			}
+		}
+		if err := graphRepo.CreateEdge(ctx, graphName, loserID.String(), winnerID.String(), "RELATED_TO", nil); err != nil {
+			t.Fatalf("create duplicate graph edge: %v", err)
+		}
+	}
+
+	migration, err := os.ReadFile(filepath.Join("..", "..", "migrations", "022_entity_natural_key.up.sql"))
+	if err != nil {
+		t.Fatalf("read natural-key migration: %v", err)
+	}
+	if _, err := pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatalf("apply natural-key migration: %v", err)
+	}
+
+	repo := NewEntityRepo(pool)
+	entity, err := repo.FindByNaturalKey(ctx, universe.ID, "AURELIA STATION", "character")
+	if err != nil {
+		t.Fatalf("FindByNaturalKey: %v", err)
+	}
+	if entity.ID != loserID || entity.Description != "the longer canonical description" {
+		t.Fatalf("winner = %#v, want longest-description entity %s", entity, loserID)
+	}
+	aliases := map[string]bool{}
+	for _, alias := range entity.Aliases {
+		aliases[alias] = true
+	}
+	if !aliases["The Station"] || !aliases["Aurelia"] {
+		t.Errorf("merged aliases = %v, want both source aliases", entity.Aliases)
+	}
+
+	var mentionEntityID, embeddingEntityID uuid.UUID
+	if err := pool.QueryRow(ctx, "SELECT entity_id FROM entity_mentions WHERE chapter_id = $1", chapterID).Scan(&mentionEntityID); err != nil {
+		t.Fatalf("read repointed mention: %v", err)
+	}
+	if err := pool.QueryRow(ctx, "SELECT entity_id FROM entity_embeddings WHERE id = $1", embeddingID).Scan(&embeddingEntityID); err != nil {
+		t.Fatalf("read transferred embedding: %v", err)
+	}
+	if mentionEntityID != loserID || embeddingEntityID != loserID {
+		t.Errorf("repointed IDs = mention:%s embedding:%s, want %s", mentionEntityID, embeddingEntityID, loserID)
+	}
+	if graphRepo != nil {
+		graphTx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatalf("begin graph verification tx: %v", err)
+		}
+		defer graphTx.Rollback(ctx)
+		edges, err := graphRepo.QueryTemplateEdgesTx(ctx, graphTx, graphName)
+		if err != nil {
+			t.Fatalf("query remapped graph edge: %v", err)
+		}
+		if len(edges) != 1 || edges[0].Source != loserID.String() || edges[0].Target != loserID.String() {
+			t.Fatalf("remapped graph edges = %#v, want one %s -> %s edge", edges, loserID, loserID)
+		}
+	}
+
+	if _, err := pool.Exec(ctx, "INSERT INTO entities (id, universe_id, type, name) VALUES ($1,$2,'character','AURELIA STATION')", uuid.New(), universe.ID); err == nil {
+		t.Fatal("expected duplicate typed natural key to fail")
+	}
+	placeID := uuid.New()
+	if _, err := pool.Exec(ctx, "INSERT INTO entities (id, universe_id, type, name) VALUES ($1,$2,'place','AURELIA STATION')", placeID, universe.ID); err != nil {
+		t.Fatalf("same name with another type should succeed: %v", err)
+	}
+	place, err := repo.FindByNaturalKey(ctx, universe.ID, "aurelia station", "place")
+	if err != nil || place.ID != placeID {
+		t.Fatalf("typed place lookup = %#v, %v; want %s", place, err, placeID)
+	}
+	downMigration, err := os.ReadFile(filepath.Join("..", "..", "migrations", "022_entity_natural_key.down.sql"))
+	if err != nil {
+		t.Fatalf("read natural-key down migration: %v", err)
+	}
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("acquire down-migration connection: %v", err)
+	}
+	defer conn.Release()
+	if _, err := conn.Exec(ctx, string(downMigration)); err == nil {
+		t.Fatal("expected down migration to reject cross-type names")
+	}
+	if _, err := conn.Exec(ctx, "ROLLBACK"); err != nil {
+		t.Fatalf("rollback rejected down migration: %v", err)
+	}
+	var retainedIndex *string
+	if err := conn.QueryRow(ctx, "SELECT to_regclass('public.entities_universe_name_type_key')::text").Scan(&retainedIndex); err != nil {
+		t.Fatalf("read retained natural-key index: %v", err)
+	}
+	if retainedIndex == nil || *retainedIndex != "entities_universe_name_type_key" {
+		t.Fatalf("natural-key index after rejected down = %v, want retained index", retainedIndex)
+	}
+	if _, err := pool.Exec(ctx, "DELETE FROM entities WHERE id = $1", placeID); err != nil {
+		t.Fatalf("remove cross-type test entity before migration teardown: %v", err)
 	}
 }

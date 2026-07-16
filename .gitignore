@@ -33,6 +33,9 @@ coverage/
 .htmlcov/
 frontend/test-results/
 
+# Reproducible performance-fixture reports (timestamps and local timings)
+artifacts/reports/
+
 # Docker
 docker-compose.override.yml
 backend/*.test

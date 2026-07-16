@@ -45,6 +45,8 @@ interface IngestionProgress {
   status?: string
   chapters_processed?: number
   total_chapters?: number
+  action?: string
+  eta_seconds?: number
   [key: string]: unknown
 }
 

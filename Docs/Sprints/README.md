@@ -31,21 +31,21 @@ everything after. Two rules govern the plan:
    the bare aliases — `qwen-max` may resolve to a snapshot other than the one carrying the
    quota. Verify after the first calls that consumption lands on the free quota.
 
-| Role | Env var (today) | Free-quota phase | Coupon phase |
+| Role | Env var | Free-quota phase | Coupon phase |
 |---|---|---|---|
-| Extraction / MAP | `QWEN_TURBO_MODEL` | `qwen-turbo-latest` | `qwen-turbo` |
-| Reasoning (contradictions, plot holes, craft review) | `QWEN_MAX_MODEL` | `qwen-max-2025-01-25` | `qwen-max` |
-| Plumbing tests (E2E wiring, JSON-shape checks — quality irrelevant) | `QWEN_TURBO_MODEL` per run | `qwen3-8b`, then `qwen2.5-7b-instruct`, `qwen2.5-14b-instruct` | — (never; that's what the throwaway quotas are for) |
+| Extraction / MAP | `QWEN_EXTRACTION_MODEL` | `qwen-turbo-latest` | `qwen-turbo` |
+| Reasoning (contradictions, plot holes, craft review) | `QWEN_REASONING_MODEL` | `qwen-max-2025-01-25` | `qwen-max` |
+| Plumbing tests (E2E wiring, JSON-shape checks — quality irrelevant) | `QWEN_EXTRACTION_MODEL` per run | `qwen3-8b`, then `qwen2.5-7b-instruct`, `qwen2.5-14b-instruct` | — (never; that's what the throwaway quotas are for) |
 | Fallback (TH-6, Sprint 2) | `QWEN_FALLBACK_MODEL` (new in Sprint 2) | `qwen-plus-latest` | `qwen-plus` |
 | Rerank (Sprint 3) | `QWEN_RERANK_MODEL` (new in Sprint 3) | `qwen3-rerank` | `qwen3-rerank` |
 | Embeddings | `QWEN_EMBEDDING_MODEL` | `text-embedding-v4` | `text-embedding-v4` — **never change** |
 
-Env var evolution: today's two chat slots (`QWEN_MAX_MODEL`, `QWEN_TURBO_MODEL`,
-`config.go:53-54`) are enough while the code only distinguishes two tiers. Sprint 2
-(Task 2.3) renames them to role-based vars — `QWEN_EXTRACTION_MODEL`,
-`QWEN_REASONING_MODEL`, `QWEN_FALLBACK_MODEL` — and Sprint 3 adds `QWEN_RERANK_MODEL`
-and `LLM_PROTOCOL`. Rotating from free quota to coupon is always a `.env` value change,
-never a rebuild (MT-3).
+Sprint 2 uses role-based chat variables: `QWEN_EXTRACTION_MODEL`,
+`QWEN_REASONING_MODEL`, and `QWEN_FALLBACK_MODEL`. The legacy
+`QWEN_MAX_MODEL` and `QWEN_TURBO_MODEL` aliases remain supported while
+deployments migrate, but new configuration should use the role names. Sprint 3
+adds `QWEN_RERANK_MODEL` and `LLM_PROTOCOL`. Rotating from free quota to
+coupon is always a `.env` value change, never a rebuild (MT-3).
 
 Budget reality check: one full 400-page ingest burns ~300–500K extraction tokens — **two
 full runs exhaust qwen-turbo's free million**. Iterate on the 50-page fixture; spend

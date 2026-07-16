@@ -117,8 +117,8 @@ func TestBudgetAllocationReportPercentMath(t *testing.T) {
 
 	report := alloc.Report(30000)
 
-	if report.MaxContextTokens != 50000 {
-		t.Errorf("MaxContextTokens = %d, want 50000", report.MaxContextTokens)
+	if report.MaxContextTokens != 30000 {
+		t.Errorf("MaxContextTokens = %d, want 30000", report.MaxContextTokens)
 	}
 	if report.Available != 10000 {
 		t.Errorf("Available = %d, want 10000", report.Available)

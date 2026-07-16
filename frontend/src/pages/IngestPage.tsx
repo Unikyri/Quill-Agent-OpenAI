@@ -16,19 +16,6 @@ interface IngestJob {
   errorMessage?: string
 }
 
-// ponytail: fixed step labels mirroring the backend pipeline order
-// (chunk by heading -> extract entities -> embed -> populate graph). The
-// backend doesn't report per-step granularity, only chapter counts, so
-// steps are inferred from overall percent complete rather than tracked
-// individually.
-const STEPS = [
-  { key: 'split', label: 'Split chapters' },
-  { key: 'segment', label: 'Segment paragraphs' },
-  { key: 'extract', label: 'Extract entities' },
-  { key: 'embed', label: 'Generate embeddings' },
-  { key: 'graph', label: 'Populate graph' },
-]
-
 function isAcceptedFile(file: File): boolean {
   const lower = file.name.toLowerCase()
   return ACCEPTED_EXTENSIONS.some((ext) => lower.endsWith(ext))
@@ -147,7 +134,8 @@ export default function IngestPage() {
             const done = status === 'completed'
             const failed = status === 'failed'
             const pct = total > 0 ? Math.round((processed / total) * 100) : done ? 100 : 0
-            const activeSteps = done ? STEPS.length : Math.min(STEPS.length - 1, Math.floor((pct / 100) * STEPS.length))
+            const action = progress?.action as string | undefined
+            const etaSeconds = progress?.eta_seconds as number | undefined
 
             return (
               <div key={job.jobId} className={styles.jobCard}>
@@ -168,17 +156,11 @@ export default function IngestPage() {
                 <div className={styles.progressTrack}>
                   <div className={styles.progressFill} style={{ width: `${done ? 100 : pct}%` }} />
                 </div>
-                <div className={styles.stepList}>
-                  {STEPS.map((step, i) => (
-                    <span
-                      key={step.key}
-                      className={styles.stepChip}
-                      data-done={i < activeSteps || done || undefined}
-                    >
-                      {step.label}
-                    </span>
-                  ))}
-                </div>
+                {(action || etaSeconds !== undefined) && (
+                  <p className={styles.progressMeta}>
+                    {action}{etaSeconds !== undefined && ` · ~${etaSeconds}s remaining`}
+                  </p>
+                )}
               </div>
             )
           })}

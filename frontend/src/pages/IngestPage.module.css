@@ -135,28 +135,9 @@
   transition: width 0.5s ease;
 }
 
-/* Step chips */
-.stepList {
-  display: flex;
-  gap: 5px;
-  flex-wrap: wrap;
-}
-
-.stepChip {
-  font-family: var(--mono);
-  font-size: 9.5px;
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  padding: 3px 9px;
-  border-radius: var(--r-pill);
-  background: var(--surface-sunken);
-  border: 1px solid var(--line);
-  color: var(--muted-3);
-  transition: background 0.2s, color 0.2s;
-}
-
-.stepChip[data-done] {
-  background: rgba(53,107,71,.1);
-  border-color: rgba(53,107,71,.2);
-  color: var(--success);
+.progressMeta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: left;
 }

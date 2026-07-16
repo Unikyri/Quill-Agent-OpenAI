@@ -13,12 +13,14 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/quill/backend/internal/models"
 	"github.com/quill/backend/internal/repositories"
@@ -76,6 +78,8 @@ type IngestionService struct {
 	plotHoleSvc         *PlotHoleService
 	analysisBudgetMgr   *ContextBudgetManager
 	analysisMaxChapters int
+	progressNow         func() time.Time
+	newProgressTicker   func(time.Duration) ingestionTicker
 }
 
 // NewIngestionService creates an IngestionService. All parameters may be nil
@@ -220,12 +224,202 @@ type ingestedChapter struct {
 	Entities []ResolvedEntity
 }
 
+// extractedMention is the write-free output of MAP. It retains document
+// coordinates so REDUCE can persist a deterministic entity_mentions row
+// without re-parsing LLM output or consulting neighbouring chunks.
+type extractedMention struct {
+	Entity         repositories.ExtractedEntity
+	ParagraphIndex int
+	Offset         int
+	Snippet        string
+}
+
+type mappedParagraph struct {
+	Index  int
+	Offset int
+	Text   string
+	NodeID string
+}
+
+// ingestionMapResult is intentionally free of database identifiers. MAP can
+// therefore run in parallel safely; REDUCE assigns chapter/entity IDs in
+// document order after all model calls finish.
+type ingestionMapResult struct {
+	Index         int
+	Chunk         ingestionChunk
+	Paragraphs    []mappedParagraph
+	Embeddings    [][]float32
+	Mentions      []extractedMention
+	ExtractionErr error
+	EmbeddingErr  error
+}
+
+type ingestionConcurrencyProvider interface {
+	IngestionConcurrency() int
+}
+
+func (s *IngestionService) mapConcurrency() int {
+	if provider, ok := s.qwenSvc.(ingestionConcurrencyProvider); ok {
+		if limit := provider.IngestionConcurrency(); limit > 0 {
+			return limit
+		}
+	}
+	// The Qwen throttle starts at two concurrent calls. Keep the same safe
+	// bound for alternate test/providers that do not expose its ramp state.
+	return 2
+}
+
+// mapChunks performs only stateless Qwen work. It must never resolve an
+// entity, open a transaction, or write a chapter/vector/graph row.
+func (s *IngestionService) mapChunks(ctx context.Context, chunks []ingestionChunk, onComplete func(int, int)) []ingestionMapResult {
+	results := make([]ingestionMapResult, len(chunks))
+	if len(chunks) == 0 {
+		return results
+	}
+
+	var completed atomic.Int32
+	group, mapCtx := errgroup.WithContext(ctx)
+	group.SetLimit(s.mapConcurrency())
+	type completion struct{ remaining atomic.Int32 }
+	completions := make([]completion, len(chunks))
+	for index, chunk := range chunks {
+		paragraphs := mapParagraphs(index, chunk.content)
+		results[index] = ingestionMapResult{Index: index, Chunk: chunk, Paragraphs: paragraphs}
+		if s.qwenSvc == nil {
+			if onComplete != nil {
+				onComplete(int(completed.Add(1)), index)
+			}
+			continue
+		}
+
+		taskCount := int32(1) // extraction is always a MAP task.
+		if len(paragraphs) > 0 {
+			taskCount++
+		}
+		completions[index].remaining.Store(taskCount)
+		finish := func() {
+			if completions[index].remaining.Add(-1) == 0 && onComplete != nil {
+				onComplete(int(completed.Add(1)), index)
+			}
+		}
+		index, chunk, paragraphs := index, chunk, paragraphs
+		group.Go(func() error {
+			extracted, err := s.qwenSvc.ExtractEntities(mapCtx, chunk.content, "")
+			results[index].ExtractionErr = err
+			if err == nil {
+				results[index].Mentions = mapExtractedMentions(extracted, paragraphs)
+			}
+			finish()
+			return nil
+		})
+		if len(paragraphs) > 0 {
+			group.Go(func() error {
+				results[index].Embeddings, results[index].EmbeddingErr = s.embedParagraphBatches(mapCtx, paragraphs)
+				finish()
+				return nil
+			})
+		}
+	}
+	_ = group.Wait()
+	return results
+}
+
+// embedParagraphBatches keeps DashScope's maximum batch size while retaining
+// a result slot for every original paragraph index. A failed batch is logged
+// by REDUCE but does not discard embeddings produced by other batches.
+func (s *IngestionService) embedParagraphBatches(ctx context.Context, paragraphs []mappedParagraph) ([][]float32, error) {
+	const maxEmbeddingBatchSize = 10
+	embeddings := make([][]float32, len(paragraphs))
+	var failures []error
+	for start := 0; start < len(paragraphs); start += maxEmbeddingBatchSize {
+		end := minInt(start+maxEmbeddingBatchSize, len(paragraphs))
+		texts := make([]string, end-start)
+		for index, paragraph := range paragraphs[start:end] {
+			texts[index] = paragraph.Text
+		}
+		batch, err := s.qwenSvc.GenerateEmbeddingBatch(ctx, texts)
+		if err != nil {
+			failures = append(failures, fmt.Errorf("paragraphs %d-%d: %w", start, end-1, err))
+			continue
+		}
+		for index, embedding := range batch {
+			if start+index >= len(embeddings) {
+				break
+			}
+			embeddings[start+index] = embedding
+		}
+	}
+	return embeddings, errors.Join(failures...)
+}
+
+func mapParagraphs(chunkIndex int, content string) []mappedParagraph {
+	parts := strings.Split(content, "\n\n")
+	paragraphs := make([]mappedParagraph, 0, len(parts))
+	cursor := 0
+	for index, part := range parts {
+		offset := strings.Index(content[cursor:], part)
+		if offset < 0 {
+			offset = 0
+		}
+		offset += cursor
+		cursor = offset + len(part)
+		leading := len(part) - len(strings.TrimLeftFunc(part, unicode.IsSpace))
+		text := strings.TrimSpace(part)
+		if text == "" || len(text) > 30_000 {
+			continue
+		}
+		paragraphs = append(paragraphs, mappedParagraph{Index: index, Offset: offset + leading, Text: text, NodeID: fmt.Sprintf("chunk:%d:paragraph:%d", chunkIndex, index)})
+	}
+	return paragraphs
+}
+
+func mapExtractedMentions(extracted *ExtractedEntities, paragraphs []mappedParagraph) []extractedMention {
+	if extracted == nil {
+		return nil
+	}
+	mentions := make([]extractedMention, 0, len(extracted.All()))
+	for _, item := range extracted.All() {
+		entity := repositories.ExtractedEntity{Type: item.Type, Name: item.Name, Aliases: item.Aliases, Description: item.Description, Status: item.Status, Properties: item.Properties}
+		paragraphIndex, offset, snippet := 0, 0, ""
+		needle := strings.ToLower(strings.TrimSpace(item.Name))
+		for _, paragraph := range paragraphs {
+			if at := strings.Index(strings.ToLower(paragraph.Text), needle); at >= 0 {
+				paragraphIndex, offset = paragraph.Index, paragraph.Offset+at
+				snippet = paragraphSnippet(paragraph.Text, at)
+				break
+			}
+		}
+		if snippet == "" && len(paragraphs) > 0 {
+			paragraphIndex, offset = paragraphs[0].Index, paragraphs[0].Offset
+			snippet = paragraphSnippet(paragraphs[0].Text, 0)
+		}
+		mentions = append(mentions, extractedMention{Entity: entity, ParagraphIndex: paragraphIndex, Offset: offset, Snippet: snippet})
+	}
+	return mentions
+}
+
+func paragraphSnippet(text string, at int) string {
+	const maxSnippet = 240
+	if at < 0 {
+		at = 0
+	}
+	start := at - maxSnippet/3
+	if start < 0 {
+		start = 0
+	}
+	end := start + maxSnippet
+	if end > len(text) {
+		end = len(text)
+	}
+	return text[start:end]
+}
+
 // runWorker processes the document in a background goroutine.
 //
 // ponytail: synchronous per-chunk — no parallel chunk extraction to avoid
 // overwhelming the Qwen API rate limit.
 func (s *IngestionService) runWorker(jobID, universeID, workID uuid.UUID, content []byte, filename string) {
-	ctx := context.Background()
+	ctx := WithQwenRequestClass(context.Background(), QwenIngestionRequest)
 
 	s.updateJobStatus(ctx, jobID, "running", "")
 
@@ -285,8 +479,12 @@ func (s *IngestionService) runWorker(jobID, universeID, workID uuid.UUID, conten
 	}
 
 	entitiesTotal := 0
-	s.updateProgress(ctx, jobID, len(chunks), 0, entitiesTotal)
-	s.emitProgress(jobID, ownerID, "running", 0, len(chunks))
+	progress := newIngestionProgressTracker(s, jobID, ownerID, len(chunks))
+	progress.start()
+	defer progress.stop()
+	mapResults := s.mapChunks(ctx, chunks, func(completed, chunkIndex int) {
+		progress.markMap(completed, fmt.Sprintf("Extracting entities from %s…", chunks[chunkIndex].title))
+	})
 
 	anySucceeded := false
 	var lastErr error
@@ -295,7 +493,9 @@ func (s *IngestionService) runWorker(jobID, universeID, workID uuid.UUID, conten
 	var relationshipEntities []ResolvedEntity
 	var relationshipChunks [][]ResolvedEntity
 
-	for i, ch := range chunks {
+	for i, mapped := range mapResults {
+		ch := mapped.Chunk
+		progress.markReduce(i, entitiesTotal, fmt.Sprintf("Saving chapter %s…", ch.title))
 		select {
 		case <-ctx.Done():
 			s.updateJobStatus(ctx, jobID, "failed", "cancelled")
@@ -319,97 +519,45 @@ func (s *IngestionService) runWorker(jobID, universeID, workID uuid.UUID, conten
 				// Without a valid chapter FK there is nothing to persist for
 				// this chunk — skip it entirely.
 				log.Printf("[ingestion] create chapter chunk %d: %v", i, err)
-				s.updateProgress(ctx, jobID, len(chunks), i+1, entitiesTotal)
-				s.emitProgress(jobID, ownerID, "running", i+1, len(chunks))
+				progress.markReduce(i+1, entitiesTotal, fmt.Sprintf("Saving chapter %s…", ch.title))
 				continue
 			}
 			chapterID = chapter.ID
 		}
 
-		// Embed the chunk's paragraphs in batches of 10 (DashScope
-		// text-embedding-v3 batch limit). Batch failure → log + skip slice,
-		// same best-effort semantics as the old per-paragraph calls.
-		if s.qwenSvc != nil && s.vectorRepo != nil {
-			var texts []string
-			var indexes []int
-			for pIdx, p := range strings.Split(ch.content, "\n\n") {
-				p = strings.TrimSpace(p)
-				if p == "" {
-					continue
-				}
-				const maxEmbedChars = 30_000
-				if len(p) > maxEmbedChars {
-					log.Printf("[ingestion] skip embedding oversized paragraph chunk %d para %d (%d chars)", i, pIdx, len(p))
-					continue
-				}
-				texts = append(texts, p)
-				indexes = append(indexes, pIdx)
-			}
-
-			const embedBatchSize = 10
-			for start := 0; start < len(texts); start += embedBatchSize {
-				end := start + embedBatchSize
-				if end > len(texts) {
-					end = len(texts)
-				}
-				embeddings, err := s.qwenSvc.GenerateEmbeddingBatch(ctx, texts[start:end])
-				if err != nil {
-					log.Printf("[ingestion] embed batch chunk %d paras %d-%d: %v", i, start, end-1, err)
-					continue
-				}
-				if len(embeddings) != end-start {
-					log.Printf("[ingestion] embed batch chunk %d paras %d-%d: got %d embeddings for %d texts", i, start, end-1, len(embeddings), end-start)
-				}
-				for j, emb := range embeddings {
-					if emb == nil {
-						continue
-					}
-					if err := s.vectorRepo.SaveParagraphEmbedding(ctx, chapterID, indexes[start+j], ch.title, texts[start+j], emb); err != nil {
-						log.Printf("[ingestion] save paragraph embedding chunk %d para %d: %v", i, indexes[start+j], err)
-					}
-				}
-			}
+		// MAP has already produced embeddings; REDUCE only attaches the now-known
+		// chapter ID and persists them in paragraph order.
+		if mapped.EmbeddingErr != nil {
+			log.Printf("[ingestion] embed chunk %d: %v", i, mapped.EmbeddingErr)
 		}
+		s.persistMappedEmbeddings(ctx, chapterID, mapped.Paragraphs, mapped.Embeddings)
 
-		// Extract entities from chunk
+		if mapped.ExtractionErr != nil {
+			log.Printf("[ingestion] extract entities chunk %d: %v", i, mapped.ExtractionErr)
+			lastErr = mapped.ExtractionErr
+			progress.markReduce(i+1, entitiesTotal, fmt.Sprintf("Saving chapter %s…", ch.title))
+			continue
+		}
 		if s.qwenSvc != nil && s.entitySvc != nil && s.pool != nil {
-			extracted, err := s.qwenSvc.ExtractEntities(ctx, ch.content, "")
-			if err != nil {
-				log.Printf("[ingestion] extract entities chunk %d: %v", i, err)
-				lastErr = err
-				s.updateProgress(ctx, jobID, len(chunks), i+1, entitiesTotal)
-				s.emitProgress(jobID, ownerID, "running", i+1, len(chunks))
-				continue
-			}
 			anySucceeded = true
-			mentionText := ch.content
-			if len(mentionText) > 120 {
-				mentionText = mentionText[:120]
-			}
-			count, resolved := s.resolveAndBuildGraph(ctx, universeID, extracted, mentionText)
-			entitiesTotal += count
+			resolved := s.reduceMentions(ctx, universeID, chapterID, mapped.Mentions)
+			entitiesTotal += len(resolved)
 			relationshipCorpus.WriteString(truncateIngestionRelationshipCorpus(ch.content, relationshipCorpus.Len()))
 			relationshipEntities = append(relationshipEntities, resolved...)
 			if len(resolved) > 0 {
 				relationshipChunks = append(relationshipChunks, resolved)
 			}
 			if chapterID != uuid.Nil {
-				ingestedChapters = append(ingestedChapters, ingestedChapter{
-					ID:       chapterID,
-					Content:  ch.content,
-					Entities: resolved,
-				})
+				ingestedChapters = append(ingestedChapters, ingestedChapter{ID: chapterID, Content: ch.content, Entities: resolved})
 			}
 		}
 
-		s.updateProgress(ctx, jobID, len(chunks), i+1, entitiesTotal)
-		s.emitProgress(jobID, ownerID, "running", i+1, len(chunks))
+		progress.markReduce(i+1, entitiesTotal, fmt.Sprintf("Saving chapter %s…", ch.title))
 	}
 
 	if !anySucceeded && lastErr != nil {
 		s.updateJobStatus(ctx, jobID, "failed", fmt.Sprintf("entity extraction failed for all %d chunks", len(chunks)))
-		s.updateProgress(ctx, jobID, len(chunks), len(chunks), entitiesTotal)
-		s.emitProgress(jobID, ownerID, "failed", len(chunks), len(chunks))
+		progress.finish("failed", len(chunks), entitiesTotal, "Ingestion failed.")
 		return
 	}
 
@@ -426,8 +574,22 @@ func (s *IngestionService) runWorker(jobID, universeID, workID uuid.UUID, conten
 	s.runPostIngestAnalysis(ctx, universeID, ingestedChapters, ownerID)
 
 	s.updateJobStatus(ctx, jobID, "completed", "")
-	s.updateProgress(ctx, jobID, len(chunks), len(chunks), entitiesTotal)
-	s.emitProgress(jobID, ownerID, "completed", len(chunks), len(chunks))
+	progress.finish("completed", len(chunks), entitiesTotal, "Ingestion complete.")
+}
+
+func (s *IngestionService) persistMappedEmbeddings(ctx context.Context, chapterID uuid.UUID, paragraphs []mappedParagraph, embeddings [][]float32) {
+	if s.vectorRepo == nil || chapterID == uuid.Nil {
+		return
+	}
+	for index, embedding := range embeddings {
+		if index >= len(paragraphs) || embedding == nil {
+			continue
+		}
+		paragraph := paragraphs[index]
+		if err := s.vectorRepo.SaveParagraphEmbedding(ctx, chapterID, paragraph.Index, paragraph.NodeID, paragraph.Text, embedding); err != nil {
+			log.Printf("[ingestion] save paragraph embedding para %d: %v", paragraph.Index, err)
+		}
+	}
 }
 
 func (s *IngestionService) enrichRelationships(ctx context.Context, universeID uuid.UUID, corpus string, entities []ResolvedEntity, chunks [][]ResolvedEntity) {
@@ -888,18 +1050,91 @@ func (s *IngestionService) resolveAndBuildGraph(ctx context.Context, universeID 
 	return len(resolved), resolved
 }
 
+// reduceMentions is deliberately serial: each ResolveOrCreate observes every
+// entity created/merged by earlier mentions in document order. This is the
+// ingestion-side guard against duplicate natural keys.
+func (s *IngestionService) reduceMentions(ctx context.Context, universeID, chapterID uuid.UUID, mentions []extractedMention) []ResolvedEntity {
+	if s.entitySvc == nil || s.pool == nil {
+		return nil
+	}
+	ordered := sortMentionsForReduce(mentions)
+	resolved := make([]ResolvedEntity, 0, len(ordered))
+	for _, mention := range ordered {
+		entity, previousStatus, isNew, err := s.entitySvc.ResolveOrCreate(ctx, universeID, mention.Entity)
+		if err != nil {
+			log.Printf("[ingestion] resolve entity %s: %v", mention.Entity.Name, err)
+			continue
+		}
+		item := ResolvedEntity{Entity: *entity, MentionText: mention.Snippet, IsNew: isNew, PreviousStatus: previousStatus}
+		resolved = append(resolved, item)
+		if chapterID == uuid.Nil || s.entitySvc.entityRepo == nil {
+			continue
+		}
+		if err := s.persistMention(ctx, entity.ID, chapterID, mention); err != nil {
+			log.Printf("[ingestion] persist mention for %s: %v", entity.Name, err)
+		}
+	}
+	return resolved
+}
+
+func sortMentionsForReduce(mentions []extractedMention) []extractedMention {
+	ordered := append([]extractedMention(nil), mentions...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		if ordered[i].ParagraphIndex != ordered[j].ParagraphIndex {
+			return ordered[i].ParagraphIndex < ordered[j].ParagraphIndex
+		}
+		if ordered[i].Offset != ordered[j].Offset {
+			return ordered[i].Offset < ordered[j].Offset
+		}
+		return ordered[i].Entity.Name < ordered[j].Entity.Name
+	})
+	return ordered
+}
+
+func (s *IngestionService) persistMention(ctx context.Context, entityID, chapterID uuid.UUID, mention extractedMention) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin mention transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	paragraphNodeID := fmt.Sprintf("chapter:%s:paragraph:%d", chapterID, mention.ParagraphIndex)
+	row := &models.EntityMention{
+		ID: uuid.New(), EntityID: entityID, ChapterID: chapterID,
+		ParagraphIndex: mention.ParagraphIndex, CharacterOffset: mention.Offset, ParagraphNodeID: paragraphNodeID,
+		ContextSnippet: mention.Snippet, MentionType: mention.Entity.Type,
+	}
+	if err := s.entitySvc.entityRepo.CreateMention(ctx, tx, row); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit mention transaction: %w", err)
+	}
+	return nil
+}
+
 // emitProgress sends an ingestion_progress WebSocket event to the resolved
 // universe owner.
 func (s *IngestionService) emitProgress(jobID, userID uuid.UUID, status string, processed, total int) {
+	s.emitProgressDetails(jobID, userID, status, processed, total, "", nil)
+}
+
+func (s *IngestionService) emitProgressDetails(jobID, userID uuid.UUID, status string, processed, total int, action string, etaSeconds *int) {
 	if s.hub == nil {
 		return
 	}
-	payload, _ := json.Marshal(map[string]any{
+	payloadMap := map[string]any{
 		"job_id":             jobID.String(),
 		"status":             status,
 		"chapters_processed": processed,
 		"total_chapters":     total,
-	})
+	}
+	if action != "" {
+		payloadMap["action"] = action
+	}
+	if etaSeconds != nil {
+		payloadMap["eta_seconds"] = *etaSeconds
+	}
+	payload, _ := json.Marshal(payloadMap)
 	msg := models.WSMessage{
 		Type:    "ingestion_progress",
 		Payload: payload,

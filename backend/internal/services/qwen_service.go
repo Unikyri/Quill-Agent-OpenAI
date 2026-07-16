@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -17,34 +19,91 @@ import (
 )
 
 type QwenService struct {
-	client     *http.Client
-	baseURL    string
-	apiKey     string
-	maxSem     chan struct{}
-	turboSem   chan struct{}
-	budgetMgr  *ContextBudgetManager
-	maxModel   string
-	turboModel string
-	embModel   string
-	embDims    int
+	client           *http.Client
+	baseURL          string
+	apiKey           string
+	maxSem           chan struct{}
+	turboSem         chan struct{}
+	budgetMgr        *ContextBudgetManager
+	maxModel         string
+	turboModel       string
+	embModel         string
+	embDims          int
+	fallbackModel    string
+	fallbackOn429    bool
+	retryMaxAttempts int
+	throttle         *QwenThrottle
+	retrySleep       throttleSleep
+	jitter           func(time.Duration) time.Duration
 }
 
 // budgetMgr may be nil — RunAgentLoop then skips tool-result compression
 // entirely (current unbounded behavior), which also lets tests construct
 // QwenService without a tokenizer.
 func NewQwenService(cfg *config.Config, budgetMgr *ContextBudgetManager) *QwenService {
-	return &QwenService{
-		client:     &http.Client{Timeout: cfg.QwenAPITimeout},
-		baseURL:    cfg.QwenBaseURL,
-		apiKey:     cfg.QwenAPIKey,
-		maxSem:     make(chan struct{}, cfg.QwenMaxConcurrency),
-		turboSem:   make(chan struct{}, cfg.QwenTurboConcurrency),
-		budgetMgr:  budgetMgr,
-		maxModel:   cfg.QwenMaxModel,
-		turboModel: cfg.QwenTurboModel,
-		embModel:   cfg.QwenEmbeddingModel,
-		embDims:    cfg.QwenEmbeddingDims,
+	extractionModel := cfg.QwenExtractionModel
+	if extractionModel == "" {
+		extractionModel = cfg.QwenTurboModel
 	}
+	reasoningModel := cfg.QwenReasoningModel
+	if reasoningModel == "" {
+		reasoningModel = cfg.QwenMaxModel
+	}
+	maxConcurrency := cfg.LLMMaxConcurrency
+	if maxConcurrency == 0 {
+		maxConcurrency = maxInt(cfg.QwenMaxConcurrency, cfg.QwenTurboConcurrency)
+	}
+	if maxConcurrency == 0 {
+		maxConcurrency = 5
+	}
+	turboTPM, maxTPM, rpm, reserve, rampStep := cfg.LLMTPMTurbo, cfg.LLMTPMMax, cfg.LLMRPM, cfg.LLMInteractiveReserve, cfg.LLMRampStep
+	if turboTPM == 0 {
+		turboTPM = 5_000_000
+	}
+	if maxTPM == 0 {
+		maxTPM = 1_000_000
+	}
+	if rpm == 0 {
+		rpm = 600
+	}
+	if reserve == 0 && cfg.LLMTPMTurbo == 0 && cfg.LLMTPMMax == 0 {
+		reserve = 0.30
+	}
+	if rampStep == 0 {
+		rampStep = 1
+	}
+	retryAttempts := cfg.QwenRetryMaxAttempts
+	if retryAttempts == 0 {
+		retryAttempts = 3
+	}
+	return &QwenService{
+		client:           &http.Client{Timeout: cfg.QwenAPITimeout},
+		baseURL:          cfg.QwenBaseURL,
+		apiKey:           cfg.QwenAPIKey,
+		maxSem:           make(chan struct{}, cfg.QwenMaxConcurrency),
+		turboSem:         make(chan struct{}, cfg.QwenTurboConcurrency),
+		budgetMgr:        budgetMgr,
+		maxModel:         reasoningModel,
+		turboModel:       extractionModel,
+		embModel:         cfg.QwenEmbeddingModel,
+		embDims:          cfg.QwenEmbeddingDims,
+		fallbackModel:    cfg.QwenFallbackModel,
+		fallbackOn429:    cfg.QwenFallbackOn429,
+		retryMaxAttempts: retryAttempts,
+		throttle:         newQwenThrottle(turboTPM, maxTPM, rpm, reserve, maxConcurrency, rampStep),
+		retrySleep:       sleepWithContext,
+		jitter:           defaultRetryJitter,
+	}
+}
+
+// IngestionConcurrency exposes the throttle's configured ceiling to MAP. The
+// throttle gate itself still starts at two active requests and ramps upward
+// after successes, so the worker pool never bypasses burst protection.
+func (s *QwenService) IngestionConcurrency() int {
+	if s == nil || s.throttle == nil || s.throttle.gate == nil {
+		return 2
+	}
+	return s.throttle.gate.maxLimit()
 }
 
 // HealthCheck performs a lightweight reachability check against the Qwen API.
@@ -58,17 +117,11 @@ func (s *QwenService) HealthCheck(ctx context.Context) error {
 	// DashScope's OpenAI-compatible base URL does not expose a useful root
 	// health resource. /models both authenticates the configured credential and
 	// is stable across compatible deployments.
-	url := strings.TrimRight(s.baseURL, "/") + "/models"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return fmt.Errorf("create health request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+s.apiKey)
-
-	resp, err := s.client.Do(req)
+	resp, release, err := s.sendQwenRequest(ctx, qwenMaxTier, s.maxModel, http.MethodGet, "/models", nil, 1, false)
 	if err != nil {
 		return fmt.Errorf("call qwen api: %w", err)
 	}
+	defer release(true)
 	defer resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
@@ -173,36 +226,21 @@ func (s *QwenService) callWithSemaphore(ctx context.Context, sem chan struct{}, 
 		return nil, ctx.Err()
 	}
 
-	if request, ok := payload.(QwenRequest); ok {
-		payload = s.normalizeRequestMessages(request)
+	request, ok := payload.(QwenRequest)
+	if !ok {
+		return nil, fmt.Errorf("chat request has unexpected payload type %T", payload)
 	}
-
-	body, err := json.Marshal(payload)
+	request = s.normalizeRequestMessages(request)
+	resp, release, err := s.sendQwenRequest(ctx, s.tierForModel(model), model, http.MethodPost, "/chat/completions", request, s.estimateChatTokens(request), true)
 	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
+		return nil, err
 	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", s.baseURL+"/chat/completions", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+s.apiKey)
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("call qwen api: %w", err)
-	}
+	defer release(true)
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("qwen api error (status %d): %s", resp.StatusCode, string(respBody))
 	}
 
 	return respBody, nil
@@ -316,23 +354,15 @@ func formatUntrustedToolResult(toolCallID, content string) string {
 }
 
 func (s *QwenService) callEmbedding(ctx context.Context, payload interface{}) ([]byte, error) {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
+	request, ok := payload.(EmbeddingRequest)
+	if !ok {
+		return nil, fmt.Errorf("embedding request has unexpected payload type %T", payload)
 	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", s.baseURL+"/embeddings", bytes.NewReader(body))
+	resp, release, err := s.sendQwenRequest(ctx, qwenTurboTier, request.Model, http.MethodPost, "/embeddings", request, s.estimateEmbeddingTokens(request), false)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, err
 	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+s.apiKey)
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("call embedding api: %w", err)
-	}
+	defer release(true)
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
@@ -340,11 +370,131 @@ func (s *QwenService) callEmbedding(ctx context.Context, payload interface{}) ([
 		return nil, fmt.Errorf("read response: %w", err)
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("embedding api error (status %d): %s", resp.StatusCode, string(respBody))
-	}
-
 	return respBody, nil
+}
+
+type qwenHTTPError struct {
+	status int
+	body   string
+}
+
+func (e *qwenHTTPError) Error() string {
+	return fmt.Sprintf("qwen api error (status %d): %s", e.status, e.body)
+}
+
+// sendQwenRequest is the sole HTTP boundary for Qwen. It puts every request
+// behind the shared quota, retries provider throttling with jitter, and can
+// move generation calls to an explicitly enabled fallback model.
+func (s *QwenService) sendQwenRequest(ctx context.Context, tier qwenModelTier, model, method, path string, payload interface{}, tokens int, allowFallback bool) (*http.Response, func(bool), error) {
+	if s == nil || s.client == nil {
+		return nil, nil, fmt.Errorf("qwen http client is not configured")
+	}
+	activeModel, fallbackUsed := model, false
+	for attempt := 0; ; attempt++ {
+		requestTier := tier
+		if activeModel != model {
+			// A fallback may have a different quota than the primary role; choose
+			// its tier before reserving any quota for this attempt.
+			requestTier = s.tierForModel(activeModel)
+		}
+		requestPayload := withQwenModel(payload, activeModel)
+		body, err := json.Marshal(requestPayload)
+		if err != nil {
+			return nil, nil, fmt.Errorf("marshal request: %w", err)
+		}
+		var reader io.Reader
+		if method != http.MethodGet {
+			reader = bytes.NewReader(body)
+		}
+		req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(s.baseURL, "/")+path, reader)
+		if err != nil {
+			return nil, nil, fmt.Errorf("create request: %w", err)
+		}
+		if method != http.MethodGet {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		req.Header.Set("Authorization", "Bearer "+s.apiKey)
+
+		release, err := s.throttle.acquire(ctx, requestTier, requestClass(ctx), tokens)
+		if err != nil {
+			return nil, nil, fmt.Errorf("acquire qwen quota: %w", err)
+		}
+		resp, err := s.client.Do(req)
+		if err != nil {
+			release(false)
+			return nil, nil, fmt.Errorf("call qwen api: %w", err)
+		}
+		if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
+			return resp, release, nil
+		}
+		responseBody, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		release(false)
+		if resp.StatusCode != http.StatusTooManyRequests {
+			return nil, nil, &qwenHTTPError{status: resp.StatusCode, body: string(responseBody)}
+		}
+		if attempt+1 < s.retryMaxAttempts {
+			if err := s.retrySleep(ctx, s.jitter(retryDelay(attempt))); err != nil {
+				return nil, nil, err
+			}
+			continue
+		}
+		if allowFallback && s.fallbackOn429 && s.fallbackModel != "" && !fallbackUsed && activeModel != s.fallbackModel {
+			activeModel, fallbackUsed, attempt = s.fallbackModel, true, -1
+			continue
+		}
+		return nil, nil, &qwenHTTPError{status: resp.StatusCode, body: string(responseBody)}
+	}
+}
+
+func withQwenModel(payload interface{}, model string) interface{} {
+	switch request := payload.(type) {
+	case QwenRequest:
+		request.Model = model
+		return request
+	case EmbeddingRequest:
+		request.Model = model
+		return request
+	default:
+		return payload
+	}
+}
+
+func (s *QwenService) tierForModel(model string) qwenModelTier {
+	if model == s.maxModel {
+		return qwenMaxTier
+	}
+	return qwenTurboTier
+}
+
+func (s *QwenService) estimateChatTokens(request QwenRequest) int {
+	characters := 0
+	for _, message := range request.Messages {
+		characters += len(message.Content)
+	}
+	return maxInt(1, characters/4+1024)
+}
+
+func (s *QwenService) estimateEmbeddingTokens(request EmbeddingRequest) int {
+	characters := 0
+	for _, input := range request.Input {
+		characters += len(input)
+	}
+	return maxInt(1, characters/4)
+}
+
+func retryDelay(attempt int) time.Duration {
+	if attempt > 5 {
+		attempt = 5
+	}
+	return time.Second << attempt
+}
+
+func defaultRetryJitter(delay time.Duration) time.Duration {
+	if delay <= 1 {
+		return delay
+	}
+	return delay/2 + time.Duration(rand.Int63n(int64(delay/2)+1))
 }
 
 type ExtractedEntity struct {

@@ -2,7 +2,6 @@ package services
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -62,38 +61,19 @@ type streamResponseFrame struct {
 func (s *QwenService) ChatCompletionStream(ctx context.Context, payload QwenRequest) (<-chan StreamChunk, error) {
 	payload = s.normalizeRequestMessages(payload)
 	payload.Stream = true
-
-	body, err := json.Marshal(payload)
+	resp, release, err := s.sendQwenRequest(ctx, s.tierForModel(payload.Model), payload.Model, http.MethodPost, "/chat/completions", payload, s.estimateChatTokens(payload), true)
 	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.baseURL+"/chat/completions", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+s.apiKey)
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("call qwen api: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		defer resp.Body.Close()
-		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("qwen api error (status %d): %s", resp.StatusCode, string(respBody))
+		return nil, err
 	}
 
 	ch := make(chan StreamChunk)
-	go readStream(resp.Body, ch)
+	go func() { release(readStream(resp.Body, ch)) }()
 	return ch, nil
 }
 
 // readStream parses SSE frames off body, accumulates tool-call deltas by
 // index, and emits StreamChunk values on ch. It closes ch and body when done.
-func readStream(body io.ReadCloser, ch chan<- StreamChunk) {
+func readStream(body io.ReadCloser, ch chan<- StreamChunk) (success bool) {
 	defer close(ch)
 	defer body.Close()
 
@@ -116,7 +96,7 @@ func readStream(body io.ReadCloser, ch chan<- StreamChunk) {
 		var frame streamResponseFrame
 		if err := json.Unmarshal([]byte(data), &frame); err != nil {
 			ch <- StreamChunk{Type: "error", Err: fmt.Errorf("unmarshal stream chunk: %w", err)}
-			return
+			return false
 		}
 		if len(frame.Choices) == 0 {
 			continue
@@ -154,12 +134,14 @@ func readStream(body io.ReadCloser, ch chan<- StreamChunk) {
 
 	if err := scanner.Err(); err != nil {
 		ch <- StreamChunk{Type: "error", Err: fmt.Errorf("read stream: %w", err)}
-		return
+		return false
 	}
 
 	if !finished {
 		ch <- StreamChunk{Type: "error", Err: fmt.Errorf("stream ended without a finish_reason completion signal")}
+		return false
 	}
+	return true
 }
 
 // flushToolCalls emits one tool_call StreamChunk per accumulated entry, in

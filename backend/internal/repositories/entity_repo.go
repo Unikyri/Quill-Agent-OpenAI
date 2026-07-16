@@ -35,7 +35,7 @@ func (r *EntityRepo) Create(ctx context.Context, tx pgx.Tx, e *models.Entity) er
 
 func (r *EntityRepo) FindByID(ctx context.Context, id uuid.UUID) (*models.Entity, error) {
 	query := `
-		SELECT id, universe_id, type, name, aliases, description, properties, status, relevance_score,
+		SELECT id, universe_id, type, name, aliases, COALESCE(description, ''), properties, status, relevance_score,
 		       last_mentioned_chapter_id, last_mentioned_at, created_at, updated_at
 		FROM entities WHERE id = $1
 	`
@@ -56,9 +56,11 @@ func (r *EntityRepo) FindByID(ctx context.Context, id uuid.UUID) (*models.Entity
 
 func (r *EntityRepo) FindByName(ctx context.Context, universeID uuid.UUID, name string) (*models.Entity, error) {
 	query := `
-		SELECT id, universe_id, type, name, aliases, description, properties, status, relevance_score,
+		SELECT id, universe_id, type, name, aliases, COALESCE(description, ''), properties, status, relevance_score,
 		       last_mentioned_chapter_id, last_mentioned_at, created_at, updated_at
 		FROM entities WHERE universe_id = $1 AND LOWER(name) = LOWER($2)
+		ORDER BY type, id
+		LIMIT 1
 	`
 	e := &models.Entity{}
 	err := r.pool.QueryRow(ctx, query, universeID, name).Scan(
@@ -75,11 +77,38 @@ func (r *EntityRepo) FindByName(ctx context.Context, universeID uuid.UUID, name 
 	return e, nil
 }
 
+// FindByNaturalKey resolves the type-aware entity identity enforced by the
+// entities_universe_name_type_key unique index. Callers that resolve mentions
+// must use this method so same-named entities of different types stay distinct.
+func (r *EntityRepo) FindByNaturalKey(ctx context.Context, universeID uuid.UUID, name, entityType string) (*models.Entity, error) {
+	query := `
+		SELECT id, universe_id, type, name, aliases, COALESCE(description, ''), properties, status, relevance_score,
+		       last_mentioned_chapter_id, last_mentioned_at, created_at, updated_at
+		FROM entities
+		WHERE universe_id = $1 AND LOWER(name) = LOWER($2) AND type = $3
+	`
+	e := &models.Entity{}
+	err := r.pool.QueryRow(ctx, query, universeID, name, entityType).Scan(
+		&e.ID, &e.UniverseID, &e.Type, &e.Name, &e.Aliases, &e.Description,
+		&e.Properties, &e.Status, &e.RelevanceScore, &e.LastMentionedChapterID,
+		&e.LastMentionedAt, &e.CreatedAt, &e.UpdatedAt,
+	)
+	if err == pgx.ErrNoRows {
+		return nil, fmt.Errorf("entity not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find entity by natural key: %w", err)
+	}
+	return e, nil
+}
+
 func (r *EntityRepo) FindByAlias(ctx context.Context, universeID uuid.UUID, alias string) (*models.Entity, error) {
 	query := `
 		SELECT id, universe_id, type, name, aliases, description, properties, status, relevance_score,
 		       last_mentioned_chapter_id, last_mentioned_at, created_at, updated_at
 		FROM entities WHERE universe_id = $1 AND LOWER($2) = ANY(SELECT LOWER(unnest(aliases)))
+		ORDER BY type, id
+		LIMIT 1
 	`
 	e := &models.Entity{}
 	err := r.pool.QueryRow(ctx, query, universeID, alias).Scan(
@@ -92,6 +121,32 @@ func (r *EntityRepo) FindByAlias(ctx context.Context, universeID uuid.UUID, alia
 	}
 	if err != nil {
 		return nil, fmt.Errorf("find entity by alias: %w", err)
+	}
+	return e, nil
+}
+
+// FindByAliasAndType keeps alias resolution consistent with the entity natural
+// key when the same alias is used by different entity types.
+func (r *EntityRepo) FindByAliasAndType(ctx context.Context, universeID uuid.UUID, alias, entityType string) (*models.Entity, error) {
+	query := `
+		SELECT id, universe_id, type, name, aliases, COALESCE(description, ''), properties, status, relevance_score,
+		       last_mentioned_chapter_id, last_mentioned_at, created_at, updated_at
+		FROM entities
+		WHERE universe_id = $1
+		  AND type = $3
+		  AND LOWER($2) = ANY(SELECT LOWER(unnest(aliases)))
+	`
+	e := &models.Entity{}
+	err := r.pool.QueryRow(ctx, query, universeID, alias, entityType).Scan(
+		&e.ID, &e.UniverseID, &e.Type, &e.Name, &e.Aliases, &e.Description,
+		&e.Properties, &e.Status, &e.RelevanceScore, &e.LastMentionedChapterID,
+		&e.LastMentionedAt, &e.CreatedAt, &e.UpdatedAt,
+	)
+	if err == pgx.ErrNoRows {
+		return nil, fmt.Errorf("entity not found by alias")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find entity by typed alias: %w", err)
 	}
 	return e, nil
 }
@@ -253,10 +308,10 @@ func (r *EntityRepo) Update(ctx context.Context, tx pgx.Tx, e *models.Entity) er
 
 func (r *EntityRepo) CreateMention(ctx context.Context, tx pgx.Tx, m *models.EntityMention) error {
 	query := `
-		INSERT INTO entity_mentions (id, entity_id, chapter_id, paragraph_index, paragraph_node_id, context_snippet, mention_type, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+		INSERT INTO entity_mentions (id, entity_id, chapter_id, paragraph_index, character_offset, paragraph_node_id, context_snippet, mention_type, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
 	`
-	_, err := tx.Exec(ctx, query, m.ID, m.EntityID, m.ChapterID, m.ParagraphIndex, m.ParagraphNodeID, m.ContextSnippet, m.MentionType)
+	_, err := tx.Exec(ctx, query, m.ID, m.EntityID, m.ChapterID, m.ParagraphIndex, m.CharacterOffset, m.ParagraphNodeID, m.ContextSnippet, m.MentionType)
 	if err != nil {
 		return fmt.Errorf("create mention: %w", err)
 	}
@@ -265,7 +320,7 @@ func (r *EntityRepo) CreateMention(ctx context.Context, tx pgx.Tx, m *models.Ent
 
 func (r *EntityRepo) GetMentionsByEntity(ctx context.Context, entityID uuid.UUID, limit int) ([]models.EntityMention, error) {
 	query := `
-		SELECT id, entity_id, chapter_id, paragraph_index, paragraph_node_id, context_snippet, mention_type, created_at
+		SELECT id, entity_id, chapter_id, paragraph_index, character_offset, paragraph_node_id, context_snippet, mention_type, created_at
 		FROM entity_mentions WHERE entity_id = $1
 		ORDER BY created_at DESC
 		LIMIT $2
@@ -280,7 +335,7 @@ func (r *EntityRepo) GetMentionsByEntity(ctx context.Context, entityID uuid.UUID
 	for rows.Next() {
 		var m models.EntityMention
 		if err := rows.Scan(
-			&m.ID, &m.EntityID, &m.ChapterID, &m.ParagraphIndex, &m.ParagraphNodeID,
+			&m.ID, &m.EntityID, &m.ChapterID, &m.ParagraphIndex, &m.CharacterOffset, &m.ParagraphNodeID,
 			&m.ContextSnippet, &m.MentionType, &m.CreatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan mention: %w", err)

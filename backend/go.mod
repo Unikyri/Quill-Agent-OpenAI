@@ -13,6 +13,7 @@ require (
 	github.com/pkoukk/tiktoken-go v0.1.8
 	github.com/pkoukk/tiktoken-go-loader v0.0.2
 	golang.org/x/crypto v0.31.0
+	golang.org/x/time v0.10.0
 )
 
 require (

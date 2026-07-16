@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -222,5 +223,126 @@ func TestResolveOrCreateFuzzyMergeRespectsType(t *testing.T) {
 	}
 	if total != 2 || len(list) != 2 {
 		t.Errorf("want 2 entities, got total=%d len=%d", total, len(list))
+	}
+}
+
+func TestResolveOrCreateRecoversFromNaturalKeyRace(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "022")
+	ctx := context.Background()
+
+	user := svcCreateTestUser(t, ctx, pool)
+	universe := models.Universe{ID: uuid.New(), UserID: user.ID, Name: "Natural Key Race", GenreTags: []string{"fantasy"}}
+	universeRepo := repositories.NewUniverseRepo(pool)
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin universe tx: %v", err)
+	}
+	if err := universeRepo.Create(ctx, tx, &universe); err != nil {
+		t.Fatalf("create universe: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit universe: %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+		CREATE SEQUENCE entity_natural_key_race_seq;
+		CREATE FUNCTION delay_first_natural_key_insert() RETURNS trigger AS $$
+		BEGIN
+			IF NEW.name = 'Race Entity' AND nextval('entity_natural_key_race_seq') = 1 THEN
+				PERFORM pg_sleep(0.25);
+			END IF;
+			RETURN NEW;
+		END;
+		$$ LANGUAGE plpgsql;
+		CREATE TRIGGER delay_first_natural_key_insert
+		BEFORE INSERT ON entities
+		FOR EACH ROW EXECUTE FUNCTION delay_first_natural_key_insert();
+	`); err != nil {
+		t.Fatalf("create race trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), "DROP TRIGGER IF EXISTS delay_first_natural_key_insert ON entities; DROP FUNCTION IF EXISTS delay_first_natural_key_insert(); DROP SEQUENCE IF EXISTS entity_natural_key_race_seq;")
+	})
+
+	svc := NewEntityService(pool, repositories.NewEntityRepo(pool), nil, newErrorQwenService(t))
+	type result struct {
+		entity *models.Entity
+		isNew  bool
+		err    error
+		data   repositories.ExtractedEntity
+	}
+	results := make(chan result, 2)
+	inputs := []repositories.ExtractedEntity{
+		{Type: "character", Name: "Race Entity", Aliases: []string{"First Alias"}, Description: "short", Status: "active"},
+		{Type: "character", Name: "Race Entity", Aliases: []string{"Second Alias"}, Description: "the longer race description", Status: "archived"},
+	}
+	run := func(input repositories.ExtractedEntity) {
+		entity, _, isNew, err := svc.ResolveOrCreate(ctx, universe.ID, input)
+		results <- result{entity: entity, isNew: isNew, err: err, data: input}
+	}
+	go run(inputs[0])
+
+	deadline := time.Now().Add(time.Second)
+	for {
+		var called bool
+		if err := pool.QueryRow(ctx, "SELECT is_called FROM entity_natural_key_race_seq").Scan(&called); err != nil {
+			t.Fatalf("read race sequence: %v", err)
+		}
+		if called {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("first ResolveOrCreate did not reach the insert trigger")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	go run(inputs[1])
+
+	var got []result
+	for range 2 {
+		result := <-results
+		if result.err != nil {
+			t.Fatalf("ResolveOrCreate race: %v", result.err)
+		}
+		got = append(got, result)
+	}
+	if len(got) != 2 || got[0].entity.ID != got[1].entity.ID {
+		t.Fatalf("race winners = %#v, want the same entity", got)
+	}
+	newCount := 0
+	for _, result := range got {
+		if result.isNew {
+			newCount++
+		}
+	}
+	if newCount != 1 {
+		t.Fatalf("new entity results = %d, want one creator and one recovered winner", newCount)
+	}
+	finalEntity, err := repositories.NewEntityRepo(pool).FindByNaturalKey(ctx, universe.ID, "Race Entity", "character")
+	if err != nil {
+		t.Fatalf("find final race winner: %v", err)
+	}
+	aliases := map[string]bool{}
+	for _, alias := range finalEntity.Aliases {
+		aliases[alias] = true
+	}
+	if !aliases["First Alias"] || !aliases["Second Alias"] {
+		t.Errorf("winner aliases = %v, want both concurrent aliases", finalEntity.Aliases)
+	}
+	if finalEntity.Description != "the longer race description" {
+		t.Errorf("winner description = %q, want the longest incoming description", finalEntity.Description)
+	}
+	for _, result := range got {
+		if !result.isNew && result.entity.Status != result.data.Status {
+			t.Errorf("recovered winner status = %q, want incoming status %q", result.entity.Status, result.data.Status)
+		}
+	}
+	var count int
+	if err := pool.QueryRow(ctx, "SELECT COUNT(*) FROM entities WHERE universe_id = $1 AND LOWER(name) = LOWER($2) AND type = $3", universe.ID, "Race Entity", "character").Scan(&count); err != nil {
+		t.Fatalf("count race entities: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("natural-key entity count = %d, want 1", count)
 	}
 }

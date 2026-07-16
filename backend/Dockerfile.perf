@@ -1,0 +1,17 @@
+# First-party, source-controlled runner for live ingestion measurements.
+# The build context is the repository root, filtered by the root .dockerignore;
+# in particular, .env is never available to either build stage.
+FROM golang:1.22-alpine AS builder
+
+WORKDIR /src/backend
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
+COPY backend/ ./
+RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -o /out/ingestion-perf-live ./cmd/ingestion-perf-live
+
+FROM alpine:3.19
+RUN apk --no-cache add ca-certificates
+COPY --from=builder /out/ingestion-perf-live /usr/local/bin/ingestion-perf-live
+COPY artifacts/fixtures /fixtures
+
+ENTRYPOINT ["/usr/local/bin/ingestion-perf-live"]
