@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -41,13 +43,28 @@ func (r *EntityRelevanceHistoryRepo) AppendSnapshot(ctx context.Context, univers
 // AppendOne inserts a single history row for one entity, reading its current
 // relevance_score/status. Used by Reactivate and entity creation.
 func (r *EntityRelevanceHistoryRepo) AppendOne(ctx context.Context, entityID uuid.UUID) error {
+	return r.appendOne(ctx, r.pool, entityID)
+}
+
+// AppendOneTx records a snapshot using the caller's transaction. Candidate
+// promotion uses this so status, graph/vector artifacts, and history commit
+// (or roll back) together.
+func (r *EntityRelevanceHistoryRepo) AppendOneTx(ctx context.Context, tx pgx.Tx, entityID uuid.UUID) error {
+	return r.appendOne(ctx, tx, entityID)
+}
+
+type relevanceHistoryExec interface {
+	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
+}
+
+func (r *EntityRelevanceHistoryRepo) appendOne(ctx context.Context, exec relevanceHistoryExec, entityID uuid.UUID) error {
 	query := `
 		INSERT INTO entity_relevance_history (id, entity_id, universe_id, relevance_score, status, recorded_at)
 		SELECT gen_random_uuid(), id, universe_id, relevance_score, status, NOW()
 		FROM entities
 		WHERE id = $1
 	`
-	if _, err := r.pool.Exec(ctx, query, entityID); err != nil {
+	if _, err := exec.Exec(ctx, query, entityID); err != nil {
 		return fmt.Errorf("append relevance history: %w", err)
 	}
 	return nil

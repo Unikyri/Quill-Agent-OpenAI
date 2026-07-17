@@ -7,6 +7,7 @@ CREATE TABLE entities (
     description TEXT,
     properties JSONB DEFAULT '{}',
     status VARCHAR(50) DEFAULT 'active',
+    confidence DOUBLE PRECISION NOT NULL DEFAULT 1 CHECK (confidence >= 0 AND confidence <= 1),
     relevance_score FLOAT DEFAULT 0.8,
     last_mentioned_chapter_id UUID,
     last_mentioned_at TIMESTAMP WITH TIME ZONE,

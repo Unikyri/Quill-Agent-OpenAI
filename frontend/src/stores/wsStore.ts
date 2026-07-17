@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { CraftReviewResult } from '../lib/types'
+import type { CraftReviewResult, EntityCandidateDTO } from '../lib/types'
 
 export type WSStatus = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed'
 
@@ -103,6 +103,8 @@ interface WSState {
   budget: BudgetReport | null
   submissions: Record<string, SubmissionLifecycle>
   craftReviews: CraftReviewResult[]
+  liveCandidates: EntityCandidateDTO[]
+  removeLiveCandidate: (candidateId: string) => void
   connect: (token: string) => void
   disconnect: () => void
   send: (msg: WSMessage) => void
@@ -205,6 +207,33 @@ export const useWSStore = create<WSState>((set, get) => {
         break
       case 'entity_discovered':
         set({ discoveredEntities: [...get().discoveredEntities, payload as DiscoveredEntity].slice(-200) })
+        {
+          const entity = (payload.entity as Record<string, unknown> | undefined) || payload
+          const status = typeof entity.status === 'string' ? entity.status : ''
+          const confidence = typeof entity.confidence === 'number' ? entity.confidence : undefined
+          const threshold = typeof payload.candidate_threshold === 'number' ? payload.candidate_threshold : 0.7
+          // The backend status is authoritative. In particular, an active
+          // entity with a low historical confidence must not be shown as a
+          // review candidate merely because the client guessed a threshold.
+          if (status === 'candidate' || (!status && confidence !== undefined && confidence < threshold)) {
+            const candidate = {
+              entity_id: String(entity.id || entity.entity_id || ''),
+              universe_id: String(entity.universe_id || payload.universe_id || ''),
+              chapter_id: typeof entity.chapter_id === 'string' ? entity.chapter_id : undefined,
+              name: String(entity.name || ''),
+              type: String(entity.type || 'character'),
+              aliases: Array.isArray(entity.aliases) ? entity.aliases.filter((alias): alias is string => typeof alias === 'string') : [],
+              description: typeof entity.description === 'string' ? entity.description : undefined,
+              confidence: confidence ?? 0,
+              status: status || 'candidate',
+              evidence_quote: typeof entity.evidence_quote === 'string' ? entity.evidence_quote : undefined,
+            } satisfies EntityCandidateDTO
+            if (candidate.entity_id && candidate.name) {
+              const current = get().liveCandidates.filter((item) => item.entity_id !== candidate.entity_id)
+              set({ liveCandidates: [...current, candidate].slice(-100) })
+            }
+          }
+        }
         break
       case 'contextual_recall':
         set({ recallItems: [...get().recallItems, payload as RecallItem].slice(-200) })
@@ -332,6 +361,11 @@ export const useWSStore = create<WSState>((set, get) => {
     budget: null,
     submissions: {},
     craftReviews: [],
+    liveCandidates: [],
+
+    removeLiveCandidate: (candidateId: string) => {
+      set({ liveCandidates: get().liveCandidates.filter((candidate) => candidate.entity_id !== candidateId) })
+    },
 
     connect: (token: string) => {
       intentionalClose = false
@@ -376,6 +410,7 @@ export const useWSStore = create<WSState>((set, get) => {
         budget: null,
         submissions: {},
         craftReviews: [],
+        liveCandidates: [],
       })
     },
   }

@@ -64,11 +64,29 @@ type Entity struct {
 	Description            string          `json:"description,omitempty"`
 	Properties             json.RawMessage `json:"properties,omitempty"`
 	Status                 string          `json:"status"`
+	Confidence             float64         `json:"confidence"`
 	RelevanceScore         float64         `json:"relevance_score"`
 	LastMentionedChapterID *uuid.UUID      `json:"last_mentioned_chapter_id,omitempty"`
 	LastMentionedAt        *time.Time      `json:"last_mentioned_at,omitempty"`
 	CreatedAt              time.Time       `json:"created_at"`
 	UpdatedAt              time.Time       `json:"updated_at"`
+}
+
+// EntityCandidate is the review-tray projection of an entity whose extraction
+// confidence is below the configured auto-accept threshold. Evidence is read
+// from the most recent entity mention; candidates do not enter active graph
+// memory until accepted or merged by the writer.
+type EntityCandidate struct {
+	EntityID      uuid.UUID `json:"entity_id"`
+	UniverseID    uuid.UUID `json:"universe_id"`
+	Name          string    `json:"name"`
+	Type          string    `json:"type"`
+	Aliases       []string  `json:"aliases,omitempty"`
+	Description   string    `json:"description,omitempty"`
+	Confidence    float64   `json:"confidence"`
+	Status        string    `json:"status"`
+	EvidenceQuote string    `json:"evidence_quote,omitempty"`
+	ChapterID     uuid.UUID `json:"chapter_id,omitempty"`
 }
 
 type EntityMention struct {
@@ -193,6 +211,10 @@ type UpdateEntityRequest struct {
 	Description string          `json:"description"`
 	Status      string          `json:"status"`
 	Properties  json.RawMessage `json:"properties"`
+}
+
+type MergeEntityCandidateRequest struct {
+	TargetEntityID uuid.UUID `json:"target_entity_id"`
 }
 
 type PaginationParams struct {

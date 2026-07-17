@@ -46,6 +46,7 @@ export default function WorkPage() {
   const [chapterTitle, setChapterTitle] = useState('')
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [creatingChapter, setCreatingChapter] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   // Inline title/synopsis editing (ponytail: cover image is client-side only —
   // no `cover_url` column on the work model yet, so it resets on reload)
@@ -89,6 +90,21 @@ export default function WorkPage() {
     } finally {
       setCreatingChapter(false)
     }
+  }
+
+  const handleExportWork = async () => {
+    if (!work || exporting) return
+    setExporting(true)
+    try {
+      const markdown = await api.exportWorkMarkdown(work.id)
+      const url = URL.createObjectURL(new Blob([markdown], { type: 'text/markdown;charset=utf-8' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${work.title || 'work'}.md`.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-|-$/g, '')
+      document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url)
+    } catch (err) {
+      setSubmitError((err as Error).message || 'Export failed')
+    } finally { setExporting(false) }
   }
 
   const startEditTitle = () => {
@@ -250,6 +266,9 @@ export default function WorkPage() {
                 Open in editor
               </button>
             )}
+            <button className={styles.openEditorBtn} onClick={() => void handleExportWork()} disabled={exporting}>
+              {exporting ? 'Exporting…' : 'Export Markdown'}
+            </button>
           </div>
         </div>
 

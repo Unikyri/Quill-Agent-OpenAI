@@ -135,6 +135,58 @@
   text-underline-offset: 2px;
 }
 
+.editorContent :global(.ProseMirror .entity-highlight) {
+  color: var(--entity-color, var(--teal));
+  background: color-mix(in srgb, var(--entity-color, var(--teal)) 11%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--entity-color, var(--teal)) 60%, transparent);
+  border-radius: 2px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.12s ease;
+}
+
+.editorContent :global(.ProseMirror .entity-highlight:hover),
+.editorContent :global(.ProseMirror .entity-highlight:focus) {
+  background: color-mix(in srgb, var(--entity-color, var(--teal)) 21%, transparent);
+  outline: none;
+}
+
+.editorContent :global(.ProseMirror .candidate-highlight) {
+  color: var(--ink-body);
+  border-bottom: 1px dashed var(--candidate-color, var(--gold-ink));
+  cursor: pointer;
+  text-decoration: none;
+}
+.editorContent :global(.ProseMirror .candidate-highlight:hover),
+.editorContent :global(.ProseMirror .candidate-highlight:focus) {
+  background: var(--gold-soft);
+  outline: none;
+}
+
+.candidateActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--gold-soft);
+  color: var(--ink);
+  font-size: 11px;
+}
+.candidateActions strong { font-family: var(--serif); font-weight: 600; }
+.candidateActions button {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  padding: 3px 7px;
+  background: var(--bg-card);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+}
+.candidateActions button:first-of-type { border-color: var(--teal); color: var(--teal); }
+.candidateActions button:hover { border-color: var(--teal); }
+
 .editorContent :global(.ProseMirror blockquote) {
   border-left: 3px solid var(--teal-soft-12);
   padding-left: 16px;

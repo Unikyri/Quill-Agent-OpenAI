@@ -166,3 +166,16 @@ export interface CraftReviewResult {
   selections: CraftReviewSelection[]
   notes: CraftReviewNote[]
 }
+
+export interface EntityCandidateDTO {
+  entity_id: string
+  universe_id: string
+  chapter_id?: string
+  name: string
+  type: string
+  aliases?: string[]
+  description?: string
+  confidence: number
+  status: 'candidate' | 'accepted' | 'dismissed' | string
+  evidence_quote?: string
+}

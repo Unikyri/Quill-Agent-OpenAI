@@ -65,6 +65,7 @@ type Config struct {
 	PlotHoleAgentDepth                 int
 	IngestAnalysisMaxChapters          int
 	WriterPreferencePromotionThreshold int
+	EntityConfidenceThreshold          float64
 }
 
 func Load() (*Config, error) {
@@ -131,6 +132,7 @@ func Load() (*Config, error) {
 		PlotHoleAgentDepth:                 getEnvInt("PLOT_HOLE_AGENT_DEPTH", 2),
 		IngestAnalysisMaxChapters:          getEnvInt("INGEST_ANALYSIS_MAX_CHAPTERS", 25),
 		WriterPreferencePromotionThreshold: getEnvInt("WRITER_PREFERENCE_PROMOTION_THRESHOLD", 3),
+		EntityConfidenceThreshold:          getEnvFloat("ENTITY_CONFIDENCE_THRESHOLD", 0.70),
 	}
 	// Populate compatibility aliases from the canonical role fields. Code that
 	// still constructs Config with the old fields remains supported by the

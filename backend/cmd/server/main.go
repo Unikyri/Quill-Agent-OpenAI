@@ -18,6 +18,7 @@ import (
 
 	"github.com/quill/backend/internal/config"
 	"github.com/quill/backend/internal/handlers"
+	"github.com/quill/backend/internal/mcp"
 	"github.com/quill/backend/internal/middleware"
 	"github.com/quill/backend/internal/repositories"
 	"github.com/quill/backend/internal/services"
@@ -107,6 +108,7 @@ func main() {
 	universeSvc.SetSkillActivation(skillRepo, skillRegistry)
 	workSvc := services.NewWorkService(pool, workRepo)
 	entitySvc := services.NewEntityService(pool, entityRepo, vectorRepo, llmSvc)
+	entitySvc.SetConfidenceThreshold(cfg.EntityConfidenceThreshold)
 	demoSvc := services.NewDemoService(pool, universeRepo, graphRepo)
 
 	// Phase 2a services
@@ -168,8 +170,10 @@ func main() {
 	chapterH := handlers.NewChapterHandler(chapterSvc)
 	chapterH.SetOwnershipRepos(universeRepo, workRepo, chapterRepo)
 	entityH := handlers.NewEntityHandler(entitySvc)
+	candidateH := handlers.NewEntityCandidateHandler(entitySvc, universeRepo, writerMemorySvc)
 	healthH := handlers.NewHealthHandler(pool, llmSvc, cfg)
 	demoH := handlers.NewDemoHandler(demoSvc)
+	exportH := handlers.NewExportHandler(chapterRepo, workRepo, universeRepo)
 
 	// Phase 2a handlers
 	contradictionH := handlers.NewContradictionHandler(contraSvc, contradictionRepo)
@@ -184,6 +188,7 @@ func main() {
 	writerMemoryH := handlers.NewWriterMemoryHandler(writerMemorySvc)
 	writerMemoryH.SetOwnershipRepos(universeRepo, chapterRepo)
 	skillH := handlers.NewSkillHandler(skillRegistry, universeSvc)
+	mcpServer := mcp.NewServer(authSvc, universeRepo, executor, memorySvc, llmSvc)
 
 	// ── Fiber App ──
 
@@ -215,6 +220,7 @@ func main() {
 	// Auth (protected)
 	api.Get("/auth/me", authH.Me)
 	api.Get("/skills", skillH.Catalogue)
+	app.Post("/api/v1/mcp", mcpServer.Handle)
 
 	// Universes
 	api.Post("/universes", universeH.Create)
@@ -238,11 +244,17 @@ func main() {
 	api.Get("/chapters/:id", chapterH.GetByID)
 	api.Put("/chapters/:id", chapterH.Update)
 	api.Delete("/chapters/:id", chapterH.Delete)
+	api.Get("/chapters/:id/export.md", exportH.Chapter)
+	api.Get("/works/:id/export.md", exportH.Work)
 
 	// Entities
 	api.Get("/universes/:universe_id/entities", entityH.ListByUniverse)
 	api.Get("/entities/:id", entityH.GetByID)
 	api.Put("/entities/:id", entityH.Update)
+	api.Get("/universes/:universe_id/candidates", candidateH.List)
+	api.Post("/candidates/:id/accept", candidateH.Accept)
+	api.Post("/candidates/:id/dismiss", candidateH.Dismiss)
+	api.Post("/candidates/:id/merge", candidateH.Merge)
 
 	// Phase 2a REST routes
 	api.Get("/universes/:universe_id/contradictions", contradictionH.ListByUniverse)
