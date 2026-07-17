@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { CraftReviewResult } from '../lib/types'
 
 export type WSStatus = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed'
 
@@ -101,6 +102,7 @@ interface WSState {
   pipeline: PipelineState | null
   budget: BudgetReport | null
   submissions: Record<string, SubmissionLifecycle>
+  craftReviews: CraftReviewResult[]
   connect: (token: string) => void
   disconnect: () => void
   send: (msg: WSMessage) => void
@@ -184,7 +186,7 @@ export const useWSStore = create<WSState>((set, get) => {
         set({ lastError: null })
         break
       case 'error':
-        set({ lastError: (payload.message as string) || 'Unknown WS error' })
+        set({ lastError: (payload.message as string) || (payload.error as string) || 'Unknown WS error' })
         break
       case 'analysis_result':
         set({ analysisResults: [...get().analysisResults, payload as AnalysisResult].slice(-200) })
@@ -237,6 +239,9 @@ export const useWSStore = create<WSState>((set, get) => {
         }
         break
       }
+      case 'craft_review_result':
+        set({ craftReviews: [...get().craftReviews, payload as unknown as CraftReviewResult].slice(-20) })
+        break
       default:
         break
     }
@@ -326,6 +331,7 @@ export const useWSStore = create<WSState>((set, get) => {
     pipeline: null,
     budget: null,
     submissions: {},
+    craftReviews: [],
 
     connect: (token: string) => {
       intentionalClose = false
@@ -369,6 +375,7 @@ export const useWSStore = create<WSState>((set, get) => {
         pipeline: null,
         budget: null,
         submissions: {},
+        craftReviews: [],
       })
     },
   }

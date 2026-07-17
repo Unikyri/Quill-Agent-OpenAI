@@ -131,3 +131,38 @@ export interface WriterPreferenceEvidenceDTO {
   feedback_events: WriterFeedbackEventDTO[]
   history: WriterPreferenceHistoryDTO[]
 }
+
+export interface SkillCatalogueItem {
+  name: string
+  description: string
+  genre_tags: string[]
+  stage: string
+}
+
+export interface UniverseSkillDTO {
+  universe_id: string
+  skill_name: string
+  activated_at: string
+}
+
+export interface CraftReviewSelection {
+  skill: string
+  rationale: string
+}
+
+export interface CraftReviewNote {
+  id: string
+  skill: string
+  quote: string
+  note: string
+  severity: 'info' | 'suggestion' | 'warning' | string
+  category?: string
+}
+
+export interface CraftReviewResult {
+  universe_id: string
+  work_id: string
+  chapter_id: string
+  selections: CraftReviewSelection[]
+  notes: CraftReviewNote[]
+}

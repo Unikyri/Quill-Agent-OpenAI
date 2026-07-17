@@ -85,6 +85,7 @@ func TestAllMessageTypeConstants(t *testing.T) {
 		{"TypeAuthInit", TypeAuthInit},
 		{"TypeParagraphSubmit", TypeParagraphSubmit},
 		{"TypeRecallRequest", TypeRecallRequest},
+		{"TypeCraftReviewRequest", TypeCraftReviewRequest},
 	}
 	for _, r := range require {
 		if r.val == "" {
@@ -102,6 +103,7 @@ func TestAllMessageTypeConstants(t *testing.T) {
 		{"TypeEntityDiscovered", TypeEntityDiscovered},
 		{"TypeGraphUpdated", TypeGraphUpdated},
 		{"TypeIngestionProgress", TypeIngestionProgress},
+		{"TypeCraftReviewResult", TypeCraftReviewResult},
 	}
 	for _, r := range response {
 		if r.val == "" {

@@ -9,9 +9,10 @@ import (
 // Message type constants for the WebSocket protocol.
 const (
 	// Client → Server
-	TypeAuthInit        = "auth_init"
-	TypeParagraphSubmit = "paragraph_submit"
-	TypeRecallRequest   = "recall_request"
+	TypeAuthInit           = "auth_init"
+	TypeParagraphSubmit    = "paragraph_submit"
+	TypeRecallRequest      = "recall_request"
+	TypeCraftReviewRequest = "craft_review_request"
 
 	// Server → Client
 	TypeAuthOK             = "auth_ok"
@@ -25,6 +26,7 @@ const (
 	TypeIngestionProgress  = "ingestion_progress"
 	TypeAnalysisProgress   = "analysis_progress"
 	TypeError              = "error"
+	TypeCraftReviewResult  = "craft_review_result"
 )
 
 // WSMessage is the envelope for all WebSocket communication.

@@ -15,6 +15,7 @@ RUN apk --no-cache add ca-certificates tzdata poppler-utils
 WORKDIR /app
 COPY --from=builder /app/server .
 COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/skills ./skills
 
 EXPOSE 8080
 

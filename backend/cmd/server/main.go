@@ -30,6 +30,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
+	skillRegistry, err := services.NewSkillRegistry(cfg.SkillDir)
+	if err != nil {
+		log.Fatalf("Failed to load skill registry: %v", err)
+	}
 
 	// Connect to database
 	ctx := context.Background()
@@ -76,6 +80,7 @@ func main() {
 	entityRepo := repositories.NewEntityRepo(pool)
 	vectorRepo := repositories.NewVectorRepo(pool)
 	graphRepo := repositories.NewGraphRepo(pool)
+	skillRepo := repositories.NewSkillRepo(pool)
 
 	// Phase 2a repos
 	contradictionRepo := repositories.NewContradictionRepo(pool)
@@ -99,6 +104,7 @@ func main() {
 	}
 	authSvc := services.NewAuthService(userRepo, cfg)
 	universeSvc := services.NewUniverseService(pool, universeRepo, graphRepo)
+	universeSvc.SetSkillActivation(skillRepo, skillRegistry)
 	workSvc := services.NewWorkService(pool, workRepo)
 	entitySvc := services.NewEntityService(pool, entityRepo, vectorRepo, llmSvc)
 	demoSvc := services.NewDemoService(pool, universeRepo, graphRepo)
@@ -120,6 +126,7 @@ func main() {
 	}
 	memorySvc.SetHistoryRepo(repositories.NewEntityRelevanceHistoryRepo(pool))
 	memorySvc.SetRelevanceDeltaEpsilon(cfg.RelevanceDeltaEpsilon)
+	craftReviewSvc := services.NewCraftReviewService(skillRegistry, skillRepo, universeRepo, llmSvc, memorySvc, writerMemorySvc, cfg.QwenExtractionModel, cfg.QwenCraftModel)
 
 	// QuillExecutor dispatches agent tool calls (vector search + graph queries)
 	// to the appropriate repos. UniverseID is set per-call by the agent loop.
@@ -140,6 +147,7 @@ func main() {
 	hub := ws.NewHub(authSvc, nil, memorySvc, llmSvc)
 	hub.SetUniverseOwnerResolver(universeRepo)
 	hub.SetParagraphOwnershipResolvers(workRepo, chapterRepo)
+	hub.SetCraftReviewer(craftReviewSvc)
 
 	// AnalysisService (depends on all other services and the hub)
 	analysisSvc := services.NewAnalysisService(pool, entitySvc, contraSvc, relevSvc, timelineSvc, plotHoleSvc, llmSvc, hub, memorySvc)
@@ -175,6 +183,7 @@ func main() {
 	ingestionH.SetUniverseOwnerRepo(universeRepo)
 	writerMemoryH := handlers.NewWriterMemoryHandler(writerMemorySvc)
 	writerMemoryH.SetOwnershipRepos(universeRepo, chapterRepo)
+	skillH := handlers.NewSkillHandler(skillRegistry, universeSvc)
 
 	// ── Fiber App ──
 
@@ -205,6 +214,7 @@ func main() {
 
 	// Auth (protected)
 	api.Get("/auth/me", authH.Me)
+	api.Get("/skills", skillH.Catalogue)
 
 	// Universes
 	api.Post("/universes", universeH.Create)
@@ -212,6 +222,8 @@ func main() {
 	api.Get("/universes/:id", universeH.GetByID)
 	api.Put("/universes/:id", universeH.Update)
 	api.Delete("/universes/:id", universeH.Delete)
+	api.Get("/universes/:id/skills", skillH.ListUniverse)
+	api.Put("/universes/:id/skills", skillH.ReplaceUniverse)
 
 	// Works
 	api.Post("/universes/:universe_id/works", workH.Create)

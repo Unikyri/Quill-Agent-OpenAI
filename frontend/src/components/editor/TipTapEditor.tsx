@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -14,19 +14,24 @@ interface TipTapEditorProps {
   universeId: string
   initialContent?: string
   onContentChange?: (html: string, text: string) => void
+  onCraftReview?: (selection: { passage: string; from: number; to: number }) => void
+  reviewing?: boolean
 }
 
 function ToolbarButton({
-  active, title, children, onClick,
+  active, title, children, onClick, disabled, onMouseDown, ariaLabel,
 }: {
-  active?: boolean; title: string; children: React.ReactNode; onClick: () => void
+  active?: boolean; title: string; children: ReactNode; onClick: () => void; disabled?: boolean; onMouseDown?: (event: MouseEvent<HTMLButtonElement>) => void; ariaLabel?: string
 }) {
   return (
     <button
       type="button"
       className={`${styles.toolbarBtn} ${active ? styles.toolbarBtnActive : ''}`}
       title={title}
+      aria-label={ariaLabel}
       onClick={onClick}
+      onMouseDown={onMouseDown}
+      disabled={disabled}
       tabIndex={-1}
     >
       {children}
@@ -34,7 +39,19 @@ function ToolbarButton({
   )
 }
 
-function Toolbar({ editor, fontSize, setFontSize }: { editor: Editor | null, fontSize: number, setFontSize: (s: number) => void }) {
+function Toolbar({
+  editor,
+  fontSize,
+  setFontSize,
+  onCraftReview,
+  reviewing,
+}: {
+  editor: Editor | null
+  fontSize: number
+  setFontSize: (s: number) => void
+  onCraftReview?: (selection: { passage: string; from: number; to: number }) => void
+  reviewing?: boolean
+}) {
   if (!editor) return null
   return (
     <div className={styles.toolbar}>
@@ -111,6 +128,24 @@ function Toolbar({ editor, fontSize, setFontSize }: { editor: Editor | null, fon
       >
         "
       </ToolbarButton>
+      {onCraftReview && (
+        <>
+          <div className={styles.toolbarDivider} />
+          <ToolbarButton
+            title={reviewing ? 'Reviewing selection…' : 'Review selected passage'}
+            ariaLabel="Review selected passage"
+            disabled={reviewing || editor.state.selection.empty}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              const { from, to } = editor.state.selection
+              const passage = editor.state.doc.textBetween(from, to, '\n').trim()
+              if (passage) onCraftReview({ passage, from, to })
+            }}
+          >
+            {reviewing ? '◌' : '✦'}
+          </ToolbarButton>
+        </>
+      )}
     </div>
   )
 }
@@ -121,6 +156,8 @@ export default function TipTapEditor({
   universeId,
   initialContent,
   onContentChange,
+  onCraftReview,
+  reviewing,
 }: TipTapEditorProps) {
   const send = useWSStore((s) => s.send)
   const submissions = useWSStore((s) => s.submissions)
@@ -193,7 +230,13 @@ export default function TipTapEditor({
 
   return (
     <div className={styles.wrapper}>
-      <Toolbar editor={editor} fontSize={fontSize} setFontSize={setFontSize} />
+      <Toolbar
+        editor={editor}
+        fontSize={fontSize}
+        setFontSize={setFontSize}
+        onCraftReview={onCraftReview}
+        reviewing={reviewing}
+      />
       {chapterSubmissions.length > 0 && <AnalysisStatusList submissions={chapterSubmissions} />}
       <div className={`${styles.editorContent} q-scroll`} style={{ fontSize: `${fontSize}px` }}>
         <EditorContent editor={editor} />

@@ -33,6 +33,12 @@ type EmbeddingProvider interface {
 	GenerateEmbedding(ctx context.Context, text string) ([]float32, error)
 }
 
+// CraftReviewer is the on-demand editorial review seam. CraftReviewService
+// owns model orchestration; Hub only authenticates and scopes the request.
+type CraftReviewer interface {
+	Review(ctx context.Context, userID uuid.UUID, request models.CraftReviewRequestPayload) (models.CraftReviewResultPayload, error)
+}
+
 // UniverseOwnerResolver is the narrow ownership seam used by recall_request.
 // The WebSocket handshake authenticates a user, but the payload can still name
 // any universe; this lookup closes that tenant boundary before MemoryService
@@ -65,16 +71,24 @@ type Conn struct {
 // ponytail: per-user single connection map, no broadcasting needed yet.
 // Broadcast(all users) is deferred until multi-user collaboration lands.
 type Hub struct {
-	conns       map[uuid.UUID]*Conn
-	mu          sync.RWMutex
-	authSvc     AuthValidator
-	submitter   ParagraphSubmitter
-	recaller    RecallRequester
-	embedder    EmbeddingProvider
-	ownerRepo   UniverseOwnerResolver
-	workRepo    WorkOwnershipResolver
-	chapterRepo ChapterOwnershipResolver
+	conns         map[uuid.UUID]*Conn
+	mu            sync.RWMutex
+	authSvc       AuthValidator
+	submitter     ParagraphSubmitter
+	recaller      RecallRequester
+	embedder      EmbeddingProvider
+	ownerRepo     UniverseOwnerResolver
+	workRepo      WorkOwnershipResolver
+	chapterRepo   ChapterOwnershipResolver
+	craftReviewer CraftReviewer
+	craftSlots    chan struct{}
 }
+
+const (
+	maxCraftReviewsInFlight = 4
+	maxCraftPassageBytes    = 16 * 1024
+	maxCraftContextBytes    = 4 * 1024
+)
 
 // AuthValidator is the minimal auth interface used by Hub.
 // services.AuthService satisfies this interface via ValidateToken.
@@ -86,11 +100,12 @@ type AuthValidator interface {
 // Any parameter may be nil — the corresponding handler will be a no-op.
 func NewHub(authSvc AuthValidator, submitter ParagraphSubmitter, recaller RecallRequester, embedder EmbeddingProvider) *Hub {
 	return &Hub{
-		conns:     make(map[uuid.UUID]*Conn),
-		authSvc:   authSvc,
-		submitter: submitter,
-		recaller:  recaller,
-		embedder:  embedder,
+		conns:      make(map[uuid.UUID]*Conn),
+		authSvc:    authSvc,
+		submitter:  submitter,
+		recaller:   recaller,
+		embedder:   embedder,
+		craftSlots: make(chan struct{}, maxCraftReviewsInFlight),
 	}
 }
 
@@ -117,6 +132,12 @@ func (h *Hub) SetParagraphOwnershipResolvers(workRepo WorkOwnershipResolver, cha
 	defer h.mu.Unlock()
 	h.workRepo = workRepo
 	h.chapterRepo = chapterRepo
+}
+
+func (h *Hub) SetCraftReviewer(reviewer CraftReviewer) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.craftReviewer = reviewer
 }
 
 // Register adds a connection to the hub for the given user.
@@ -175,6 +196,7 @@ func (h *Hub) SendToUser(userID uuid.UUID, msg WSMessage) error {
 // ponytail: single goroutine per conn; heartbeat every 30s.
 func (h *Hub) Handle(wsConn *websocket.Conn) {
 	defer wsConn.Close()
+	wsConn.SetReadLimit(1 << 20)
 
 	// Phase 1: auth_init handshake
 	userID, err := h.handleAuthInit(wsConn)
@@ -232,6 +254,19 @@ func (h *Hub) Handle(wsConn *websocket.Conn) {
 			h.handleParagraphSubmit(userID, msg)
 		case TypeRecallRequest:
 			h.handleRecallRequest(userID, msg)
+		case TypeCraftReviewRequest:
+			// Craft review performs two model calls and optional memory recall. Keep
+			// the read loop responsive so paragraph submissions and reconnects are
+			// not blocked while the review is running.
+			select {
+			case h.craftSlots <- struct{}{}:
+				go func() {
+					defer func() { <-h.craftSlots }()
+					h.handleCraftReviewRequest(userID, msg)
+				}()
+			default:
+				h.sendCraftError(userID, "craft review queue is busy; try again shortly")
+			}
 		default:
 			log.Printf("[ws] unknown message type from user %s: %s", userID, msg.Type)
 		}
@@ -319,7 +354,7 @@ func (h *Hub) handleParagraphSubmit(userID uuid.UUID, msg WSMessage) {
 		return
 	}
 
-	if !h.authorizeParagraphScope(userID, payload) {
+	if !h.authorizeContentScope(userID, payload.UniverseID, payload.WorkID, payload.ChapterID) {
 		h.sendAnalysisFailure(userID, payload, "universe access denied")
 		return
 	}
@@ -331,9 +366,13 @@ func (h *Hub) handleParagraphSubmit(userID uuid.UUID, msg WSMessage) {
 }
 
 func (h *Hub) authorizeParagraphScope(userID uuid.UUID, payload models.ParagraphSubmitPayload) bool {
+	return h.authorizeContentScope(userID, payload.UniverseID, payload.WorkID, payload.ChapterID)
+}
+
+func (h *Hub) authorizeContentScope(userID, universeID, workID, chapterID uuid.UUID) bool {
 	ctx := context.Background()
 	if h.ownerRepo != nil {
-		universe, err := h.ownerRepo.FindByID(ctx, payload.UniverseID)
+		universe, err := h.ownerRepo.FindByID(ctx, universeID)
 		if err != nil || universe == nil || universe.UserID != userID {
 			if err != nil {
 				log.Printf("[ws] paragraph universe ownership lookup: %v", err)
@@ -342,8 +381,8 @@ func (h *Hub) authorizeParagraphScope(userID uuid.UUID, payload models.Paragraph
 		}
 	}
 	if h.workRepo != nil {
-		work, err := h.workRepo.FindByID(ctx, payload.WorkID)
-		if err != nil || work == nil || work.UniverseID != payload.UniverseID {
+		work, err := h.workRepo.FindByID(ctx, workID)
+		if err != nil || work == nil || work.UniverseID != universeID {
 			if err != nil {
 				log.Printf("[ws] paragraph work ownership lookup: %v", err)
 			}
@@ -351,8 +390,8 @@ func (h *Hub) authorizeParagraphScope(userID uuid.UUID, payload models.Paragraph
 		}
 	}
 	if h.chapterRepo != nil {
-		chapter, err := h.chapterRepo.FindByID(ctx, payload.ChapterID)
-		if err != nil || chapter == nil || chapter.WorkID != payload.WorkID || chapter.UniverseID != payload.UniverseID {
+		chapter, err := h.chapterRepo.FindByID(ctx, chapterID)
+		if err != nil || chapter == nil || chapter.WorkID != workID || chapter.UniverseID != universeID {
 			if err != nil {
 				log.Printf("[ws] paragraph chapter ownership lookup: %v", err)
 			}
@@ -360,6 +399,50 @@ func (h *Hub) authorizeParagraphScope(userID uuid.UUID, payload models.Paragraph
 		}
 	}
 	return true
+}
+
+func (h *Hub) handleCraftReviewRequest(userID uuid.UUID, msg WSMessage) {
+	var payload models.CraftReviewRequestPayload
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		log.Printf("[ws] parse craft_review_request: %v", err)
+		return
+	}
+	if payload.UniverseID == uuid.Nil || payload.WorkID == uuid.Nil || payload.ChapterID == uuid.Nil || payload.Passage == "" || len(payload.Passage) > maxCraftPassageBytes || len(payload.Context) > maxCraftContextBytes {
+		h.sendCraftError(userID, "invalid craft review request")
+		return
+	}
+	if h.craftReviewer == nil {
+		h.sendCraftError(userID, "craft review service is unavailable")
+		return
+	}
+	if !h.authorizeContentScope(userID, payload.UniverseID, payload.WorkID, payload.ChapterID) {
+		h.sendCraftError(userID, "universe access denied")
+		return
+	}
+	result, err := h.craftReviewer.Review(context.Background(), userID, payload)
+	if err != nil {
+		log.Printf("[ws] craft review: %v", err)
+		h.sendCraftError(userID, "craft review failed")
+		return
+	}
+	response, err := NewMessage(TypeCraftReviewResult, result)
+	if err != nil {
+		log.Printf("[ws] marshal craft_review_result: %v", err)
+		return
+	}
+	if err := h.SendToUser(userID, response); err != nil {
+		log.Printf("[ws] send craft_review_result: %v", err)
+	}
+}
+
+func (h *Hub) sendCraftError(userID uuid.UUID, message string) {
+	msg, err := NewMessage(TypeError, map[string]string{"error": message, "message": message})
+	if err != nil {
+		return
+	}
+	if err := h.SendToUser(userID, msg); err != nil {
+		log.Printf("[ws] send craft review error: %v", err)
+	}
 }
 
 func (h *Hub) sendAnalysisFailure(userID uuid.UUID, submitted models.ParagraphSubmitPayload, reason string) {

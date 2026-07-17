@@ -54,6 +54,8 @@ services:
       QWEN_NATIVE_BASE_URL: ${QWEN_NATIVE_BASE_URL:-https://dashscope-intl.aliyuncs.com}
       QWEN_EXTRACTION_MODEL: ${QWEN_EXTRACTION_MODEL:-qwen-turbo}
       QWEN_REASONING_MODEL: ${QWEN_REASONING_MODEL:-qwen-max}
+      QWEN_CRAFT_MODEL: ${QWEN_CRAFT_MODEL:-qwen-max}
+      SKILL_DIR: ${SKILL_DIR:-/app/skills}
       QWEN_FALLBACK_MODEL: ${QWEN_FALLBACK_MODEL:-qwen-plus}
       QWEN_FALLBACK_ON_429: ${QWEN_FALLBACK_ON_429:-false}
       QWEN_RERANK_MODEL: ${QWEN_RERANK_MODEL:-qwen3-rerank}
@@ -81,6 +83,8 @@ services:
         condition: service_healthy
       migrations:
         condition: service_completed_successfully
+    volumes:
+      - ./backend/skills:/app/skills:ro
     restart: unless-stopped
 
   # React Frontend

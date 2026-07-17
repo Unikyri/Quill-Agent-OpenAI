@@ -38,6 +38,8 @@
 .toolbarBtn:hover { background: var(--hover); color: var(--ink); }
 .toolbarBtnActive { background: var(--teal-soft); color: var(--teal); }
 .toolbarBtnActive:hover { background: var(--teal-soft-12); color: var(--teal); }
+.toolbarBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.toolbarBtn:disabled:hover { background: none; color: var(--muted); }
 
 .toolbarDivider {
   width: 1px;

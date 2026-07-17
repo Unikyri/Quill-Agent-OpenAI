@@ -259,6 +259,36 @@ func TestHubRecallRejectsForeignUniverse(t *testing.T) {
 	}
 }
 
+func TestHubCraftReviewScopesAndDispatches(t *testing.T) {
+	mockReviewer := &mockCraftReviewer{}
+	hub := NewHub(nil, nil, nil, nil)
+	hub.SetCraftReviewer(mockReviewer)
+	userID := uuid.New()
+	universeID, workID, chapterID := uuid.New(), uuid.New(), uuid.New()
+	hub.SetUniverseOwnerResolver(mockUniverseOwnerResolver{universe: &models.Universe{ID: universeID, UserID: userID}})
+	hub.SetParagraphOwnershipResolvers(
+		mockWorkOwnershipResolver{work: &models.Work{ID: workID, UniverseID: universeID}},
+		mockChapterOwnershipResolver{chapter: &models.Chapter{ID: chapterID, WorkID: workID, UniverseID: universeID}},
+	)
+	payload, _ := json.Marshal(models.CraftReviewRequestPayload{
+		UniverseID: universeID, WorkID: workID, ChapterID: chapterID, Passage: "A passage to review",
+	})
+	hub.handleCraftReviewRequest(userID, WSMessage{Type: TypeCraftReviewRequest, Payload: payload})
+	if !mockReviewer.called {
+		t.Fatal("craft reviewer was not called")
+	}
+	if mockReviewer.request.Passage != "A passage to review" {
+		t.Fatalf("passage = %q", mockReviewer.request.Passage)
+	}
+
+	foreign := &mockCraftReviewer{}
+	hub.SetCraftReviewer(foreign)
+	hub.handleCraftReviewRequest(uuid.New(), WSMessage{Type: TypeCraftReviewRequest, Payload: payload})
+	if foreign.called {
+		t.Fatal("foreign craft review must be rejected before dispatch")
+	}
+}
+
 func TestHubParagraphRejectsForeignUniverse(t *testing.T) {
 	mockSubmitter := &mockParagraphSubmitter{}
 	hub := NewHub(nil, mockSubmitter, nil, nil)
@@ -356,6 +386,25 @@ type mockRecallRequesterWithEmbedding struct {
 
 type mockUniverseOwnerResolver struct {
 	universe *models.Universe
+}
+
+type mockChapterOwnershipResolver struct {
+	chapter *models.Chapter
+}
+
+func (m mockChapterOwnershipResolver) FindByID(_ context.Context, _ uuid.UUID) (*models.Chapter, error) {
+	return m.chapter, nil
+}
+
+type mockCraftReviewer struct {
+	called  bool
+	request models.CraftReviewRequestPayload
+}
+
+func (m *mockCraftReviewer) Review(_ context.Context, _ uuid.UUID, request models.CraftReviewRequestPayload) (models.CraftReviewResultPayload, error) {
+	m.called = true
+	m.request = request
+	return models.CraftReviewResultPayload{UniverseID: request.UniverseID, WorkID: request.WorkID, ChapterID: request.ChapterID}, nil
 }
 
 func (m mockUniverseOwnerResolver) FindByID(_ context.Context, _ uuid.UUID) (*models.Universe, error) {

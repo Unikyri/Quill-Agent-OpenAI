@@ -5,6 +5,7 @@ import { useWSStore } from '../stores/wsStore'
 import { useWS } from '../hooks/useWS'
 import { api } from '../lib/api'
 import TipTapEditor from '../components/editor/TipTapEditor'
+import CraftReviewPanel from '../components/editor/CraftReviewPanel'
 import ContextPanel from '../components/context-panel/ContextPanel'
 import styles from './EditorPage.module.css'
 
@@ -48,6 +49,9 @@ export default function EditorPage() {
   const navigate = useNavigate()
   const { content, wordCount, isSaving, lastSavedAt, setContent, saveContent } = useEditorStore()
   const wsStatus = useWSStore((s) => s.status)
+  const wsError = useWSStore((s) => s.lastError)
+  const sendWS = useWSStore((s) => s.send)
+  const craftReviews = useWSStore((s) => s.craftReviews) || []
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const [workInfo, setWorkInfo] = useState<WorkInfo | null>(null)
   const [chapters, setChapters] = useState<Chapter[]>([])
@@ -61,6 +65,7 @@ export default function EditorPage() {
   const [contextCollapsed, setContextCollapsed] = useState(() => readPanelState().contextCollapsed ?? false)
   const [railWidth, setRailWidth] = useState(() => clampPanelWidth(readPanelState().railWidth ?? 240, MIN_RAIL_WIDTH))
   const [contextWidth, setContextWidth] = useState(() => clampPanelWidth(readPanelState().contextWidth ?? 280, MIN_CONTEXT_WIDTH))
+  const [craftReviewing, setCraftReviewing] = useState(false)
 
   useWS()
 
@@ -99,6 +104,17 @@ export default function EditorPage() {
       .catch(() => {})
   }, [workInfo?.id, chapterId])
 
+  // A result arrives as a separate WS message. Keep the explicit review
+  // button busy until that message is observed; live paragraph analysis never
+  // changes this state.
+  useEffect(() => {
+    setCraftReviewing(false)
+  }, [craftReviews.length, wsError])
+
+  useEffect(() => {
+    setCraftReviewing(false)
+  }, [chapterId])
+
   const handleContentChange = useCallback((_html: string, text: string) => {
     setContent(_html, text)
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
@@ -106,6 +122,20 @@ export default function EditorPage() {
       if (chapterId) saveContent(chapterId)
     }, 5000)
   }, [chapterId, setContent, saveContent])
+
+  const handleCraftReview = useCallback(({ passage }: { passage: string; from: number; to: number }) => {
+    if (!chapterId || !workInfo?.id || !universeId || !passage.trim() || typeof sendWS !== 'function') return
+    setCraftReviewing(true)
+    sendWS({
+      type: 'craft_review_request',
+      payload: {
+        universe_id: workInfo.universe_id || universeId,
+        work_id: workInfo.id,
+        chapter_id: chapterId,
+        passage: passage.trim(),
+      },
+    })
+  }, [chapterId, universeId, workInfo, sendWS])
 
   const handleCreateChapter = async () => {
     if (!workInfo?.id || !newChapterTitle.trim() || creatingChapter) return
@@ -125,6 +155,9 @@ export default function EditorPage() {
     : styles.statusClosed
 
   const sorted = [...chapters].sort((a, b) => a.order_index - b.order_index)
+  const craftReview = [...craftReviews]
+    .reverse()
+    .find((review) => review.chapter_id === chapterId) || null
   const resizePanel = (side: PanelSide, clientX: number) => {
     if (side === 'rail') {
       setRailWidth(clampPanelWidth(clientX, MIN_RAIL_WIDTH))
@@ -264,6 +297,8 @@ export default function EditorPage() {
             universeId={workInfo.universe_id || universeId || ''}
             initialContent={content}
             onContentChange={handleContentChange}
+            onCraftReview={handleCraftReview}
+            reviewing={craftReviewing}
           />
         ) : (
           <div className={styles.noChapterState}>
@@ -276,7 +311,18 @@ export default function EditorPage() {
       {/* Context panel */}
       <aside id="analysis-panel" className={`${styles.contextPanel} ${contextCollapsed ? styles.panelCollapsed : ''}`} aria-label="Live analysis">
         {!contextCollapsed && <div className={styles.contextContent}>
-          <ContextPanel status={wsStatus} universeId={workInfo?.universe_id || universeId} />
+          <div className={styles.contextStack}>
+            <CraftReviewPanel
+              review={craftReview}
+              loading={craftReviewing}
+              universeId={workInfo?.universe_id || universeId || ''}
+              workId={workInfo?.id || ''}
+              chapterId={chapterId || ''}
+            />
+            <div className={styles.contextAnalysis}>
+              <ContextPanel status={wsStatus} universeId={workInfo?.universe_id || universeId} />
+            </div>
+          </div>
         </div>}
         <button
           className={`${styles.panelToggle} ${styles.contextToggle}`}

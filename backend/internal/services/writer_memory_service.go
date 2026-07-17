@@ -100,6 +100,16 @@ func (s *WriterMemoryService) ListPreferences(ctx context.Context, userID uuid.U
 	return s.repo.ListPreferences(ctx, userID, activeOnly, 500)
 }
 
+// ListPreferencesForUniverse applies the universe owner and genre intersection
+// used by craft consumers. It prevents a review from receiving unrelated
+// genre-bound preferences from another universe in the same writer profile.
+func (s *WriterMemoryService) ListPreferencesForUniverse(ctx context.Context, universeID uuid.UUID) ([]models.WriterPreference, error) {
+	if s == nil || s.repo == nil {
+		return []models.WriterPreference{}, nil
+	}
+	return s.repo.ListActiveForUniverse(ctx, universeID, 500)
+}
+
 func (s *WriterMemoryService) ListObservations(ctx context.Context, userID uuid.UUID, universeID *uuid.UUID) ([]models.WriterObservation, error) {
 	if s == nil || s.repo == nil {
 		return []models.WriterObservation{}, nil

@@ -22,6 +22,7 @@ type Config struct {
 	// Role-based model configuration. These names are the supported public API.
 	QwenExtractionModel string
 	QwenReasoningModel  string
+	QwenCraftModel      string
 	QwenFallbackModel   string
 	QwenFallbackOn429   bool
 	QwenRerankModel     string
@@ -31,6 +32,7 @@ type Config struct {
 	QwenTurboModel                     string
 	QwenEmbeddingModel                 string
 	QwenEmbeddingDims                  int
+	SkillDir                           string
 	JWTSecret                          string
 	JWTExpirationHours                 int
 	BCryptCost                         int
@@ -90,11 +92,13 @@ func Load() (*Config, error) {
 		QwenNativeBaseURL:                  nativeBaseURL,
 		QwenExtractionModel:                getEnvWithLegacy("QWEN_EXTRACTION_MODEL", "QWEN_TURBO_MODEL", "qwen-turbo"),
 		QwenReasoningModel:                 getEnvWithLegacy("QWEN_REASONING_MODEL", "QWEN_MAX_MODEL", "qwen-max"),
+		QwenCraftModel:                     getEnv("QWEN_CRAFT_MODEL", getEnvWithLegacy("QWEN_REASONING_MODEL", "QWEN_MAX_MODEL", "qwen-max")),
 		QwenFallbackModel:                  getEnv("QWEN_FALLBACK_MODEL", ""),
 		QwenFallbackOn429:                  getEnvBool("QWEN_FALLBACK_ON_429", false),
 		QwenRerankModel:                    getEnv("QWEN_RERANK_MODEL", "qwen3-rerank"),
 		QwenEmbeddingModel:                 getEnv("QWEN_EMBEDDING_MODEL", "text-embedding-v4"),
 		QwenEmbeddingDims:                  getEnvInt("QWEN_EMBEDDING_DIMENSIONS", 1024),
+		SkillDir:                           getEnv("SKILL_DIR", "./skills"),
 		JWTSecret:                          getEnv("JWT_SECRET", "dev-secret-change-in-production"),
 		JWTExpirationHours:                 getEnvInt("JWT_EXPIRATION_HOURS", 24),
 		BCryptCost:                         getEnvInt("BCRYPT_COST", 12),

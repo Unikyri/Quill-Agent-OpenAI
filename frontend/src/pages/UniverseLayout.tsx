@@ -18,6 +18,7 @@ const TABS = [
   { to: 'plot-holes', label: 'Plot Holes', glyph: '◠', badge: 'plotHoles' },
   { to: 'ingest', label: 'Ingestion', glyph: '⇩' },
   { to: 'memory', label: 'Memory', glyph: '⧉' },
+  { to: 'skills', label: 'Skills', glyph: '✦' },
 ]
 
 // Pages that need the content area to have no scroll (full-bleed: Editor, Graph)

@@ -1,0 +1,80 @@
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 30px 32px 44px;
+  animation: qrise 0.3s ease both;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.kicker,
+.groupTitle,
+.count,
+.groupCount,
+.status,
+.tags {
+  font-family: var(--mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.kicker { color: var(--muted-2); font-size: 9px; }
+.title { margin: 4px 0 5px; color: var(--ink); font-family: var(--serif); font-size: 31px; font-weight: 500; }
+.subtitle { max-width: 560px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.headerActions { display: flex; align-items: center; gap: 12px; }
+.count { color: var(--muted-2); font-size: 9px; white-space: nowrap; }
+.saveButton {
+  border: 1px solid var(--teal);
+  border-radius: var(--r-md);
+  padding: 8px 13px;
+  background: var(--teal);
+  color: var(--parchment-hi);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+}
+.saveButton:hover { background: var(--teal-deep); border-color: var(--teal-deep); }
+.saveButton:disabled { cursor: default; opacity: 0.55; }
+
+.error { margin: 0 0 16px; color: var(--danger); font-size: 12px; }
+.state { padding: 56px 20px; border: 1px dashed var(--line-strong); border-radius: var(--r-md); color: var(--muted); text-align: center; }
+.groups { display: grid; gap: 26px; }
+.group { display: grid; gap: 11px; }
+.groupHeader { display: flex; align-items: center; gap: 9px; }
+.groupTitle { margin: 0; color: var(--muted-2); font-size: 10px; font-weight: 600; }
+.groupCount { color: var(--muted-3); font-size: 9px; }
+.skillGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); gap: 10px; }
+.card {
+  display: flex;
+  gap: 10px;
+  min-height: 116px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--bg-card);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.card:hover { border-color: var(--line-strong); background: var(--surface-sunken); }
+.cardActive { border-color: var(--teal-soft-12); background: var(--teal-soft); }
+.card input { width: 15px; height: 15px; margin: 1px 0 0; accent-color: var(--teal); }
+.cardBody { display: grid; align-content: start; gap: 7px; min-width: 0; }
+.cardTopline { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.skillName { color: var(--ink); font-size: 13px; font-weight: 600; }
+.status { color: var(--teal); font-size: 8px; }
+.card:not(.cardActive) .status { color: var(--muted-3); }
+.description { color: var(--muted); font-size: 11.5px; line-height: 1.45; }
+.tags { color: var(--muted-3); font-size: 8px; }
+
+@media (max-width: 680px) {
+  .wrap { padding: 22px 18px 34px; }
+  .pageHeader { align-items: flex-start; flex-direction: column; }
+  .headerActions { width: 100%; justify-content: space-between; }
+}

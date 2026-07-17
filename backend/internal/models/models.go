@@ -345,6 +345,52 @@ type RecallRequestPayload struct {
 	K          int       `json:"k"`
 }
 
+// SkillCatalogueItem is the public, frontmatter-only representation of an
+// editorial skill. Skill bodies stay server-side so callers cannot mutate or
+// accidentally depend on the prompt implementation.
+type SkillCatalogueItem struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	GenreTags   []string `json:"genre_tags"`
+	Stage       string   `json:"stage"`
+}
+
+type UniverseSkill struct {
+	UniverseID  uuid.UUID `json:"universe_id"`
+	SkillName   string    `json:"skill_name"`
+	ActivatedAt time.Time `json:"activated_at"`
+}
+
+type CraftReviewRequestPayload struct {
+	UniverseID uuid.UUID `json:"universe_id"`
+	WorkID     uuid.UUID `json:"work_id"`
+	ChapterID  uuid.UUID `json:"chapter_id"`
+	Passage    string    `json:"passage"`
+	Context    string    `json:"context,omitempty"`
+}
+
+type CraftReviewSelection struct {
+	Skill     string `json:"skill"`
+	Rationale string `json:"rationale"`
+}
+
+type CraftReviewNote struct {
+	ID       uuid.UUID `json:"id"`
+	Skill    string    `json:"skill"`
+	Quote    string    `json:"quote"`
+	Note     string    `json:"note"`
+	Severity string    `json:"severity"`
+	Category string    `json:"category,omitempty"`
+}
+
+type CraftReviewResultPayload struct {
+	UniverseID uuid.UUID              `json:"universe_id"`
+	WorkID     uuid.UUID              `json:"work_id"`
+	ChapterID  uuid.UUID              `json:"chapter_id"`
+	Selections []CraftReviewSelection `json:"selections"`
+	Notes      []CraftReviewNote      `json:"notes"`
+}
+
 // Server → Client payloads
 
 type AnalysisResultPayload struct {

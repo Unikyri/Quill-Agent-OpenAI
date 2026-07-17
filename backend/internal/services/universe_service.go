@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -24,6 +25,8 @@ var (
 	}
 )
 
+var ErrUniverseAccessDenied = errors.New("universe access denied")
+
 func validateUniverseEnums(input models.CreateUniverseRequest) error {
 	for _, tag := range input.GenreTags {
 		if _, ok := allowedGenreTags[tag]; !ok {
@@ -43,9 +46,11 @@ func joinKeys(m map[string]struct{}) string {
 }
 
 type UniverseService struct {
-	pool         *pgxpool.Pool
-	universeRepo *repositories.UniverseRepo
-	graphRepo    *repositories.GraphRepo
+	pool          *pgxpool.Pool
+	universeRepo  *repositories.UniverseRepo
+	graphRepo     *repositories.GraphRepo
+	skillRepo     *repositories.SkillRepo
+	skillRegistry *SkillRegistry
 }
 
 func NewUniverseService(pool *pgxpool.Pool, universeRepo *repositories.UniverseRepo, graphRepo *repositories.GraphRepo) *UniverseService {
@@ -54,6 +59,14 @@ func NewUniverseService(pool *pgxpool.Pool, universeRepo *repositories.UniverseR
 		universeRepo: universeRepo,
 		graphRepo:    graphRepo,
 	}
+}
+
+// SetSkillActivation wires optional per-universe skill persistence. Keeping it
+// as a setter preserves existing service/test constructors while allowing
+// universe creation to seed the registry defaults transactionally.
+func (s *UniverseService) SetSkillActivation(repo *repositories.SkillRepo, registry *SkillRegistry) {
+	s.skillRepo = repo
+	s.skillRegistry = registry
 }
 
 func (s *UniverseService) Create(ctx context.Context, userID uuid.UUID, input models.CreateUniverseRequest) (*models.Universe, error) {
@@ -80,6 +93,11 @@ func (s *UniverseService) Create(ctx context.Context, userID uuid.UUID, input mo
 
 	if err := s.universeRepo.Create(ctx, tx, u); err != nil {
 		return nil, err
+	}
+	if s.skillRepo != nil && s.skillRegistry != nil {
+		if err := s.skillRepo.ReplaceTx(ctx, tx, u.ID, s.skillRegistry.DefaultSkillNames()); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -169,6 +187,44 @@ func (s *UniverseService) Delete(ctx context.Context, id uuid.UUID) error {
 		if err := s.graphRepo.DropGraph(ctx, "universe_"+id.String()); err != nil {
 			log.Printf("[universe] drop graph for %s: %v", id, err)
 		}
+	}
+	return nil
+}
+
+func (s *UniverseService) ListSkills(ctx context.Context, userID, universeID uuid.UUID) ([]models.UniverseSkill, error) {
+	if err := s.authorizeUniverse(ctx, userID, universeID); err != nil {
+		return nil, err
+	}
+	if s.skillRepo == nil {
+		return []models.UniverseSkill{}, nil
+	}
+	return s.skillRepo.ListActive(ctx, universeID)
+}
+
+func (s *UniverseService) ReplaceSkills(ctx context.Context, userID, universeID uuid.UUID, names []string) ([]models.UniverseSkill, error) {
+	if err := s.authorizeUniverse(ctx, userID, universeID); err != nil {
+		return nil, err
+	}
+	if s.skillRepo == nil || s.skillRegistry == nil {
+		return nil, errors.New("skill activation is not configured")
+	}
+	validated, err := s.skillRegistry.ValidateNames(names)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.skillRepo.Replace(ctx, universeID, validated); err != nil {
+		return nil, err
+	}
+	return s.skillRepo.ListActive(ctx, universeID)
+}
+
+func (s *UniverseService) authorizeUniverse(ctx context.Context, userID, universeID uuid.UUID) error {
+	u, err := s.universeRepo.FindByID(ctx, universeID)
+	if err != nil {
+		return err
+	}
+	if u == nil || u.UserID != userID {
+		return ErrUniverseAccessDenied
 	}
 	return nil
 }

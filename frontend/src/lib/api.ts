@@ -1,4 +1,4 @@
-import type { IngestionJobDTO, MemoryStatusEntity, RecallExplanation, WriterObservationDTO, WriterPreferenceDTO, WriterPreferenceEvidenceDTO } from './types'
+import type { IngestionJobDTO, MemoryStatusEntity, RecallExplanation, SkillCatalogueItem, UniverseSkillDTO, WriterObservationDTO, WriterPreferenceDTO, WriterPreferenceEvidenceDTO } from './types'
 
 const API_BASE = '/api/v1'
 
@@ -64,6 +64,17 @@ export const api = {
     request<{ universe: any }>(`/universes/${id}`, { method: 'PUT', json: data }),
   deleteUniverse: (id: string) =>
     request<void>(`/universes/${id}`, { method: 'DELETE' }),
+
+  // Editorial skills — catalogue bodies stay server-side; universe endpoints
+  // expose only frontmatter and active skill names.
+  getSkills: () => request<{ skills: SkillCatalogueItem[] }>('/skills'),
+  getUniverseSkills: (universeId: string) =>
+    request<{ skills: UniverseSkillDTO[] }>(`/universes/${universeId}/skills`),
+  updateUniverseSkills: (universeId: string, skillNames: string[]) =>
+    request<{ skills: UniverseSkillDTO[] }>(`/universes/${universeId}/skills`, {
+      method: 'PUT',
+      json: { skill_names: skillNames },
+    }),
 
   // Works
   listWorks: (universeId: string) =>

@@ -157,4 +157,3 @@ func RunMigrationsUpTo(t *testing.T, pool *pgxpool.Pool, maxPrefix string) {
 		}
 	}
 }
-
