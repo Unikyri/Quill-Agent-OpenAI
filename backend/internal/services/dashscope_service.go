@@ -388,10 +388,11 @@ func dashScopeEntityJSONSchema() map[string]interface{} {
 			"aliases":     map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
 			"type":        map[string]interface{}{"type": "string", "enum": dashScopeEnumValues(dashScopeCanonicalEntityTypes)},
 			"status":      map[string]interface{}{"type": "string", "enum": []interface{}{"active", "archived"}},
+			"confidence":  map[string]interface{}{"type": "number", "minimum": 0, "maximum": 1},
 			"description": map[string]interface{}{"type": "string"},
 			"properties":  map[string]interface{}{"type": "object"},
 		},
-		"required":             []interface{}{"name", "aliases", "type", "status", "description", "properties"},
+		"required":             []interface{}{"name", "aliases", "type", "status", "confidence", "description", "properties"},
 		"additionalProperties": false,
 	}
 	properties := map[string]interface{}{
@@ -737,7 +738,7 @@ UNIVERSE LORE:
 %s
 
 STABLE SCHEMA GUIDANCE:
-Every entity includes name, aliases, type, status, description, and properties. Keep category/type aligned (characters=character, places=place, objects=object, events=event, factions=faction, world_rules=world_rule, plot_developments=plot_arc).`, strings.Join(dashScopeCanonicalEntityTypes, ", "), universeContext)
+Every entity includes name, aliases, type, status, confidence (0..1), description, and properties. Keep category/type aligned (characters=character, places=place, objects=object, events=event, factions=faction, world_rules=world_rule, plot_developments=plot_arc).`, strings.Join(dashScopeCanonicalEntityTypes, ", "), universeContext)
 	return padDashScopeCachePrefix(prefix)
 }
 

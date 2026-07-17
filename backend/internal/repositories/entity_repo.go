@@ -21,12 +21,22 @@ func NewEntityRepo(pool *pgxpool.Pool) *EntityRepo {
 	return &EntityRepo{pool: pool}
 }
 
+func scanEntity(row pgx.Row) (*models.Entity, error) {
+	e := &models.Entity{}
+	err := row.Scan(
+		&e.ID, &e.UniverseID, &e.Type, &e.Name, &e.Aliases, &e.Description,
+		&e.Properties, &e.Status, &e.Confidence, &e.RelevanceScore, &e.LastMentionedChapterID,
+		&e.LastMentionedAt, &e.CreatedAt, &e.UpdatedAt,
+	)
+	return e, err
+}
+
 func (r *EntityRepo) Create(ctx context.Context, tx pgx.Tx, e *models.Entity) error {
 	query := `
-		INSERT INTO entities (id, universe_id, type, name, aliases, description, properties, status, relevance_score, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+		INSERT INTO entities (id, universe_id, type, name, aliases, description, properties, status, confidence, relevance_score, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
 	`
-	_, err := tx.Exec(ctx, query, e.ID, e.UniverseID, e.Type, e.Name, e.Aliases, e.Description, e.Properties, e.Status, e.RelevanceScore)
+	_, err := tx.Exec(ctx, query, e.ID, e.UniverseID, e.Type, e.Name, e.Aliases, e.Description, e.Properties, e.Status, e.Confidence, e.RelevanceScore)
 	if err != nil {
 		return fmt.Errorf("create entity: %w", err)
 	}
@@ -35,16 +45,11 @@ func (r *EntityRepo) Create(ctx context.Context, tx pgx.Tx, e *models.Entity) er
 
 func (r *EntityRepo) FindByID(ctx context.Context, id uuid.UUID) (*models.Entity, error) {
 	query := `
-		SELECT id, universe_id, type, name, aliases, COALESCE(description, ''), properties, status, relevance_score,
+		SELECT id, universe_id, type, name, aliases, COALESCE(description, ''), properties, status, confidence, relevance_score,
 		       last_mentioned_chapter_id, last_mentioned_at, created_at, updated_at
 		FROM entities WHERE id = $1
 	`
-	e := &models.Entity{}
-	err := r.pool.QueryRow(ctx, query, id).Scan(
-		&e.ID, &e.UniverseID, &e.Type, &e.Name, &e.Aliases, &e.Description,
-		&e.Properties, &e.Status, &e.RelevanceScore, &e.LastMentionedChapterID,
-		&e.LastMentionedAt, &e.CreatedAt, &e.UpdatedAt,
-	)
+	e, err := scanEntity(r.pool.QueryRow(ctx, query, id))
 	if err == pgx.ErrNoRows {
 		return nil, fmt.Errorf("entity not found")
 	}
@@ -54,9 +59,30 @@ func (r *EntityRepo) FindByID(ctx context.Context, id uuid.UUID) (*models.Entity
 	return e, nil
 }
 
+// FindByIDTx returns an entity while holding a row lock until tx commits or
+// rolls back. Resolution first performs the cheap pool lookup, then uses this
+// method immediately before mutating the row so candidate decisions and
+// mention merges cannot overwrite each other with stale data.
+func (r *EntityRepo) FindByIDTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*models.Entity, error) {
+	query := `
+		SELECT id, universe_id, type, name, aliases, COALESCE(description, ''), properties, status, confidence, relevance_score,
+		       last_mentioned_chapter_id, last_mentioned_at, created_at, updated_at
+		FROM entities WHERE id = $1
+		FOR UPDATE
+	`
+	e, err := scanEntity(tx.QueryRow(ctx, query, id))
+	if err == pgx.ErrNoRows {
+		return nil, fmt.Errorf("entity not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find entity by id in transaction: %w", err)
+	}
+	return e, nil
+}
+
 func (r *EntityRepo) FindByName(ctx context.Context, universeID uuid.UUID, name string) (*models.Entity, error) {
 	query := `
-		SELECT id, universe_id, type, name, aliases, COALESCE(description, ''), properties, status, relevance_score,
+		SELECT id, universe_id, type, name, aliases, COALESCE(description, ''), properties, status, confidence, relevance_score,
 		       last_mentioned_chapter_id, last_mentioned_at, created_at, updated_at
 		FROM entities WHERE universe_id = $1 AND LOWER(name) = LOWER($2)
 		ORDER BY type, id
@@ -65,7 +91,7 @@ func (r *EntityRepo) FindByName(ctx context.Context, universeID uuid.UUID, name 
 	e := &models.Entity{}
 	err := r.pool.QueryRow(ctx, query, universeID, name).Scan(
 		&e.ID, &e.UniverseID, &e.Type, &e.Name, &e.Aliases, &e.Description,
-		&e.Properties, &e.Status, &e.RelevanceScore, &e.LastMentionedChapterID,
+		&e.Properties, &e.Status, &e.Confidence, &e.RelevanceScore, &e.LastMentionedChapterID,
 		&e.LastMentionedAt, &e.CreatedAt, &e.UpdatedAt,
 	)
 	if err == pgx.ErrNoRows {
@@ -82,7 +108,7 @@ func (r *EntityRepo) FindByName(ctx context.Context, universeID uuid.UUID, name 
 // must use this method so same-named entities of different types stay distinct.
 func (r *EntityRepo) FindByNaturalKey(ctx context.Context, universeID uuid.UUID, name, entityType string) (*models.Entity, error) {
 	query := `
-		SELECT id, universe_id, type, name, aliases, COALESCE(description, ''), properties, status, relevance_score,
+		SELECT id, universe_id, type, name, aliases, COALESCE(description, ''), properties, status, confidence, relevance_score,
 		       last_mentioned_chapter_id, last_mentioned_at, created_at, updated_at
 		FROM entities
 		WHERE universe_id = $1 AND LOWER(name) = LOWER($2) AND type = $3
@@ -90,7 +116,7 @@ func (r *EntityRepo) FindByNaturalKey(ctx context.Context, universeID uuid.UUID,
 	e := &models.Entity{}
 	err := r.pool.QueryRow(ctx, query, universeID, name, entityType).Scan(
 		&e.ID, &e.UniverseID, &e.Type, &e.Name, &e.Aliases, &e.Description,
-		&e.Properties, &e.Status, &e.RelevanceScore, &e.LastMentionedChapterID,
+		&e.Properties, &e.Status, &e.Confidence, &e.RelevanceScore, &e.LastMentionedChapterID,
 		&e.LastMentionedAt, &e.CreatedAt, &e.UpdatedAt,
 	)
 	if err == pgx.ErrNoRows {
@@ -104,7 +130,7 @@ func (r *EntityRepo) FindByNaturalKey(ctx context.Context, universeID uuid.UUID,
 
 func (r *EntityRepo) FindByAlias(ctx context.Context, universeID uuid.UUID, alias string) (*models.Entity, error) {
 	query := `
-		SELECT id, universe_id, type, name, aliases, description, properties, status, relevance_score,
+		SELECT id, universe_id, type, name, aliases, description, properties, status, confidence, relevance_score,
 		       last_mentioned_chapter_id, last_mentioned_at, created_at, updated_at
 		FROM entities WHERE universe_id = $1 AND LOWER($2) = ANY(SELECT LOWER(unnest(aliases)))
 		ORDER BY type, id
@@ -113,7 +139,7 @@ func (r *EntityRepo) FindByAlias(ctx context.Context, universeID uuid.UUID, alia
 	e := &models.Entity{}
 	err := r.pool.QueryRow(ctx, query, universeID, alias).Scan(
 		&e.ID, &e.UniverseID, &e.Type, &e.Name, &e.Aliases, &e.Description,
-		&e.Properties, &e.Status, &e.RelevanceScore, &e.LastMentionedChapterID,
+		&e.Properties, &e.Status, &e.Confidence, &e.RelevanceScore, &e.LastMentionedChapterID,
 		&e.LastMentionedAt, &e.CreatedAt, &e.UpdatedAt,
 	)
 	if err == pgx.ErrNoRows {
@@ -129,7 +155,7 @@ func (r *EntityRepo) FindByAlias(ctx context.Context, universeID uuid.UUID, alia
 // key when the same alias is used by different entity types.
 func (r *EntityRepo) FindByAliasAndType(ctx context.Context, universeID uuid.UUID, alias, entityType string) (*models.Entity, error) {
 	query := `
-		SELECT id, universe_id, type, name, aliases, COALESCE(description, ''), properties, status, relevance_score,
+		SELECT id, universe_id, type, name, aliases, COALESCE(description, ''), properties, status, confidence, relevance_score,
 		       last_mentioned_chapter_id, last_mentioned_at, created_at, updated_at
 		FROM entities
 		WHERE universe_id = $1
@@ -139,7 +165,7 @@ func (r *EntityRepo) FindByAliasAndType(ctx context.Context, universeID uuid.UUI
 	e := &models.Entity{}
 	err := r.pool.QueryRow(ctx, query, universeID, alias, entityType).Scan(
 		&e.ID, &e.UniverseID, &e.Type, &e.Name, &e.Aliases, &e.Description,
-		&e.Properties, &e.Status, &e.RelevanceScore, &e.LastMentionedChapterID,
+		&e.Properties, &e.Status, &e.Confidence, &e.RelevanceScore, &e.LastMentionedChapterID,
 		&e.LastMentionedAt, &e.CreatedAt, &e.UpdatedAt,
 	)
 	if err == pgx.ErrNoRows {
@@ -153,7 +179,7 @@ func (r *EntityRepo) FindByAliasAndType(ctx context.Context, universeID uuid.UUI
 
 func (r *EntityRepo) FindByFuzzyName(ctx context.Context, universeID uuid.UUID, name string, entityType string) (*models.Entity, error) {
 	query := `
-		SELECT id, universe_id, type, name, aliases, description, properties, status, relevance_score,
+		SELECT id, universe_id, type, name, aliases, description, properties, status, confidence, relevance_score,
 		       last_mentioned_chapter_id, last_mentioned_at, created_at, updated_at
 		FROM entities
 		WHERE universe_id = $1
@@ -165,7 +191,7 @@ func (r *EntityRepo) FindByFuzzyName(ctx context.Context, universeID uuid.UUID, 
 	e := &models.Entity{}
 	err := r.pool.QueryRow(ctx, query, universeID, name, entityType).Scan(
 		&e.ID, &e.UniverseID, &e.Type, &e.Name, &e.Aliases, &e.Description,
-		&e.Properties, &e.Status, &e.RelevanceScore, &e.LastMentionedChapterID,
+		&e.Properties, &e.Status, &e.Confidence, &e.RelevanceScore, &e.LastMentionedChapterID,
 		&e.LastMentionedAt, &e.CreatedAt, &e.UpdatedAt,
 	)
 	if err == pgx.ErrNoRows {
@@ -193,6 +219,49 @@ type ExtractedEntity struct {
 	Description string                 `json:"description,omitempty"`
 	Properties  map[string]interface{} `json:"properties,omitempty"`
 	Status      string                 `json:"status,omitempty"`
+	Confidence  float64                `json:"confidence,omitempty"`
+	// ConfidenceSet is propagated from the Qwen extraction decoder so an
+	// explicit confidence of zero is not mistaken for a legacy omitted value.
+	ConfidenceSet bool `json:"-"`
+}
+
+// ListCandidates returns the review-tray projection. Evidence comes from the
+// latest mention, keeping the candidate entity row as the single source of
+// truth while still giving the writer a useful quote and chapter context.
+func (r *EntityRepo) ListCandidates(ctx context.Context, universeID uuid.UUID) ([]models.EntityCandidate, error) {
+	const query = `
+		SELECT e.id, e.universe_id, e.name, e.type, e.aliases,
+		       COALESCE(e.description, ''), e.confidence, e.status,
+		       COALESCE(m.context_snippet, ''), COALESCE(m.chapter_id, '00000000-0000-0000-0000-000000000000'::uuid)
+		FROM entities e
+		LEFT JOIN LATERAL (
+			SELECT context_snippet, chapter_id
+			FROM entity_mentions
+			WHERE entity_id = e.id
+			ORDER BY created_at DESC, id DESC
+			LIMIT 1
+		) m ON TRUE
+		WHERE e.universe_id = $1 AND e.status = 'candidate'
+		ORDER BY e.confidence ASC, e.updated_at ASC, e.id ASC
+	`
+	rows, err := r.pool.Query(ctx, query, universeID)
+	if err != nil {
+		return nil, fmt.Errorf("list entity candidates: %w", err)
+	}
+	defer rows.Close()
+	result := make([]models.EntityCandidate, 0)
+	for rows.Next() {
+		var item models.EntityCandidate
+		if err := rows.Scan(&item.EntityID, &item.UniverseID, &item.Name, &item.Type, &item.Aliases,
+			&item.Description, &item.Confidence, &item.Status, &item.EvidenceQuote, &item.ChapterID); err != nil {
+			return nil, fmt.Errorf("scan entity candidate: %w", err)
+		}
+		result = append(result, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate entity candidates: %w", err)
+	}
+	return result, nil
 }
 
 func (r *EntityRepo) ListByUniverse(ctx context.Context, universeID uuid.UUID, filters EntityFilters) ([]models.Entity, int, error) {
@@ -231,7 +300,7 @@ func (r *EntityRepo) ListByUniverse(ctx context.Context, universeID uuid.UUID, f
 
 	offset := (filters.Page - 1) * filters.Limit
 	query := fmt.Sprintf(`
-		SELECT id, universe_id, type, name, aliases, description, properties, status, relevance_score,
+		SELECT id, universe_id, type, name, aliases, description, properties, status, confidence, relevance_score,
 		       last_mentioned_chapter_id, last_mentioned_at, created_at, updated_at
 		FROM entities WHERE %s
 		ORDER BY relevance_score DESC
@@ -250,7 +319,7 @@ func (r *EntityRepo) ListByUniverse(ctx context.Context, universeID uuid.UUID, f
 		var e models.Entity
 		if err := rows.Scan(
 			&e.ID, &e.UniverseID, &e.Type, &e.Name, &e.Aliases, &e.Description,
-			&e.Properties, &e.Status, &e.RelevanceScore, &e.LastMentionedChapterID,
+			&e.Properties, &e.Status, &e.Confidence, &e.RelevanceScore, &e.LastMentionedChapterID,
 			&e.LastMentionedAt, &e.CreatedAt, &e.UpdatedAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan entity: %w", err)
@@ -295,15 +364,31 @@ func (r *EntityRepo) CountByType(ctx context.Context, universeID uuid.UUID) (map
 func (r *EntityRepo) Update(ctx context.Context, tx pgx.Tx, e *models.Entity) error {
 	query := `
 		UPDATE entities SET type=$1, name=$2, aliases=$3, description=$4, properties=$5,
-		       status=$6, relevance_score=$7, last_mentioned_chapter_id=$8, last_mentioned_at=$9, updated_at=NOW()
-		WHERE id=$10
+		       status=$6, confidence=$7, relevance_score=$8, last_mentioned_chapter_id=$9, last_mentioned_at=$10, updated_at=NOW()
+		WHERE id=$11
 	`
 	_, err := tx.Exec(ctx, query, e.Type, e.Name, e.Aliases, e.Description, e.Properties,
-		e.Status, e.RelevanceScore, e.LastMentionedChapterID, e.LastMentionedAt, e.ID)
+		e.Status, e.Confidence, e.RelevanceScore, e.LastMentionedChapterID, e.LastMentionedAt, e.ID)
 	if err != nil {
 		return fmt.Errorf("update entity: %w", err)
 	}
 	return nil
+}
+
+// UpdateCandidateStatus changes a candidate only if it is still a candidate.
+// The affected-row check closes the race between two simultaneous decisions.
+func (r *EntityRepo) UpdateCandidateStatus(ctx context.Context, tx pgx.Tx, e *models.Entity, fromStatus string) (bool, error) {
+	query := `
+		UPDATE entities SET type=$1, name=$2, aliases=$3, description=$4, properties=$5,
+		       status=$6, confidence=$7, relevance_score=$8, last_mentioned_chapter_id=$9, last_mentioned_at=$10, updated_at=NOW()
+		WHERE id=$11 AND status=$12
+	`
+	tag, err := tx.Exec(ctx, query, e.Type, e.Name, e.Aliases, e.Description, e.Properties,
+		e.Status, e.Confidence, e.RelevanceScore, e.LastMentionedChapterID, e.LastMentionedAt, e.ID, fromStatus)
+	if err != nil {
+		return false, fmt.Errorf("update candidate status: %w", err)
+	}
+	return tag.RowsAffected() == 1, nil
 }
 
 func (r *EntityRepo) CreateMention(ctx context.Context, tx pgx.Tx, m *models.EntityMention) error {
@@ -431,7 +516,7 @@ func (r *EntityRepo) TouchBatch(ctx context.Context, entityIDs []uuid.UUID, chap
 // ListByUniverseActive returns all active entities for a universe ordered by relevance.
 func (r *EntityRepo) ListByUniverseActive(ctx context.Context, universeID uuid.UUID) ([]models.Entity, error) {
 	query := `
-		SELECT id, universe_id, type, name, aliases, description, properties, status, relevance_score,
+		SELECT id, universe_id, type, name, aliases, description, properties, status, confidence, relevance_score,
 		       last_mentioned_chapter_id, last_mentioned_at, created_at, updated_at
 		FROM entities WHERE universe_id = $1 AND status = 'active'
 		ORDER BY relevance_score DESC
@@ -447,7 +532,7 @@ func (r *EntityRepo) ListByUniverseActive(ctx context.Context, universeID uuid.U
 		var e models.Entity
 		if err := rows.Scan(
 			&e.ID, &e.UniverseID, &e.Type, &e.Name, &e.Aliases, &e.Description,
-			&e.Properties, &e.Status, &e.RelevanceScore, &e.LastMentionedChapterID,
+			&e.Properties, &e.Status, &e.Confidence, &e.RelevanceScore, &e.LastMentionedChapterID,
 			&e.LastMentionedAt, &e.CreatedAt, &e.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan entity: %w", err)

@@ -514,12 +514,36 @@ func defaultRetryJitter(delay time.Duration) time.Duration {
 }
 
 type ExtractedEntity struct {
-	Name        string                 `json:"name"`
-	Aliases     []string               `json:"aliases"`
-	Type        string                 `json:"type"`
-	Status      string                 `json:"status"`
-	Description string                 `json:"description"`
-	Properties  map[string]interface{} `json:"properties"`
+	Name       string   `json:"name"`
+	Aliases    []string `json:"aliases"`
+	Type       string   `json:"type"`
+	Status     string   `json:"status"`
+	Confidence float64  `json:"confidence"`
+	// ConfidenceSet distinguishes an explicit JSON confidence of 0 from
+	// responses produced before confidence was part of the extraction schema.
+	// The latter are normalized to the legacy auto-accept value by the entity
+	// service; an explicit zero must remain a candidate.
+	ConfidenceSet bool                   `json:"-"`
+	Description   string                 `json:"description"`
+	Properties    map[string]interface{} `json:"properties"`
+}
+
+// UnmarshalJSON records whether the provider included confidence at all. A
+// plain float64 cannot distinguish {"confidence":0} from an omitted field,
+// which is important for the candidate gate.
+func (e *ExtractedEntity) UnmarshalJSON(data []byte) error {
+	type extractedEntityAlias ExtractedEntity
+	var decoded extractedEntityAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	*e = ExtractedEntity(decoded)
+	_, e.ConfidenceSet = fields["confidence"]
+	return nil
 }
 
 type ExtractedEntities struct {
@@ -608,13 +632,13 @@ Paragraph: "%s"
 
 Respond with ONLY valid JSON in this format:
 {
-  "characters": [{"name": "...", "aliases": [], "type": "character", "status": "active", "description": "...", "properties": {}}],
-  "places": [{"name": "...", "type": "place", "description": "...", "properties": {}}],
-  "objects": [{"name": "...", "type": "object", "description": "...", "properties": {}}],
-  "events": [{"name": "...", "type": "event", "description": "...", "properties": {}}],
-  "factions": [{"name": "...", "type": "faction", "description": "...", "properties": {}}],
-  "world_rules": [{"name": "...", "type": "world_rule", "description": "...", "properties": {}}],
-  "plot_developments": [{"name": "...", "type": "plot_arc", "description": "...", "properties": {}}]
+  "characters": [{"name": "...", "aliases": [], "type": "character", "status": "active", "confidence": 0.0, "description": "...", "properties": {}}],
+  "places": [{"name": "...", "aliases": [], "type": "place", "status": "active", "confidence": 0.0, "description": "...", "properties": {}}],
+  "objects": [{"name": "...", "aliases": [], "type": "object", "status": "active", "confidence": 0.0, "description": "...", "properties": {}}],
+  "events": [{"name": "...", "aliases": [], "type": "event", "status": "active", "confidence": 0.0, "description": "...", "properties": {}}],
+  "factions": [{"name": "...", "aliases": [], "type": "faction", "status": "active", "confidence": 0.0, "description": "...", "properties": {}}],
+  "world_rules": [{"name": "...", "aliases": [], "type": "world_rule", "status": "active", "confidence": 0.0, "description": "...", "properties": {}}],
+  "plot_developments": [{"name": "...", "aliases": [], "type": "plot_arc", "status": "active", "confidence": 0.0, "description": "...", "properties": {}}]
 }
 
 Classify against these criteria:
@@ -625,6 +649,7 @@ Classify against these criteria:
 - event: a named occurrence with a temporal location, such as a war, wedding, or catastrophe.
 - world_rule: a law of the universe, such as a magic-system constraint, physics rule, or established social norm.
 - plot_arc: a narrative thread that spans chapters and is tracked for continuity.
+- confidence: a number from 0 to 1 reflecting how strongly the paragraph supports this entity; do not guess certainty.
 }`, universeContext, text)
 
 	payload := QwenRequest{

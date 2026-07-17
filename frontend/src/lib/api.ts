@@ -1,4 +1,4 @@
-import type { IngestionJobDTO, MemoryStatusEntity, RecallExplanation, SkillCatalogueItem, UniverseSkillDTO, WriterObservationDTO, WriterPreferenceDTO, WriterPreferenceEvidenceDTO } from './types'
+import type { EntityCandidateDTO, IngestionJobDTO, MemoryStatusEntity, RecallExplanation, SkillCatalogueItem, UniverseSkillDTO, WriterObservationDTO, WriterPreferenceDTO, WriterPreferenceEvidenceDTO } from './types'
 
 const API_BASE = '/api/v1'
 
@@ -31,6 +31,18 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   if (res.status === 204) return undefined as T
   return res.json()
+}
+
+async function requestText(path: string): Promise<string> {
+  const token = localStorage.getItem('token')
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  })
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: { message: 'Request failed' } }))
+    throw new Error(error.error?.message || `HTTP ${res.status}`)
+  }
+  return res.text()
 }
 
 export const api = {
@@ -97,6 +109,8 @@ export const api = {
     request<{ chapter: any }>(`/chapters/${id}`, { method: 'PUT', json: data }),
   deleteChapter: (id: string) =>
     request<void>(`/chapters/${id}`, { method: 'DELETE' }),
+  exportChapterMarkdown: (id: string) => requestText(`/chapters/${id}/export.md`),
+  exportWorkMarkdown: (id: string) => requestText(`/works/${id}/export.md`),
 
   // Entities
   listEntities: (universeId: string, params?: Record<string, string>) => {
@@ -104,6 +118,17 @@ export const api = {
     return request<{ entities: any[]; counts_by_type: Record<string, number>; pagination: any }>(`/universes/${universeId}/entities${query}`)
   },
   getEntity: (id: string) => request<{ entity: any }>(`/entities/${id}`),
+
+  // Low-confidence extraction candidates stay separate from committed entities
+  // until the writer accepts, dismisses, or merges them.
+  listEntityCandidates: (universeId: string) =>
+    request<{ candidates: EntityCandidateDTO[] }>(`/universes/${universeId}/candidates`),
+  acceptEntityCandidate: (candidateId: string) =>
+    request<{ entity?: any }>(`/candidates/${candidateId}/accept`, { method: 'POST' }),
+  dismissEntityCandidate: (candidateId: string) =>
+    request<void>(`/candidates/${candidateId}/dismiss`, { method: 'POST' }),
+  mergeEntityCandidate: (candidateId: string, targetEntityId: string) =>
+    request<{ entity?: any }>(`/candidates/${candidateId}/merge`, { method: 'POST', json: { target_entity_id: targetEntityId } }),
 
   getEntityNeighbors: (id: string, universeId: string, hops = 1) =>
     request<{

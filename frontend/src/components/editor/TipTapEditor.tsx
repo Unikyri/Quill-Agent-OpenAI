@@ -6,6 +6,8 @@ import Highlight from '@tiptap/extension-highlight'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
 import { useWSStore, type SubmissionLifecycle } from '../../stores/wsStore'
+import EntityHighlight, { type EntityHighlightEntity } from './entityHighlightExtension'
+import CandidateHighlight, { candidateHighlightKey, type CandidateHighlightEntity } from './candidateHighlightExtension'
 import styles from './TipTapEditor.module.css'
 
 interface TipTapEditorProps {
@@ -15,6 +17,10 @@ interface TipTapEditorProps {
   initialContent?: string
   onContentChange?: (html: string, text: string) => void
   onCraftReview?: (selection: { passage: string; from: number; to: number }) => void
+  knownEntities?: EntityHighlightEntity[]
+  onEntityClick?: (entityId: string) => void
+  candidateEntities?: CandidateHighlightEntity[]
+  onCandidateDecision?: (candidateId: string, decision: 'accept' | 'dismiss') => void
   reviewing?: boolean
 }
 
@@ -157,6 +163,10 @@ export default function TipTapEditor({
   initialContent,
   onContentChange,
   onCraftReview,
+  knownEntities = [],
+  onEntityClick,
+  candidateEntities = [],
+  onCandidateDecision,
   reviewing,
 }: TipTapEditorProps) {
   const send = useWSStore((s) => s.send)
@@ -165,6 +175,7 @@ export default function TipTapEditor({
   const lastParagraphTextByRef = useRef<Record<string, string>>({})
   const submissionSequenceRef = useRef(0)
   const [fontSize, setFontSize] = useState(17)
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null)
   const chapterSubmissions = Object.values(submissions)
     .filter((submission) => submission.chapterId === chapterId)
     .sort((left, right) => right.updatedAt - left.updatedAt)
@@ -176,6 +187,8 @@ export default function TipTapEditor({
       Highlight,
       Underline,
       Link.configure({ openOnClick: false }),
+      EntityHighlight.configure({ entities: knownEntities }),
+      CandidateHighlight.configure({ candidates: candidateEntities }),
     ],
     content: initialContent || '',
     onUpdate: ({ editor }) => {
@@ -213,6 +226,14 @@ export default function TipTapEditor({
     },
   })
 
+  // Keep the ProseMirror plugin instance stable while live candidates arrive.
+  // Recreating TipTap here would reset the document selection/cursor on every
+  // WebSocket event; plugin metadata lets it rebuild only its decorations.
+  useEffect(() => {
+    if (!editor?.view?.dispatch) return
+    editor.view.dispatch(editor.state.tr.setMeta(candidateHighlightKey, candidateEntities))
+  }, [editor, candidateEntities])
+
   // Sync initial content when chapter changes
   useEffect(() => {
     if (editor && initialContent !== undefined && editor.getHTML() !== initialContent) {
@@ -238,7 +259,30 @@ export default function TipTapEditor({
         reviewing={reviewing}
       />
       {chapterSubmissions.length > 0 && <AnalysisStatusList submissions={chapterSubmissions} />}
-      <div className={`${styles.editorContent} q-scroll`} style={{ fontSize: `${fontSize}px` }}>
+      {selectedCandidateId && onCandidateDecision && (() => {
+        const candidate = candidateEntities.find((item) => item.id === selectedCandidateId)
+        if (!candidate) return null
+        return (
+          <div className={styles.candidateActions} role="status">
+            <strong>{candidate.name}</strong>
+            <span>{Math.round((candidate.confidence ?? 0) * 100)}% confidence</span>
+            <button type="button" onClick={() => { onCandidateDecision(candidate.id, 'accept'); setSelectedCandidateId(null) }}>Accept</button>
+            <button type="button" onClick={() => { onCandidateDecision(candidate.id, 'dismiss'); setSelectedCandidateId(null) }}>Dismiss</button>
+          </div>
+        )
+      })()}
+      <div
+        className={`${styles.editorContent} q-scroll`}
+        style={{ fontSize: `${fontSize}px` }}
+        onClick={(event) => {
+          if (!onEntityClick) return
+          const target = event.target as HTMLElement
+          const entity = target.closest<HTMLElement>('[data-entity-id]')
+          if (entity?.dataset.entityId) onEntityClick(entity.dataset.entityId)
+          const candidate = target.closest<HTMLElement>('[data-candidate-id]')
+          if (candidate?.dataset.candidateId) setSelectedCandidateId(candidate.dataset.candidateId)
+        }}
+      >
         <EditorContent editor={editor} />
       </div>
     </div>

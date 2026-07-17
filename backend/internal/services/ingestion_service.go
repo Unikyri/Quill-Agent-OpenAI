@@ -386,7 +386,7 @@ func mapExtractedMentions(extracted *ExtractedEntities, paragraphs []mappedParag
 	}
 	mentions := make([]extractedMention, 0, len(extracted.All()))
 	for _, item := range extracted.All() {
-		entity := repositories.ExtractedEntity{Type: item.Type, Name: item.Name, Aliases: item.Aliases, Description: item.Description, Status: item.Status, Properties: item.Properties}
+		entity := repositories.ExtractedEntity{Type: item.Type, Name: item.Name, Aliases: item.Aliases, Description: item.Description, Status: item.Status, Properties: item.Properties, Confidence: item.Confidence, ConfidenceSet: item.ConfidenceSet}
 		paragraphIndex, offset, snippet := 0, 0, ""
 		needle := strings.ToLower(strings.TrimSpace(item.Name))
 		for _, paragraph := range paragraphs {
@@ -513,14 +513,18 @@ func (s *IngestionService) runWorker(jobID, universeID, workID uuid.UUID, conten
 
 		chapterID := uuid.Nil
 		if chRepo != nil {
+			editorContent := MarkdownToEditorHTML(ch.content)
+			if editorContent == "" {
+				editorContent = ch.content
+			}
 			chapter := models.Chapter{
 				ID:         uuid.New(),
 				WorkID:     workID,
 				Title:      ch.title,
 				OrderIndex: baseOrder + i + 1,
-				Content:    ch.content,
+				Content:    editorContent,
 				RawText:    ch.content,
-				WordCount:  chRepo.CountWords(ch.content),
+				WordCount:  chRepo.CountWords(stripEditorMarkup(editorContent)),
 				Status:     "draft",
 			}
 			if err := s.createChapter(ctx, chRepo, &chapter); err != nil {
@@ -1043,7 +1047,7 @@ func (s *IngestionService) resolveAndBuildGraph(ctx context.Context, universeID 
 	for _, e := range extracted.All() {
 		allEntities = append(allEntities, repositories.ExtractedEntity{
 			Type: e.Type, Name: e.Name, Aliases: e.Aliases,
-			Description: e.Description, Status: e.Status, Properties: e.Properties,
+			Description: e.Description, Status: e.Status, Properties: e.Properties, Confidence: e.Confidence, ConfidenceSet: e.ConfidenceSet,
 		})
 	}
 

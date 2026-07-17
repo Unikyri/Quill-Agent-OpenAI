@@ -4,8 +4,11 @@ import { useEditorStore } from '../stores/editorStore'
 import { useWSStore } from '../stores/wsStore'
 import { useWS } from '../hooks/useWS'
 import { api } from '../lib/api'
+import type { EntityCandidateDTO } from '../lib/types'
 import TipTapEditor from '../components/editor/TipTapEditor'
 import CraftReviewPanel from '../components/editor/CraftReviewPanel'
+import EntityCandidateTray from '../components/editor/EntityCandidateTray'
+import type { CandidateHighlightEntity } from '../components/editor/candidateHighlightExtension'
 import ContextPanel from '../components/context-panel/ContextPanel'
 import styles from './EditorPage.module.css'
 
@@ -47,12 +50,25 @@ function clampPanelWidth(width: number, min: number) {
 export default function EditorPage() {
   const { chapterId, universeId } = useParams<{ chapterId: string; universeId: string }>()
   const navigate = useNavigate()
-  const { content, wordCount, isSaving, lastSavedAt, setContent, saveContent } = useEditorStore()
+  const {
+    content,
+    wordCount,
+    isSaving,
+    saveStatus,
+    saveError,
+    lastSavedAt,
+    setContent,
+    saveContent,
+    getLocalDraft,
+    clearLocalDraft,
+  } = useEditorStore()
   const wsStatus = useWSStore((s) => s.status)
   const wsError = useWSStore((s) => s.lastError)
   const sendWS = useWSStore((s) => s.send)
   const craftReviews = useWSStore((s) => s.craftReviews) || []
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const liveCandidates = useWSStore((s) => s.liveCandidates) || []
+  const removeLiveCandidate = useWSStore((s) => s.removeLiveCandidate)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [workInfo, setWorkInfo] = useState<WorkInfo | null>(null)
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [chapterTitle, setChapterTitle] = useState('')
@@ -66,6 +82,11 @@ export default function EditorPage() {
   const [railWidth, setRailWidth] = useState(() => clampPanelWidth(readPanelState().railWidth ?? 240, MIN_RAIL_WIDTH))
   const [contextWidth, setContextWidth] = useState(() => clampPanelWidth(readPanelState().contextWidth ?? 280, MIN_CONTEXT_WIDTH))
   const [craftReviewing, setCraftReviewing] = useState(false)
+  const [recoveryDraft, setRecoveryDraft] = useState<ReturnType<typeof getLocalDraft>>(null)
+  const [editorKey, setEditorKey] = useState(0)
+  const [knownEntities, setKnownEntities] = useState<Array<{ id: string; name: string; type?: string; aliases?: string[] }>>([])
+  const [candidates, setCandidates] = useState<EntityCandidateDTO[]>([])
+  const [candidateError, setCandidateError] = useState<string | null>(null)
 
   useWS()
 
@@ -82,9 +103,15 @@ export default function EditorPage() {
   useEffect(() => {
     if (!chapterId) return
     setEditorReady(false)
+    setRecoveryDraft(null)
+    setKnownEntities([])
     api.getChapter(chapterId).then(({ chapter }) => {
       setContent(chapter.content || '', chapter.raw_text || '')
       setChapterTitle(chapter.title || '')
+      const local = typeof getLocalDraft === 'function' ? getLocalDraft(chapterId) : null
+      const serverUpdatedAt = Date.parse(chapter.updated_at || '')
+      const localIsNewer = Boolean(local && local.content !== (chapter.content || '') && local.updatedAt > (Number.isFinite(serverUpdatedAt) ? serverUpdatedAt : 0))
+      if (localIsNewer) setRecoveryDraft(local)
       if (chapter.work_id) {
         api.getWork(chapter.work_id).then(({ work }) => {
           setWorkInfo({ id: work.id, title: work.title, universe_id: work.universe_id })
@@ -95,6 +122,35 @@ export default function EditorPage() {
       }
     }).catch(() => setEditorReady(true))
   }, [chapterId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!universeId || typeof api.listEntities !== 'function') return
+    let cancelled = false
+    api.listEntities(universeId, { limit: '500', page: '1', status: 'active' })
+      .then(({ entities }) => {
+        if (!cancelled) {
+          setKnownEntities((entities || []).filter((entity: { status?: string }) => !entity.status || entity.status === 'active').map((entity: { id: string; name: string; type?: string; aliases?: string[] }) => ({
+            id: entity.id, name: entity.name, type: entity.type, aliases: entity.aliases,
+          })))
+          setEditorKey((key) => key + 1)
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [universeId])
+
+  const loadCandidates = useCallback(async () => {
+    if (!universeId || typeof api.listEntityCandidates !== 'function') return
+    try {
+      const response = await api.listEntityCandidates(universeId)
+      setCandidates(response.candidates || [])
+      setCandidateError(null)
+    } catch (error) {
+      setCandidateError((error as Error).message || 'Could not load entity candidates')
+    }
+  }, [universeId])
+
+  useEffect(() => { void loadCandidates() }, [loadCandidates])
 
   // Load sibling chapters
   useEffect(() => {
@@ -116,12 +172,86 @@ export default function EditorPage() {
   }, [chapterId])
 
   const handleContentChange = useCallback((_html: string, text: string) => {
-    setContent(_html, text)
+    if (!chapterId) return
+    setContent(_html, text, chapterId)
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
-      if (chapterId) saveContent(chapterId)
+      void saveContent(chapterId)
     }, 5000)
   }, [chapterId, setContent, saveContent])
+
+  useEffect(() => () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = null
+    }
+  }, [chapterId])
+
+  const handleRestoreDraft = useCallback(() => {
+    if (!chapterId || !recoveryDraft) return
+    setContent(recoveryDraft.content, recoveryDraft.rawText, chapterId)
+    setRecoveryDraft(null)
+    setEditorKey((key) => key + 1)
+    void saveContent(chapterId)
+  }, [chapterId, recoveryDraft, saveContent, setContent])
+
+  const handleDiscardDraft = useCallback(() => {
+    if (chapterId && typeof clearLocalDraft === 'function') clearLocalDraft(chapterId)
+    setRecoveryDraft(null)
+  }, [chapterId, clearLocalDraft])
+
+  const handleExport = useCallback(async (kind: 'chapter' | 'work') => {
+    const id = kind === 'chapter' ? chapterId : workInfo?.id
+    if (!id) return
+    try {
+      // Export only after the current editor snapshot reaches the server;
+      // otherwise a just-typed paragraph is missing from the download.
+      if (chapterId && !(await saveContent(chapterId))) return
+      const markdown = kind === 'chapter'
+        ? await api.exportChapterMarkdown(id)
+        : await api.exportWorkMarkdown(id)
+      const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${(kind === 'chapter' ? chapterTitle : workInfo?.title) || 'quill-export'}.md`.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-|-$/g, '')
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      setSubmitError((error as Error).message || 'Export failed')
+    }
+  }, [chapterId, chapterTitle, saveContent, workInfo])
+
+  const handleEntityClick = useCallback((entityId: string) => {
+    navigate(`/universe/${universeId}/entities/${entityId}`)
+  }, [navigate, universeId])
+
+  const currentUniverseLiveCandidates = liveCandidates.filter((candidate) => candidate.universe_id === (workInfo?.universe_id || universeId))
+  const visibleCandidates = [...candidates]
+  for (const candidate of currentUniverseLiveCandidates) {
+    if (!visibleCandidates.some((item) => item.entity_id === candidate.entity_id)) visibleCandidates.push(candidate)
+  }
+  const visibleCandidateHighlights: CandidateHighlightEntity[] = visibleCandidates.map((candidate) => ({
+    id: candidate.entity_id,
+    name: candidate.name,
+    type: candidate.type,
+    aliases: candidate.aliases,
+    confidence: candidate.confidence,
+    evidence_quote: candidate.evidence_quote,
+  }))
+
+  const handleCandidateDecision = useCallback(async (candidateId: string, decision: 'accept' | 'dismiss') => {
+    try {
+      if (decision === 'accept') await api.acceptEntityCandidate(candidateId)
+      else await api.dismissEntityCandidate(candidateId)
+      setCandidates((current) => current.filter((candidate) => candidate.entity_id !== candidateId))
+      removeLiveCandidate(candidateId)
+    } catch (error) {
+      setCandidateError((error as Error).message || 'Could not save candidate decision')
+    }
+  }, [removeLiveCandidate])
 
   const handleCraftReview = useCallback(({ passage }: { passage: string; from: number; to: number }) => {
     if (!chapterId || !workInfo?.id || !universeId || !passage.trim() || typeof sendWS !== 'function') return
@@ -158,6 +288,7 @@ export default function EditorPage() {
   const craftReview = [...craftReviews]
     .reverse()
     .find((review) => review.chapter_id === chapterId) || null
+  const effectiveSaveStatus = saveStatus || (isSaving ? 'saving' : lastSavedAt ? 'saved' : 'idle')
   const resizePanel = (side: PanelSide, clientX: number) => {
     if (side === 'rail') {
       setRailWidth(clampPanelWidth(clientX, MIN_RAIL_WIDTH))
@@ -277,13 +408,17 @@ export default function EditorPage() {
           </div>
           <div className={styles.headerRight}>
             <span>
-              {isSaving
+              {effectiveSaveStatus === 'saving'
                 ? <><span className={styles.savingDot} />Saving…</>
-                : lastSavedAt
+                : effectiveSaveStatus === 'failed'
+                ? <button type="button" className={styles.saveFailed} onClick={() => chapterId && void saveContent(chapterId)} title={saveError || 'Save failed'}><span className={styles.failedDot} />Save failed · Retry</button>
+                : effectiveSaveStatus === 'saved'
                 ? <><span className={styles.savedDot} />Saved</>
                 : ''}
             </span>
             <span>{wordCount.toLocaleString()} words</span>
+            <button type="button" className={styles.exportButton} onClick={() => void handleExport('chapter')} disabled={!chapterId} title="Export chapter as Markdown">↓ Chapter</button>
+            <button type="button" className={styles.exportButton} onClick={() => void handleExport('work')} disabled={!workInfo?.id} title="Export work as Markdown">↓ Work</button>
             <span className={`glyph ${styles.wsIndicator} ${wsStatusClass}`} title={`WS: ${wsStatus}`}>●</span>
           </div>
         </div>
@@ -291,15 +426,29 @@ export default function EditorPage() {
         {!editorReady ? (
           <div className={styles.loading}>Loading editor…</div>
         ) : chapterId && workInfo ? (
-          <TipTapEditor
-            chapterId={chapterId}
-            workId={workInfo.id}
-            universeId={workInfo.universe_id || universeId || ''}
-            initialContent={content}
-            onContentChange={handleContentChange}
-            onCraftReview={handleCraftReview}
-            reviewing={craftReviewing}
-          />
+          <>
+            {recoveryDraft && (
+              <div className={styles.recoveryBanner} role="status">
+                <span>Unsaved local recovery found from {new Date(recoveryDraft.updatedAt).toLocaleString()}.</span>
+                <button type="button" onClick={handleRestoreDraft}>Restore</button>
+                <button type="button" onClick={handleDiscardDraft}>Discard</button>
+              </div>
+            )}
+            <TipTapEditor
+              key={`${chapterId}:${editorKey}`}
+              chapterId={chapterId}
+              workId={workInfo.id}
+              universeId={workInfo.universe_id || universeId || ''}
+              initialContent={content}
+              onContentChange={handleContentChange}
+              knownEntities={knownEntities}
+              onEntityClick={handleEntityClick}
+              candidateEntities={visibleCandidateHighlights}
+              onCandidateDecision={handleCandidateDecision}
+              onCraftReview={handleCraftReview}
+              reviewing={craftReviewing}
+            />
+          </>
         ) : (
           <div className={styles.noChapterState}>
             <span className={`glyph ${styles.noChapterGlyph}`}>✎</span>
@@ -318,6 +467,13 @@ export default function EditorPage() {
               universeId={workInfo?.universe_id || universeId || ''}
               workId={workInfo?.id || ''}
               chapterId={chapterId || ''}
+            />
+            <EntityCandidateTray
+              candidates={visibleCandidates}
+              error={candidateError}
+              universeId={universeId || ''}
+              onChanged={loadCandidates}
+              onDecision={removeLiveCandidate}
             />
             <div className={styles.contextAnalysis}>
               <ContextPanel status={wsStatus} universeId={workInfo?.universe_id || universeId} />

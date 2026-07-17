@@ -219,6 +219,60 @@
   margin-right: 4px;
 }
 
+.failedDot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-round);
+  background: var(--danger);
+  margin-right: 4px;
+}
+
+.saveFailed {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--danger);
+  cursor: pointer;
+  font: inherit;
+}
+
+.exportButton {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  padding: 3px 6px;
+  background: transparent;
+  color: var(--muted-2);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+}
+.exportButton:hover:not(:disabled) { border-color: var(--teal); color: var(--teal); }
+.exportButton:disabled { cursor: not-allowed; opacity: 0.45; }
+
+.recoveryBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--gold-soft);
+  color: var(--ink);
+  font-size: 11px;
+}
+.recoveryBanner span { flex: 1; }
+.recoveryBanner button {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  padding: 3px 7px;
+  background: var(--bg-card);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+}
+.recoveryBanner button:first-of-type { border-color: var(--teal); color: var(--teal); }
+
 .savingDot {
   display: inline-block;
   width: 7px;

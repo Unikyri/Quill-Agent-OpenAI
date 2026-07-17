@@ -529,12 +529,14 @@ func (s *AnalysisService) extractEntities(ctx context.Context, universeID uuid.U
 	var resolved []ResolvedEntity
 	for _, ee := range allEntities {
 		entityData := repositories.ExtractedEntity{
-			Type:        ee.Type,
-			Name:        ee.Name,
-			Aliases:     ee.Aliases,
-			Description: ee.Description,
-			Status:      ee.Status,
-			Properties:  ee.Properties,
+			Type:          ee.Type,
+			Name:          ee.Name,
+			Aliases:       ee.Aliases,
+			Description:   ee.Description,
+			Status:        ee.Status,
+			Properties:    ee.Properties,
+			Confidence:    ee.Confidence,
+			ConfidenceSet: ee.ConfidenceSet,
 		}
 		entity, previousStatus, isNew, err := s.entitySvc.ResolveOrCreate(ctx, universeID, entityData)
 		if err != nil {

@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pgvector/pgvector-go"
 )
@@ -18,12 +20,27 @@ func NewVectorRepo(pool *pgxpool.Pool) *VectorRepo {
 }
 
 func (r *VectorRepo) SaveEntityEmbedding(ctx context.Context, entityID uuid.UUID, embedding []float32) error {
+	return r.saveEntityEmbedding(ctx, r.pool, entityID, embedding)
+}
+
+// SaveEntityEmbeddingTx is the transaction-aware counterpart used when a
+// candidate is promoted. It preserves the unique entity row while allowing a
+// failed artifact write to roll back the status transition.
+func (r *VectorRepo) SaveEntityEmbeddingTx(ctx context.Context, tx pgx.Tx, entityID uuid.UUID, embedding []float32) error {
+	return r.saveEntityEmbedding(ctx, tx, entityID, embedding)
+}
+
+type vectorExec interface {
+	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
+}
+
+func (r *VectorRepo) saveEntityEmbedding(ctx context.Context, exec vectorExec, entityID uuid.UUID, embedding []float32) error {
 	query := `
 		INSERT INTO entity_embeddings (id, entity_id, description_embedding, created_at, updated_at)
 		VALUES ($1, $2, $3, NOW(), NOW())
 		ON CONFLICT (entity_id) DO UPDATE SET description_embedding = $3, updated_at = NOW()
 	`
-	_, err := r.pool.Exec(ctx, query, uuid.New(), entityID, pgvector.NewVector(embedding))
+	_, err := exec.Exec(ctx, query, uuid.New(), entityID, pgvector.NewVector(embedding))
 	if err != nil {
 		return fmt.Errorf("save entity embedding: %w", err)
 	}
