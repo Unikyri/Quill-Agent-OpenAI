@@ -1,44 +1,97 @@
-# Quill — a memory-aware writing studio
+# Quill — a MemoryAgent for long-form fiction
 
-Long-form fiction breaks when a writer has to remember every promise made hundreds of pages ago. **Quill turns a manuscript into a queryable story memory:** it extracts entities and relationships, recalls relevant lore while the writer works, and makes decay, retrieval, and context-budget decisions inspectable.
+**Qwen Cloud Global AI Hackathon Series — Track 1: MemoryAgent**
 
-It is prepared for **Qwen Cloud Global AI Hackathon Series — Track 1: MemoryAgent** and **OpenAI Build Week — Apps for Your Life**. This README distinguishes implemented behavior from submission evidence that still needs to be published.
+Long-form fiction breaks when a writer has to remember every promise made hundreds of pages ago — a hair colour, a death, a vow, a timeline. Quill is a **memory agent** that reads a manuscript as the author writes it, accumulates durable memory of *both the story and the author*, forgets what stops mattering, and recalls only what fits the model's context window — then checks new prose against that memory and gets better at it the longer you write together.
 
-## Judge quick path
+Every model call in Quill goes to **Qwen models on Qwen Cloud (DashScope)**. Quill ships a hand-written **native DashScope client** — not just the OpenAI-compatible shim — so it can use Qwen-specific features (explicit context caching, native reranking, native token accounting) that a portable OpenAI client cannot reach.
 
-1. Start the compose stack and open [http://localhost:3001](http://localhost:3001).
-2. Sign in, then use the guided demo or create a universe and work.
-3. Draft or ingest text; inspect live analysis, the relationship graph, and Memory.
-4. In Memory, run a recall and inspect its contributing pipelines, relevance lifecycle, and budget outcome.
+---
 
-## What makes it a MemoryAgent
+## Why this is a MemoryAgent (Track 1 mapping)
 
-| MemoryAgent requirement | Quill implementation |
-| --- | --- |
-| Persistent memory | Manuscript paragraphs, entities, and relationships persist in PostgreSQL 16 with pgvector and an Apache AGE graph. |
-| Retrieval beyond a flat log | Vector, graph, recency, keyword, and consolidated-memory pipelines are fused with Reciprocal Rank Fusion (RRF). |
-| Forgetting | Relevance decays over time; low-scoring entities can archive and reactivate when referenced again. History is exposed by the memory-status API. |
-| Limited-context recall | A context-budget manager selects recall results that fit the configured window after reserving response tokens. |
-| Inspectable behavior | `recall/explain`, `memory-status`, and the Memory screen expose contributing pipelines and lifecycle data. |
+Track 1 asks for an agent that *"autonomously accumulates experience, remembers user preferences, and makes increasingly accurate decisions across multi-turn, cross-session interactions"*, with *"efficient memory storage and retrieval, timely forgetting of outdated information, and recalling critical memories within limited context windows."* Quill implements each clause as running code:
 
-Quill also checks prose as it is submitted: a WebSocket hub sends paragraphs to a sequential per-work analysis queue, which fans out to entity, contradiction, relevance, timeline, and plot-hole work. The sequence prevents paragraphs from the same work being analyzed out of order.
+| Track 1 requirement | Quill implementation | Where |
+| --- | --- | --- |
+| **Persistent memory** | Paragraphs, entities, and relationships persist in PostgreSQL 16 with **pgvector** embeddings and an **Apache AGE** property graph (one graph per universe). | `repositories/vector_repo.go`, `repositories/graph_repo.go` |
+| **Efficient storage & retrieval** | **Hybrid recall**: five independently-ranked pipelines — vector, graph-walk, recency, keyword full-text, and consolidated summaries — fused with **Reciprocal Rank Fusion**, then optionally re-ordered by Qwen's **native reranker**. | `services/memory_service.go`, `services/fuse_rrf.go` |
+| **Timely forgetting** | Event-driven **exponential relevance decay**; background entities archive below a threshold and **reactivate** when mentioned again. Every transition is logged for inspection. | `services/relevance_service.go`, migration `019` |
+| **Recall within a limited context window** | A **token-budget knapsack** fits fused recall into `QWEN_MAX_CONTEXT_TOKENS` after reserving room for the response; survivors vs. dropped are reported. | `services/context_budget.go`, `services/tokenizer.go` |
+| **Remembers user preferences** | A **writer-memory learning loop**: `accept` / `reject` / `behavioural_accept` signals reinforce observations and, past a corroboration threshold, are **promoted into durable writer preferences** via a strict Qwen JSON-schema classification. Passive **stylometry** learns *how* the author writes. | `services/writer_memory_service.go`, `services/stylometry_service.go` |
+| **Increasingly accurate decisions across sessions** | Promoted preferences and the author's stylometric profile feed later craft reviews and suggestions, so guidance converges on *this* author's voice over time. | `services/craft_review_service.go` |
 
-## Qwen Cloud usage
+The result is a memory that has two subjects: the **manuscript** (lore, entities, timeline, contradictions) and the **author** (preferences, prose style) — and it learns from explicit and behavioural feedback, not just from ingestion.
 
-The backend uses the Qwen Cloud OpenAI-compatible endpoint by default. Its committed configuration selects:
+---
 
-- `qwen-turbo` for extraction;
-- `qwen-max` for reasoning and craft work;
-- `text-embedding-v4` with 1024 dimensions for pgvector;
-- `qwen3-rerank` when reranking is configured.
+## Sophisticated use of Qwen Cloud
 
-The Qwen service provides chat completions, embeddings, tool calling, throttling/retry behavior, and an optional 429 fallback. Its agent loop can call vector-memory search and entity-graph lookup before returning an analysis result. See [`.env.example`](.env.example) and [`backend/internal/services/qwen_service.go`](backend/internal/services/qwen_service.go).
+Quill treats Qwen Cloud as a first-class platform, not a generic chat endpoint.
+
+### Native DashScope client
+`internal/services/dashscope_service.go` is a from-scratch native client for `dashscope-intl.aliyuncs.com/api/v1`, selected at composition time with `LLM_PROTOCOL=dashscope`. It uses:
+
+- **Native generation** — `/services/aigc/text-generation/generation`
+- **Native embeddings** — `/services/embeddings/text-embedding/text-embedding` (`text-embedding-v4`, 1024-dim)
+- **Native reranking** — `/services/rerank/text-rerank/text-rerank` (`qwen3-rerank`), used to re-order fused recall
+- **Explicit context caching** — `cache_control` content blocks against DashScope's context cache, so stable prompt prefixes are billed once
+- **Native token accounting** — input / output / **cached** / cache-creation counters surfaced through `UsageSnapshot`
+- **SSE streaming** — `X-DashScope-SSE: enable` for token-streamed agent progress
+
+A wire-neutral `LLMService` interface (`internal/services/llm_service.go`) lets the same domain code run against either the native client or the OpenAI-compatible fallback, so features degrade gracefully but the native path is the intended one.
+
+### Mini ReAct agent + MCP
+Contradiction, plot-hole, and timeline checks are not single-shot prompts — they run a small **tool-calling agent loop** (`QwenService.RunAgentLoop`) where Qwen calls `search_vector_memory` (pgvector similarity) and `query_entity_graph` (AGE neighbour walk), receives results as `role: "tool"` messages, and loops until it stops calling tools. Those same memory tools are exposed over a real **MCP server** (`internal/mcp/server.go`, JSON-RPC `initialize` / `tools/list` / `tools/call`) so external MCP clients can query Quill's memory.
+
+### Custom Skills framework
+Quill ships **15 editorial Skills** (`backend/skills/`: `developmental-editor`, `line-editor`, `pacing-and-tension`, `sensitivity-reader`, `show-dont-tell`, …) plus genre references. A `SkillRegistry` loads them, they are **activated per universe** over the API (`GET/PUT /universes/:id/skills`), and the craft-review service composes them with recalled memory into Qwen prompts. These are Quill's own domain Skills — an extensible capability layer over the model, not a fixed prompt.
+
+### Qwen models in use
+
+| Role | Model | Config key |
+| --- | --- | --- |
+| Entity / relationship extraction | `qwen-turbo` | `QWEN_EXTRACTION_MODEL` |
+| Reasoning (contradiction / plot-hole / timeline agent) | `qwen-max` | `QWEN_REASONING_MODEL` |
+| Craft review & suggestions | `qwen-max` | `QWEN_CRAFT_MODEL` |
+| Embeddings (pgvector, 1024-dim) | `text-embedding-v4` | `QWEN_EMBEDDING_MODEL` |
+| Reranking fused recall | `qwen3-rerank` | `QWEN_RERANK_MODEL` |
+| 429 fallback | `qwen-plus` | `QWEN_FALLBACK_MODEL` |
+
+All model/endpoint configuration is visible without secrets in [`.env.example`](.env.example); the API key is never committed.
+
+---
+
+## The live analysis pipeline
+
+As the author drafts, the frontend submits paragraphs over WebSocket. A **sequential per-work queue** (one goroutine per work, not a shared pool) keeps paragraphs from the same manuscript analysed in order, then fans out to entity extraction, contradiction detection, relevance decay, timeline validation, and plot-hole checks. Results stream back as typed WS messages (`analysis_result`, `contradiction_alert`, `entity_discovered`, `graph_updated`). Extracted entities and relationships are also written into the per-universe AGE graph. See `internal/services/analysis_service.go` and `internal/ws/`.
+
+Because AGE forbids parameterised queries inside Cypher blocks, `graph_repo.go` defends every interpolation point: UUID-derived graph names, escaped string values, and whitelist-validated identifiers (`^[A-Za-z_][A-Za-z0-9_]*$`) for LLM-produced labels/relationship types — an injection failure drops that one node/edge rather than executing.
+
+---
 
 ## Architecture
 
 ![Quill architecture](Docs/assets/quill-architecture.svg)
 
-The current SPA is [`frontend/`](frontend/): a React 18/Vite application. Docker Compose serves it on port **3001**; the frontend container listens on port 3000 and calls the Go/Fiber backend on **8080**. Compose also starts PostgreSQL on **5432**. The `web/` directory is an experiment scheduled for removal and is not part of the active application or demo path.
+- **Frontend** — React 18 + Vite + TypeScript SPA (TipTap editor, React Flow graph, Zustand state). Served on **:3001** in Compose (container listens on 3000, proxies `/api` and the WebSocket to the backend).
+- **Backend** — Go 1.22 + Fiber v2. Repositories → services → handlers, wired by hand in `cmd/server/main.go`. Talks to Qwen Cloud over the native DashScope client (or OpenAI-compatible fallback).
+- **Database** — PostgreSQL 16 with **pgvector** (embeddings) and **Apache AGE** (per-universe property graph) on **:5432**; 27 numbered SQL migrations.
+- **Model provider** — Qwen Cloud / DashScope (`dashscope-intl.aliyuncs.com`).
+
+---
+
+## Memory Theater (make the memory visible)
+
+`/universe/:universeId/memory` renders the memory subsystem for demos with three inline-SVG "acts" (no charting library):
+
+- **DecayTimeline** — per-entity relevance decay over time, lifecycle-coloured, with the archive threshold line.
+- **FusionExplorer** — the five recall pipelines, the fused result, and per-item contribution chips (consumes `recall/explain`).
+- **BudgetTheater** — the token-budget knapsack: which recalled items were fitted and which were dropped.
+
+Memory HTTP surface: `POST /universes/:id/recall`, `POST /universes/:id/recall/explain`, `GET /universes/:id/memory-status`, `POST /universes/:id/decay`. Writer-memory surface: `GET /users/me/preferences`, `GET /users/me/preferences/:id/evidence`, `POST /users/me/preferences/feedback`.
+
+---
 
 ## Run locally
 
@@ -46,88 +99,78 @@ Prerequisites: Docker Compose and a Qwen Cloud API key.
 
 ```bash
 cp .env.example .env
-# Set QWEN_API_KEY in .env; do not commit it.
+# Set QWEN_API_KEY. To use the native DashScope client, set LLM_PROTOCOL=dashscope.
 docker compose up -d
 ```
 
-Open [http://localhost:3001](http://localhost:3001). The API is available at `http://localhost:8080`; use the frontend application rather than calling it directly for the complete editor and WebSocket flow.
+Open [http://localhost:3001](http://localhost:3001). The API is on `http://localhost:8080`; use the frontend for the full editor + WebSocket flow.
 
-For frontend-only development:
+Frontend-only: `cd frontend && npm install && npm run dev` (serves `:3000`, proxies `/api` to `:8080`).
+Backend-only: `cd backend && go run cmd/server/main.go` with a reachable `DATABASE_URL`.
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-This serves the current SPA on `:3000` and proxies `/api` (including WebSocket) to `localhost:8080`. For backend-only work, run `cd backend && go run cmd/server/main.go` with a reachable `DATABASE_URL`.
+---
 
 ## Verification
 
 ```bash
-# Go packages; database-backed integration tests need TEST_DATABASE_URL.
-cd backend && go test ./...
+# Go build + tests (65 test files; DB-backed integration tests need TEST_DATABASE_URL).
+cd backend && go build ./... && go test ./...
 
-# Current SPA typecheck, tests, and production build.
-cd frontend && npm run test
-cd frontend && npm run build
+# Frontend typecheck, tests, production build.
+cd frontend && npm run test && npm run build
 
-# Optional model-backed memory evaluation: requires PostgreSQL + AGE + QWEN_API_KEY.
+# Model-backed memory evaluation (needs PostgreSQL + AGE + QWEN_API_KEY).
 cd backend
 TEST_DATABASE_URL=postgres://quill:quill_dev_password@localhost:5432/quill?sslmode=disable \
   QWEN_API_KEY=your_key go test ./eval/ -run TestMemoryEval -v
 ```
 
-The committed [evaluation report](Docs/eval/results.md) records a small, dated evaluation corpus and degraded-mode latency measurements. Treat it as a reproducible project artifact—not a production benchmark or a universal quality claim.
+The committed [evaluation report](Docs/eval/results.md) records a small, dated recall/precision corpus and degraded-mode latency — a reproducible project artifact, not a production benchmark.
+
+---
+
+## How the Judging Criteria map to this repo
+
+- **Innovation & AI Creativity** — native DashScope client with context caching + native rerank, a tool-calling agent loop, an MCP server, and a 15-Skill custom capability layer over Qwen.
+- **Technical Depth & Engineering** — provider-neutral `LLMService` with two wire implementations; RRF hybrid recall across five pipelines; event-driven decay with archive/reactivate; token-budget knapsack; injection-hardened AGE graph access; sequential per-work analysis queue.
+- **Problem Value & Impact** — continuity and voice consistency in long-form fiction, with a memory design (learned author preferences + forgetting + budgeted recall) that generalises to any long-horizon, context-limited agent.
+- **Presentation & Documentation** — this README, the architecture diagram, `Docs/` (PRD, SRS, operations), and the in-app Memory Theater that visualises recall, decay, and budget.
+
+---
 
 ## Three-minute demo route
 
-1. Clone or reset the demo universe through the in-app guided demo.
-2. Open **Write**, draft or ingest a passage, and observe analysis feedback.
-3. Open **Explore** to inspect entities and their relationships.
-4. Open **Memory**, ask a lore question, then show the recall explanation, decay history, and budgeted results.
-5. Open **Review** to show a surfaced continuity issue or candidate and the author decision.
+1. Clone/reset the demo universe via the in-app guided demo.
+2. **Write** — draft or ingest a passage; watch live analysis, entity discovery, and a contradiction alert.
+3. **Explore** — inspect entities and their relationships in the graph.
+4. **Memory** — ask a lore question, then show the recall explanation (five pipelines → RRF → rerank), the decay history, and the budgeted result.
+5. **Review** — accept/reject a suggestion and show the writer-preference it reinforces.
 
-## Build Week: Codex and GPT-5.6
+---
 
-The repository documents the product work and verification plans from its sprint sequence, rather than inventing session records. [Sprint 7](Docs/Sprints/SPRINT-7.md) specifies the judge-facing SPA work: a guided writer journey, visible memory proof, accessibility checks, real-data failure handling, and evidence requirements. [The sprint index](Docs/Sprints/README.md) places that work after analysis, ingestion, DashScope, writer-memory, skills, and editor/MCP milestones.
+## Submission evidence
 
-**Build Week blocker:** paste the Codex `/feedback` session ID in the submission and link it from the final project materials. No ID is claimed in this repository. The accompanying explanation must state what GPT-5.6/Codex actually changed and what the team reviewed: the sprint record covers the writer journey, memory visibility, accessibility/failure feedback, and submission verification—not a fabricated blanket claim of authorship.
+- [x] Open-source license: [MIT](LICENSE) (visible in the repository About section).
+- [x] Architecture diagram committed: [SVG](Docs/assets/quill-architecture.svg).
+- [x] Qwen model/API configuration visible without secrets: [`.env.example`](.env.example).
+- [x] Memory storage, retrieval, forgetting, budgeting, and preference learning implemented (links above).
+- [ ] **Proof of Alibaba Cloud deployment** — link to the code/config running the backend on Alibaba Cloud (Compose alone is not deployment proof). *In progress.*
+- [ ] **Demo video ≤3 min** on YouTube / Vimeo / Youku, showing the working flow. *In progress.*
+- [ ] Public testing link (or credentials in the testing instructions) available to judges through the Judging Period.
 
-## Submission evidence checklist
+The full working checklist is in [Docs/SUBMISSION-CHECKLIST.md](Docs/SUBMISSION-CHECKLIST.md); the local Track 1 snapshot is [Docs/memoryagent-track-rules.md](Docs/memoryagent-track-rules.md). The official rules and the Devpost form take precedence if they differ.
 
-### Qwen Cloud / Devpost — Track 1: MemoryAgent
-
-- **Deadline:** July 20, 2026, **5:00 PM EDT** (**2:00 PM PDT**). Complete the Devpost form before this deadline.
-- [x] Public-source license is present: [MIT](LICENSE).
-- [x] Architecture diagram is committed: [SVG](Docs/assets/quill-architecture.svg).
-- [x] Qwen model/API configuration is visible without secrets: [`.env.example`](.env.example).
-- [x] Memory storage, retrieval, decay, and budget behavior are implemented and documented above.
-- [ ] **Add a direct, public OSI-licensed repository link** and confirm the license is visible in the repository About section.
-- [ ] **Required by the rules:** add a public repository link to a code file proving Alibaba Cloud service/API use for the backend. **Recommended supporting evidence:** add the organizer-requested screenshot of the running backend. Docker Compose is not deployment proof.
-- [ ] **Add a public video (≤3 minutes)** on YouTube, Vimeo, or Youku that shows the working flow above.
-- [ ] Upload/select the architecture diagram, identify **Track 1: MemoryAgent**, add every teammate, and confirm each entrant is eligible in their country/region.
-- [ ] Write the English submission description: **what** Quill does, **who** it helps, and **how** its Qwen-backed memory works; name the Qwen models/services in **Built With**.
-
-### OpenAI Build Week — Apps for Your Life
-
-- [x] The implemented product is framed as a personal creative-writing companion.
-- [x] Sprint documents describe the judge-facing product work and verification intent.
-- [ ] Add the public demo video and its URL.
-- [ ] Add dated Codex/GPT-5.6 contribution evidence, human decisions, and the required Codex session ID to the submission.
-- [ ] Verify the final Devpost form against the official rules before submitting.
-
-The detailed working checklist is in [Docs/SUBMISSION-CHECKLIST.md](Docs/SUBMISSION-CHECKLIST.md); the local Qwen track snapshot is [Docs/memoryagent-track-rules.md](Docs/memoryagent-track-rules.md). External rules and the submission form take precedence if they differ.
+---
 
 ## Repository map
 
 ```text
-frontend/       Current judge-facing React/Vite SPA
-backend/        Go/Fiber API, services, migrations, and Qwen integration
-web/            Experimental UI, not part of the active demo path
+frontend/       Judge-facing React/Vite SPA
+backend/        Go/Fiber API, services, migrations, Qwen (native DashScope + OpenAI-compatible)
+backend/skills/ 15 editorial Skills + genre references
 Docs/           Product, sprint, evaluation, and submission materials
 ```
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+Licensed under the [MIT License](LICENSE).
