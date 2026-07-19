@@ -180,7 +180,6 @@ export default function FusionExplorer({ universeId, onResult }: FusionExplorerP
                             key={contribution.pipeline}
                             className={styles.contribution}
                             data-testid={`contribution-${item.id}-${contribution.pipeline}`}
-                            style={{ borderColor: PIPELINE_META[contribution.pipeline]?.color ?? 'var(--muted)' }}
                           >
                             {PIPELINE_META[contribution.pipeline]?.label ?? contribution.pipeline} #{contribution.rank}
                           </span>

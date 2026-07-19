@@ -42,6 +42,11 @@
   --teal-tint-on-dark: #d6e5df;
   --teal-tint-on-dark-2: #bfd3cb;
 
+  /* Reserved for agent-computed / live telemetry values only (relevance
+     scores, RRF/rerank deltas, token-budget bars, pipeline stage dots) —
+     never reused for --danger/--warning/links. */
+  --accent-live: var(--color-violet);
+
   --line: rgba(25, 35, 33, 0.12);
   --line-2: rgba(25, 35, 33, 0.08);
   --line-strong: rgba(25, 35, 33, 0.2);

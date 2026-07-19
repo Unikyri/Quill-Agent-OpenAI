@@ -345,8 +345,8 @@
 
 .step_done { color: var(--success); }
 .step_done .stepDot { background: var(--success); }
-.step_active { color: var(--warning); font-weight: 600; }
-.step_active .stepDot { background: var(--warning); }
+.step_active { color: var(--accent-live); font-weight: 600; }
+.step_active .stepDot { background: var(--accent-live); }
 
 .stepLabel { flex: 1; }
 .stepCount {
@@ -366,7 +366,7 @@
 
 .budgetBarFill {
   height: 100%;
-  background: var(--teal);
+  background: var(--accent-live);
   border-radius: var(--r-pill);
 }
 
@@ -383,7 +383,7 @@
   gap: 8px;
   font-family: var(--mono);
   font-size: 9.5px;
-  color: var(--muted-2);
+  color: var(--accent-live);
 }
 
 /* ── Retrieval source badges ──────────────────────────────────────── */

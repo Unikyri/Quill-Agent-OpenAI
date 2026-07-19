@@ -48,12 +48,12 @@
 .pipelineCols { display: flex; flex-wrap: wrap; gap: 8px; }
 .pipelineCol { display: flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: var(--r-pill); padding: 5px 8px; }
 .pipelineDot { width: 7px; height: 7px; border-radius: 50%; }
-.pipelineCount { color: var(--ink); font-family: var(--mono); font-size: 12px; font-weight: 700; }
+.pipelineCount { color: var(--accent-live); font-family: var(--mono); font-size: 12px; font-weight: 700; }
 .contributionList { display: grid; gap: 10px; margin: 16px 0 0; padding: 0; list-style: none; }
 .contributionList > li { display: grid; gap: 7px; }
 .contributionFact { color: var(--ink-body); font-size: 13px; line-height: 1.45; }
 .contributions { display: flex; flex-wrap: wrap; gap: 6px; color: var(--muted-2); font-size: 12px; }
-.contribution { border: 1px solid var(--line); border-radius: var(--r-pill); padding: 4px 7px; }
+.contribution { border: 1px solid var(--accent-live); border-radius: var(--r-pill); padding: 4px 7px; }
 
 @media (max-width: 560px) {
   .searchControls, .answerHeader, .evidenceItem { align-items: stretch; flex-direction: column; }

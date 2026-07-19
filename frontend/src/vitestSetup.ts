@@ -6,3 +6,11 @@ globalThis.ResizeObserver = class ResizeObserver {
   unobserve() {}
   disconnect() {}
 } as unknown as typeof ResizeObserver
+
+// LandingPage's scroll-triggered reveals use IntersectionObserver; jsdom has no native observer.
+globalThis.IntersectionObserver = class IntersectionObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() { return [] }
+} as unknown as typeof IntersectionObserver

@@ -88,7 +88,10 @@ describe('LoginPage', () => {
 
     await waitFor(() => {
       expect(mockDemoLogin).toHaveBeenCalled()
-      expect(mockNavigate).toHaveBeenCalledWith('/universe/demo-universe-42')
+      // useDemoProvisioning navigates straight to the Write screen (writePath);
+      // /universe/:id's index route redirects there too, so this is the same
+      // destination the visitor previously reached in one extra hop.
+      expect(mockNavigate).toHaveBeenCalledWith('/universe/demo-universe-42/write')
     })
   })
 

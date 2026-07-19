@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
+import { useDemoProvisioning } from '../hooks/useDemoProvisioning'
 import styles from './LoginPage.module.css'
 
 export default function LoginPage() {
@@ -10,8 +11,9 @@ export default function LoginPage() {
   const [displayName, setDisplayName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { login, register, demoLogin } = useAuthStore()
+  const { login, register } = useAuthStore()
   const navigate = useNavigate()
+  const { startDemo, pending: demoPending, error: demoError } = useDemoProvisioning()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,19 +26,6 @@ export default function LoginPage() {
         await login(email, password)
       }
       navigate('/dashboard')
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleDemo = async () => {
-    setError('')
-    setLoading(true)
-    try {
-      const universeId = await demoLogin()
-      navigate(`/universe/${universeId}`)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -203,7 +192,7 @@ export default function LoginPage() {
               />
               {isRegister && <p className={styles.hint}>Minimum 8 characters.</p>}
             </div>
-            {error && <p className={styles.errorMsg}>{error}</p>}
+            {(error || demoError) && <p className={styles.errorMsg}>{error || demoError}</p>}
             <button type="submit" className={styles.submitBtn} disabled={loading}>
               {loading ? 'Loading…' : isRegister ? 'Create My Account' : 'Enter My Universe'}
             </button>
@@ -215,7 +204,7 @@ export default function LoginPage() {
             <span className={styles.dividerLine} />
           </div>
 
-          <button className={styles.demoBtn} onClick={handleDemo} disabled={loading}>
+          <button className={styles.demoBtn} onClick={() => void startDemo()} disabled={demoPending}>
             Try the Demo
           </button>
 

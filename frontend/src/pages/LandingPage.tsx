@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useDemoProvisioning } from '../hooks/useDemoProvisioning'
 import styles from './LandingPage.module.css'
 
 const features = [
@@ -56,6 +57,9 @@ const steps = [
 export default function LandingPage() {
   const navigate = useNavigate()
   const featureCardsRef = useRef<(HTMLDivElement | null)[]>([])
+  // ponytail: error surfacing skipped — no spec scenario requires it here;
+  // add an inline message if a real failure case shows up in the demo.
+  const { startDemo, pending: demoPending } = useDemoProvisioning()
 
   // ponytail: IntersectionObserver for scroll-triggered reveals (replaces GSAP ScrollTrigger)
   useEffect(() => {
@@ -168,8 +172,8 @@ export default function LandingPage() {
             screenwriters, and mangaka who never want to forget anything again.
           </p>
           <div className={styles.heroCtas}>
-            <button className={styles.heroCta} onClick={() => navigate('/login')}>
-              Start building your universe
+            <button className={styles.heroCta} onClick={() => void startDemo()} disabled={demoPending}>
+              {demoPending ? 'Setting up your demo…' : 'Try the live demo'}
             </button>
             <button className={styles.heroCtaGhost} onClick={() => scrollTo('how')}>
               See how it works

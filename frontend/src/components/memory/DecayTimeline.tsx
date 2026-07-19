@@ -163,7 +163,7 @@ export default function DecayTimeline({ universeId }: DecayTimelineProps) {
           <ul className={styles.legend} aria-label="Entity lifecycle summary">
             {entities.map((entity) => {
               const meta = LIFECYCLE_META[entity.lifecycle] || LIFECYCLE_META.active
-              return <li key={entity.id} className={styles.legendItem}><span className={styles.legendDot} style={{ background: meta.color }} />{entity.name}: {meta.label}, {Math.round(entity.relevance_score * 100)}% relevance</li>
+              return <li key={entity.id} className={styles.legendItem}><span className={styles.legendDot} style={{ background: meta.color }} />{entity.name}: {meta.label}, <span className={styles.relevanceFigure}>{Math.round(entity.relevance_score * 100)}% relevance</span></li>
             })}
           </ul>
         </>
