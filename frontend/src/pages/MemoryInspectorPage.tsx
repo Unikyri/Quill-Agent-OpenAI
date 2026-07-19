@@ -3,7 +3,6 @@ import { useParams } from 'react-router-dom'
 import BudgetTheater from '../components/memory/BudgetTheater'
 import DecayTimeline from '../components/memory/DecayTimeline'
 import FusionExplorer from '../components/memory/FusionExplorer'
-import WriterMemoryPanel from '../components/memory/WriterMemoryPanel'
 import type { RecallExplanation } from '../lib/types'
 import styles from './MemoryInspectorPage.module.css'
 
@@ -12,13 +11,11 @@ export default function MemoryInspectorPage() {
   const [recall, setRecall] = useState<RecallExplanation | null>(null)
   const [recallUniverseId, setRecallUniverseId] = useState<string | null>(null)
   const [lifecycleOpen, setLifecycleOpen] = useState(false)
-  const [writerMemoryOpen, setWriterMemoryOpen] = useState(false)
 
   useEffect(() => {
     setRecall(null)
     setRecallUniverseId(null)
     setLifecycleOpen(false)
-    setWriterMemoryOpen(false)
   }, [universeId])
 
   const handleRecallResult = useCallback((nextRecall: RecallExplanation | null) => {
@@ -46,13 +43,6 @@ export default function MemoryInspectorPage() {
         <div className={styles.disclosureBody}>
           <p className={styles.disclosureIntro}>Lifecycle information is loaded when you ask for it, so the first screen stays focused on the answer to your question.</p>
           {lifecycleOpen && <DecayTimeline key={universeId} universeId={universeId} />}
-        </div>
-      </details>
-
-      <details key={`writer-memory-${universeId}`} className={styles.disclosure} onToggle={(event) => setWriterMemoryOpen(event.currentTarget.open)}>
-        <summary>Inspect what Quill has learned about your writing</summary>
-        <div className={styles.disclosureBody}>
-          {writerMemoryOpen && <WriterMemoryPanel key={universeId} universeId={universeId} />}
         </div>
       </details>
     </main>

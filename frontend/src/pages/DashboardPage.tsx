@@ -1,8 +1,9 @@
 import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { GenreTagPicker } from '../components/genres'
 import { useFeedback } from '../components/feedback'
 import { api } from '../lib/api'
+import { profileMemoryPath } from '../lib/canonicalRoutes'
 import { GENRE_OPTIONS } from '../lib/genres'
 import styles from './DashboardPage.module.css'
 
@@ -256,6 +257,10 @@ export default function DashboardPage() {
 
   return (
     <main className={styles.layout}>
+      <nav className={styles.accountNav} aria-label="Account">
+        <Link className={styles.accountLink} to={profileMemoryPath()}>Writer profile</Link>
+      </nav>
+
       <section className={styles.hero} aria-labelledby="home-title">
         <div>
           <p className={styles.eyebrow}>Home</p>

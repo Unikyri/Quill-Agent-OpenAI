@@ -21,12 +21,17 @@ vi.mock('../pages/UniverseLayout', async () => {
   const { Outlet } = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
   return { default: () => <><div>Universe shell</div><Outlet /></> }
 })
+vi.mock('../pages/ProfileLayout', async () => {
+  const { Outlet } = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
+  return { default: () => <><div>Profile shell</div><Outlet /></> }
+})
 vi.mock('../pages/LandingPage', () => ({ default: () => <div>Landing route</div> }))
 vi.mock('../pages/UniverseWorksTab', () => ({ default: () => <div>Write route</div> }))
 vi.mock('../pages/EditorPage', () => ({ default: () => <div>Editor route</div> }))
 vi.mock('../pages/KnowledgeGraphPage', () => ({ default: () => <div>Map route</div> }))
 vi.mock('../pages/MemoryInspectorPage', () => ({ default: () => <div>Memory route</div> }))
 vi.mock('../pages/ReviewPage', () => ({ default: () => <div>Review route</div> }))
+vi.mock('../pages/WriterProfilePage', () => ({ default: () => <div>Writer profile route</div> }))
 
 function LocationProbe() {
   const location = useLocation()
@@ -81,5 +86,25 @@ describe('App legacy universe routes', () => {
       expect(screen.getByTestId('route-location')).toHaveTextContent('/universe/uni-1/write')
     })
     expect(mockGetWork).toHaveBeenCalledWith('work-1')
+  })
+})
+
+describe('App account-scoped routes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('renders the account-scoped Writer Profile outside the universe-nested layout', async () => {
+    renderRoute('/profile/memory')
+
+    await waitFor(() => expect(screen.getByText('Profile shell')).toBeInTheDocument())
+    expect(await screen.findByText('Writer profile route')).toBeInTheDocument()
+    expect(screen.queryByText('Universe shell')).not.toBeInTheDocument()
+  })
+
+  it('defaults /profile to Writer Profile', async () => {
+    renderRoute('/profile')
+
+    await waitFor(() => expect(screen.getByTestId('route-location')).toHaveTextContent('/profile/memory'))
   })
 })

@@ -23,6 +23,8 @@
 .observation strong { color: var(--ink, #24333a); font-size: 14px; }
 .observation small { grid-column: 1 / -1; color: var(--muted, #776f65); }
 .observation p { grid-column: 1 / -1; margin: 2px 0 0; color: var(--muted, #776f65); font-size: 11px; line-height: 1.4; }
+.scopeTag { grid-column: 1 / -1; color: var(--teal, #3c8074); font-size: 11px; font-weight: 600; }
+.genreDraft { margin-top: 12px; border-top: 1px solid var(--line, #d7cfc2); padding-top: 12px; }
 .state { color: var(--muted, #776f65); padding: 16px 0; }
 .error { color: #9d3e36; }
 .error p { margin: 0 0 8px; }

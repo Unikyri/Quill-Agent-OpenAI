@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { explorePath, memoryPath, reviewPath, writeImportPath, writePath } from '../canonicalRoutes'
+import { explorePath, memoryPath, profileMemoryPath, reviewPath, writeImportPath, writePath } from '../canonicalRoutes'
 
 describe('canonical Sprint 7 routes', () => {
   it('builds the Write chapter-picker and selected-chapter destinations', () => {
@@ -23,5 +23,9 @@ describe('canonical Sprint 7 routes', () => {
     expect(memoryPath('uni-1')).toBe('/universe/uni-1/memory')
     expect(reviewPath('uni-1', 'issues')).toBe('/universe/uni-1/review/issues')
     expect(reviewPath('uni-1', 'candidates')).toBe('/universe/uni-1/review/candidates')
+  })
+
+  it('builds the account-scoped Writer Profile destination', () => {
+    expect(profileMemoryPath()).toBe('/profile/memory')
   })
 })

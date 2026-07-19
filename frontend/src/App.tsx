@@ -4,6 +4,7 @@ import { useAuthStore } from './stores/authStore'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import UniverseLayout from './pages/UniverseLayout'
+import ProfileLayout from './pages/ProfileLayout'
 import EditorRedirect from './pages/EditorRedirect'
 import EntityRedirect from './pages/EntityRedirect'
 import WorkRedirect from './pages/WorkRedirect'
@@ -18,6 +19,7 @@ const EditorPage = lazy(() => import('./pages/EditorPage'))
 const KnowledgeGraphPage = lazy(() => import('./pages/KnowledgeGraphPage'))
 const MemoryInspectorPage = lazy(() => import('./pages/MemoryInspectorPage'))
 const ReviewPage = lazy(() => import('./pages/ReviewPage'))
+const WriterProfilePage = lazy(() => import('./pages/WriterProfilePage'))
 
 function MissingUniverseRedirect() {
   return <Navigate to="/dashboard" replace />
@@ -108,6 +110,13 @@ export function AppRoutes() {
           <Route path="skills" element={<ToReview view="issues" />} />
           <Route path="*" element={<ToWrite />} />
         </Route>
+
+        {/* Account-scoped shell — outside the universe-nested layout above. */}
+        <Route path="/profile" element={<ProtectedRoute><ProfileLayout /></ProtectedRoute>}>
+          <Route index element={<Navigate to="memory" replace />} />
+          <Route path="memory" element={<RouteLoadBoundary label="Loading writer profile…"><WriterProfilePage /></RouteLoadBoundary>} />
+        </Route>
+
         {/* Legacy redirects */}
         <Route path="/work/:workId" element={<ProtectedRoute><WorkRedirect /></ProtectedRoute>} />
         <Route path="/editor/:chapterId" element={<ProtectedRoute><EditorRedirect /></ProtectedRoute>} />

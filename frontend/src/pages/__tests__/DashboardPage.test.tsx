@@ -68,6 +68,11 @@ describe('DashboardPage', () => {
     mockDeleteUniverse.mockResolvedValue(undefined)
   })
 
+  it('links to the account-scoped Writer Profile', async () => {
+    renderPage()
+    expect(await screen.findByRole('link', { name: /writer profile/i })).toHaveAttribute('href', '/profile/memory')
+  })
+
   it('shows real universe details and sends the primary CTA to Write', async () => {
     mockListUniverses.mockResolvedValue({
       universes: [

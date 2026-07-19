@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
+import { GenreTagPicker } from '../genres'
 import { api } from '../../lib/api'
 import type { WriterObservationDTO, WriterPreferenceDTO, WriterPreferenceEvidenceDTO } from '../../lib/types'
 import styles from './WriterMemoryPanel.module.css'
-
-interface Props { universeId: string }
 
 const OBSERVATION_META: Record<string, { label: string; definition: string; format: (value: number) => string; sample: (size: number) => string }> = {
   mean_sentence_length: {
@@ -41,26 +40,34 @@ function observationMeta(metric: string) {
   }
 }
 
-export default function WriterMemoryPanel({ universeId }: Props) {
+export default function WriterMemoryPanel() {
   const [preferences, setPreferences] = useState<WriterPreferenceDTO[]>([])
   const [observations, setObservations] = useState<WriterObservationDTO[]>([])
-  const [universeGenres, setUniverseGenres] = useState<string[]>([])
+  const [universeNames, setUniverseNames] = useState<Record<string, string>>({})
   const [evidence, setEvidence] = useState<Record<string, WriterPreferenceEvidenceDTO>>({})
   const [expanded, setExpanded] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // No universeId here: this panel is account-scoped and shows every universe
+  // the writer has worked in, so a genre-bound correction can no longer infer
+  // its genres from "the current universe" (there isn't one). Instead the
+  // writer picks genres from the same global list the backend validates
+  // against (see correctScope below).
+  const [genreDraft, setGenreDraft] = useState<{ id: string; tags: string[] } | null>(null)
 
   const load = async () => {
     setLoading(true)
     setError(null)
     try {
-      const [result, universeResult] = await Promise.all([
+      const [result, universesResult] = await Promise.all([
         api.getWriterPreferences(),
-        api.getUniverse(universeId),
+        api.listUniverses(),
       ])
       setPreferences(result.preferences || [])
       setObservations(result.observations || [])
-      setUniverseGenres(universeResult.universe?.genre_tags || [])
+      const names: Record<string, string> = {}
+      for (const universe of universesResult.universes || []) names[universe.id] = universe.name
+      setUniverseNames(names)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -68,7 +75,7 @@ export default function WriterMemoryPanel({ universeId }: Props) {
     }
   }
 
-  useEffect(() => { void load() }, [universeId])
+  useEffect(() => { void load() }, [])
 
   const toggleEvidence = async (id: string) => {
     if (expanded === id) { setExpanded(null); return }
@@ -81,20 +88,35 @@ export default function WriterMemoryPanel({ universeId }: Props) {
     }
   }
 
-  const correctScope = async (preference: WriterPreferenceDTO) => {
-    const nextScope = preference.scope === 'universal' ? 'genre_bound' : 'universal'
-    const tags = nextScope === 'genre_bound' ? universeGenres : []
-    if (nextScope === 'genre_bound' && tags.length === 0) {
-      setError('This universe has no genre tags; add one before making the preference genre-bound.')
-      return
-    }
+  const applyCorrectedPreference = (preference: WriterPreferenceDTO) => {
+    setPreferences((current) => current.map((item) => item.id === preference.id ? preference : item))
+  }
+
+  const makeUniversal = async (preference: WriterPreferenceDTO) => {
     try {
-      const result = await api.correctWriterPreference(preference.id, { scope: nextScope, genre_tags: tags })
-      setPreferences((current) => current.map((item) => item.id === preference.id ? result.preference : item))
+      const result = await api.correctWriterPreference(preference.id, { scope: 'universal', genre_tags: [] })
+      applyCorrectedPreference(result.preference)
     } catch (err) { setError((err as Error).message) }
   }
 
-  const scopedObservations = observations.filter((item) => !item.universe_id || item.universe_id === universeId)
+  const beginGenreBind = (preference: WriterPreferenceDTO) => {
+    setError(null)
+    setGenreDraft({ id: preference.id, tags: [] })
+  }
+
+  const cancelGenreBind = () => setGenreDraft(null)
+
+  const confirmGenreBind = async (preference: WriterPreferenceDTO) => {
+    if (!genreDraft || genreDraft.tags.length === 0) {
+      setError('Choose at least one genre before making this preference genre-bound.')
+      return
+    }
+    try {
+      const result = await api.correctWriterPreference(preference.id, { scope: 'genre_bound', genre_tags: genreDraft.tags })
+      applyCorrectedPreference(result.preference)
+      setGenreDraft(null)
+    } catch (err) { setError((err as Error).message) }
+  }
 
   const deactivate = async (id: string) => {
     try {
@@ -114,7 +136,7 @@ export default function WriterMemoryPanel({ universeId }: Props) {
         <span className={styles.eyebrow}>{preferences.length} active</span>
       </div>
       <p className={styles.intro}>
-        These are measurements from the saved or imported text in this universe. They describe the current corpus; they do not judge quality or infer an intention.
+        These are measurements from the saved or imported text across every universe you have worked in. They describe the current corpus; they do not judge quality or infer an intention.
       </p>
       {loading && <p className={styles.state} role="status" aria-live="polite">Reading your evidence trail…</p>}
       {error && (
@@ -127,25 +149,25 @@ export default function WriterMemoryPanel({ universeId }: Props) {
         <section className={styles.observations} aria-labelledby="writer-observations-title">
           <div className={styles.subheading}>
             <h3 id="writer-observations-title">Measured observations</h3>
-            <span className={styles.eyebrow}>{scopedObservations.length} facts</span>
+            <span className={styles.eyebrow}>{observations.length} facts</span>
           </div>
-          {scopedObservations.length === 0 ? (
+          {observations.length === 0 ? (
             <p className={styles.state}>No observations yet. Save a chapter or import a manuscript and Quill will measure sentence length, dialogue, adverbs, and vocabulary without inferring intent.</p>
           ) : (
             <div className={styles.observationList}>
-              {scopedObservations.map((observation) => (
-                (() => {
-                  const meta = observationMeta(observation.metric)
-                  return (
-                    <div className={styles.observation} key={observation.id} title={meta.definition}>
-                      <span>{meta.label}</span>
-                      <strong>{meta.format(observation.value)}</strong>
-                      <small>{meta.sample(observation.sample_size)}</small>
-                      <p>{meta.definition}</p>
-                    </div>
-                  )
-                })()
-              ))}
+              {observations.map((observation) => {
+                const meta = observationMeta(observation.metric)
+                const scopeLabel = observation.universe_id ? (universeNames[observation.universe_id] ?? 'a universe') : 'all universes'
+                return (
+                  <div className={styles.observation} key={observation.id} title={meta.definition}>
+                    <span>{meta.label}</span>
+                    <strong>{meta.format(observation.value)}</strong>
+                    <span className={styles.scopeTag}>applies: {scopeLabel}</span>
+                    <small>{meta.sample(observation.sample_size)}</small>
+                    <p>{meta.definition}</p>
+                  </div>
+                )
+              })}
             </div>
           )}
         </section>
@@ -157,6 +179,7 @@ export default function WriterMemoryPanel({ universeId }: Props) {
         {preferences.map((preference) => {
           const confidence = Math.round(Math.max(0, Math.min(1, preference.confidence)) * 100)
           const itemEvidence = evidence[preference.id]
+          const isDrafting = genreDraft?.id === preference.id
           return (
             <article className={styles.card} key={preference.id}>
               <p className={styles.statement}>{preference.statement}</p>
@@ -168,9 +191,27 @@ export default function WriterMemoryPanel({ universeId }: Props) {
               <div className={styles.bar} aria-label={`Confidence ${confidence}%`}><div className={styles.fill} style={{ width: `${confidence}%` }} /></div>
               <div className={styles.actions}>
                 <button className={styles.button} onClick={() => void toggleEvidence(preference.id)}>{expanded === preference.id ? 'Hide evidence' : 'Why? Show evidence'}</button>
-                <button className={styles.button} onClick={() => void correctScope(preference)}>Make {preference.scope === 'universal' ? 'genre-bound' : 'universal'}</button>
+                {preference.scope === 'universal' ? (
+                  <button className={styles.button} onClick={() => beginGenreBind(preference)}>Make genre-bound</button>
+                ) : (
+                  <button className={styles.button} onClick={() => void makeUniversal(preference)}>Make universal</button>
+                )}
                 <button className={`${styles.button} ${styles.danger}`} onClick={() => void deactivate(preference.id)}>Deactivate</button>
               </div>
+              {isDrafting && (
+                <div className={styles.genreDraft}>
+                  <GenreTagPicker
+                    id={`genre-bind-${preference.id}`}
+                    label="Choose genres to bind this preference to"
+                    value={genreDraft.tags}
+                    onChange={(tags) => setGenreDraft({ id: preference.id, tags })}
+                  />
+                  <div className={styles.actions}>
+                    <button className={styles.button} onClick={() => void confirmGenreBind(preference)}>Save scope</button>
+                    <button className={styles.button} onClick={cancelGenreBind}>Cancel</button>
+                  </div>
+                </div>
+              )}
               {expanded === preference.id && itemEvidence && (
                 <div className={styles.evidence}>
                   <h4>Observations</h4>

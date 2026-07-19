@@ -26,3 +26,8 @@ export function memoryPath(universeId: string): string {
 export function reviewPath(universeId: string, view: ReviewView): string {
   return `${universeBase(universeId)}/review/${view}`
 }
+
+// Account-scoped (not universe-nested) — see ProfileLayout.
+export function profileMemoryPath(): string {
+  return '/profile/memory'
+}

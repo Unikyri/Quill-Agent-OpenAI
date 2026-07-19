@@ -80,6 +80,11 @@ describe('MemoryInspectorPage', () => {
     expect(screen.getByText(/2 consolidated memories/i)).toBeInTheDocument()
   })
 
+  it('no longer embeds the Writer Memory panel (moved to the account-scoped Writer Profile)', () => {
+    renderPage()
+    expect(screen.queryByText(/inspect what quill has learned about your writing/i)).not.toBeInTheDocument()
+  })
+
   it('clears A recall evidence and its budget when the route changes to B', async () => {
     let resolveA!: (value: typeof recallResponse) => void
     mockRecallExplain.mockImplementation((universeId: string) => new Promise((resolve) => {

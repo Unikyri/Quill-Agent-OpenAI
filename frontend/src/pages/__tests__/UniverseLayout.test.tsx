@@ -223,6 +223,14 @@ describe('UniverseLayout', () => {
     expect(screen.getByText('Ask Memory a lore question')).toBeInTheDocument()
   })
 
+  it('links to the account-scoped Writer Profile from the account menu', async () => {
+    const user = userEvent.setup()
+    renderLayout()
+
+    await user.click(await screen.findByRole('button', { name: 'Open account menu' }))
+    expect(screen.getByRole('menuitem', { name: /writer profile/i })).toHaveAttribute('href', '/profile/memory')
+  })
+
   it('supports Alt+number navigation without intercepting editor typing', async () => {
     renderLayout()
     await waitFor(() => expect(screen.getByText('Write content')).toBeInTheDocument())

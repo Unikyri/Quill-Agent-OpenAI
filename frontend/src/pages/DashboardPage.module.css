@@ -6,6 +6,10 @@
   color: var(--ink);
 }
 
+.accountNav { display: flex; justify-content: flex-end; padding-bottom: 12px; }
+.accountLink { color: var(--muted); font-size: 0.8rem; font-weight: 600; text-decoration: none; }
+.accountLink:hover { color: var(--teal); text-decoration: underline; }
+
 .hero,
 .panelHeading,
 .libraryHeading,
