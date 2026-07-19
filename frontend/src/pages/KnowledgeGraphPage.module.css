@@ -469,7 +469,6 @@
 
 .mapHeader h1,
 .focusedInspector h2,
-.accessibleSummary h2,
 .emptyState h2 {
   margin: 0;
   color: var(--ink);
@@ -481,7 +480,6 @@
 
 .mapHeader p:not(.kicker),
 .focusedInspector > p:not(.kicker),
-.summaryCopy,
 .emptyState p,
 .focalNote {
   margin: 0.35rem 0 0;
@@ -616,7 +614,6 @@
 }
 
 .focusedInspector,
-.accessibleSummary,
 .detailPanelTabs {
   min-width: 0;
   border: 1px solid var(--line);
@@ -625,43 +622,7 @@
   padding: 0.75rem;
 }
 
-.entityList button,
-.relationshipList button {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  border: 0;
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--ink);
-  cursor: pointer;
-  font: 0.78rem var(--sans);
-  overflow-wrap: anywhere;
-  padding: 0.48rem 0.5rem;
-  text-align: left;
-}
-
-.entityList button:hover,
-.relationshipList button:hover,
-.entityList button[aria-pressed='true'],
-.relationshipList button[aria-pressed='true'] {
-  background: var(--teal-soft);
-  color: var(--teal);
-}
-
-.entityList small {
-  flex: 0 1 auto;
-  color: var(--muted-2);
-  font-size: 0.68rem;
-  text-align: right;
-  text-transform: capitalize;
-}
-
-.focusedInspector h2,
-.accessibleSummary h2 { font-size: 1rem; line-height: 1.3; overflow-wrap: anywhere; }
+.focusedInspector h2 { font-size: 1rem; line-height: 1.3; overflow-wrap: anywhere; }
 
 /* Tabbed detail panel (Story Graph right pane) */
 .tabStrip {
@@ -701,39 +662,6 @@
   padding: 0.5rem 0;
 }
 
-.summaryHeading {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  min-width: 0;
-  color: var(--teal);
-}
-
-.summaryHeading > div { min-width: 0; }
-
-.accessibleSummary h3 {
-  margin: 0.95rem 0 0.4rem;
-  color: var(--muted-2);
-  font-family: var(--mono);
-  font-size: 0.65rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.entityList,
-.relationshipList {
-  display: grid;
-  gap: 0.18rem;
-  min-width: 0;
-  max-height: 13rem;
-  overflow: auto;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.relationshipList button { justify-content: flex-start; }
-
 .unavailable { margin: 0; color: var(--muted); font-size: 0.78rem; line-height: 1.4; }
 
 .focalNote { color: var(--muted-2); font-style: italic; }
@@ -742,8 +670,6 @@
 .importButton:focus-visible,
 .backButton:focus-visible,
 .truncationNotice button:focus-visible,
-.entityList button:focus-visible,
-.relationshipList button:focus-visible,
 .tabButton:focus-visible,
 .filterChip:focus-visible,
 .filterEntityItem:focus-visible {
@@ -786,20 +712,10 @@
   }
 
   .focusedInspector,
-  .accessibleSummary,
   .detailPanelTabs { padding: 0.65rem; }
 
   .focusedInspector,
-  .accessibleSummary,
   .detailPanelTabs { border-radius: var(--r-sm); }
-
-  .accessibleSummary {
-    max-height: 17rem;
-    overflow-y: auto;
-  }
-
-  .entityList,
-  .relationshipList { max-height: 9rem; }
 
   .filterRail {
     width: 100%;

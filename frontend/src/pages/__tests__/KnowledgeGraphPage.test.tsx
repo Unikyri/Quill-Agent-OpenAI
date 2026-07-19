@@ -316,6 +316,23 @@ describe('KnowledgeGraphPage', () => {
         expect(mockGetEntityNeighbors).toHaveBeenCalledWith('n2', 'uni-1', 2)
       })
     })
+
+    it('marks the selected entity button as pressed for screen-reader users', async () => {
+      mockListEntities.mockResolvedValue(twoEntityResponse())
+      mockGetEntityNeighbors.mockResolvedValue({ nodes: [aliceNode()], edges: [], truncated: false, limits: graphLimits })
+      renderPage()
+
+      const nav = await screen.findByRole('navigation', { name: 'Browse entities' })
+      await waitFor(() => expect(mockGetEntityNeighbors).toHaveBeenCalledTimes(1))
+
+      expect(within(nav).getByText('Bob').closest('button')).toHaveAttribute('aria-pressed', 'false')
+
+      fireEvent.click(within(nav).getByText('Bob'))
+
+      await waitFor(() => {
+        expect(within(nav).getByText('Bob').closest('button')).toHaveAttribute('aria-pressed', 'true')
+      })
+    })
   })
 
   // ── Right pane: tabbed detail panel ────────────────────────────────────────
@@ -380,10 +397,12 @@ describe('KnowledgeGraphPage', () => {
     })
   })
 
-  // ── a11y "Keyboard map" section: entities-only now that Relationships
-  // moved into its own tab (entity-scoped, replacing the whole-map list) ──
-  describe('accessible entity summary', () => {
-    it('lists visible entities without the removed whole-map relationships list', async () => {
+  // ── The old "Keyboard map" a11y fallback list (entities-only after T14 moved
+  // Relationships into its own tab) is now fully redundant with the left-pane
+  // entity list (a proper `nav[aria-label]` + accessible button list that
+  // already performs the exact same `focusNode` selection) and was removed. ──
+  describe('removed a11y fallback list', () => {
+    it('no longer renders the duplicate "Keyboard map" entities/relationships summary', async () => {
       mockListEntities.mockResolvedValue({ entities: [{ id: 'n1', name: 'Alice', type: 'character' }], counts_by_type: { ...emptyCounts, character: 1 }, pagination: { total: 1 } })
       mockGetEntityNeighbors.mockResolvedValue({
         nodes: [aliceNode()],
@@ -393,9 +412,9 @@ describe('KnowledgeGraphPage', () => {
       })
       renderPage()
 
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: 'Entities' })).toBeInTheDocument()
-      })
+      await screen.findByRole('navigation', { name: 'Browse entities' })
+      expect(screen.queryByText('Keyboard map')).not.toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: 'Entities' })).not.toBeInTheDocument()
       expect(screen.queryByRole('heading', { name: 'Relationships' })).not.toBeInTheDocument()
     })
   })

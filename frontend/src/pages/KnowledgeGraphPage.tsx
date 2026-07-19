@@ -1,5 +1,5 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, FileQuestion, Network, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Network, RotateCcw } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import GraphCanvas from '../components/knowledge-graph/GraphCanvas'
 import GraphControls from '../components/knowledge-graph/GraphControls'
@@ -225,6 +225,7 @@ export default function KnowledgeGraphPage() {
                     <li key={entity.id}>
                       <button
                         type="button"
+                        aria-pressed={selectedNodeId === entity.id}
                         className={`${styles.filterEntityItem} ${selectedNodeId === entity.id ? styles.filterEntityItemActive : ''}`}
                         onClick={() => void focusNode(entity.id)}
                       >
@@ -366,32 +367,6 @@ export default function KnowledgeGraphPage() {
             <p>Search or tap an entity to center the map on it.</p>
           </section>
         )}
-
-        <section className={styles.accessibleSummary} aria-labelledby="map-summary-heading">
-          <div className={styles.summaryHeading}>
-            <FileQuestion size={15} aria-hidden="true" />
-            <div>
-              <p className={styles.kicker}>Keyboard map</p>
-              <h2 id="map-summary-heading">Entities</h2>
-            </div>
-          </div>
-          <p className={styles.summaryCopy}>This list mirrors the visible map and can be used without the canvas. Select an entity to see its relationships in the Relationships tab above.</p>
-
-          <ul className={styles.entityList}>
-            {visibleNodes.map((node) => (
-              <li key={node.id}>
-                <button
-                  type="button"
-                  aria-pressed={selectedNodeId === node.id}
-                  onClick={() => void focusNode(node.id)}
-                >
-                  <span>{node.data.label}</span>
-                  <small>{node.type.replace(/_/g, ' ')}</small>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
 
         {focalNodeId && <p className={styles.focalNote}>Showing the focal entity and its {limits?.hops || 2}-hop neighborhood in {universe?.name || 'this universe'}.</p>}
       </aside>

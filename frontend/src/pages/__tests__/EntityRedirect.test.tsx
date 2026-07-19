@@ -21,7 +21,7 @@ function renderRedirect(entityId = 'ent-1') {
     <MemoryRouter initialEntries={[`/entity/${entityId}`]}>
       <Routes>
         <Route path="/entity/:entityId" element={<EntityRedirect />} />
-        <Route path="/universe/:universeId/explore/entities/:entityId" element={<Target />} />
+        <Route path="/universe/:universeId/explore/map" element={<Target />} />
         <Route path="/dashboard" element={<Dashboard />} />
       </Routes>
     </MemoryRouter>
@@ -31,7 +31,7 @@ function renderRedirect(entityId = 'ent-1') {
 describe('EntityRedirect', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('redirects to the canonical universe-scoped Explore route once the entity resolves', async () => {
+  it('redirects to the consolidated Story Graph map once the entity resolves', async () => {
     mockGetEntity.mockResolvedValue({ entity: { id: 'ent-1', universe_id: 'uni-2' } })
     renderRedirect('ent-1')
 

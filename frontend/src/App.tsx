@@ -14,7 +14,6 @@ import { RouteLoadBoundary } from './components/shared/RouteLoadBoundary'
 const LandingPage = lazy(() => import('./pages/LandingPage'))
 const UniverseWorksTab = lazy(() => import('./pages/UniverseWorksTab'))
 const EditorPage = lazy(() => import('./pages/EditorPage'))
-const EntitiesPage = lazy(() => import('./pages/EntitiesPage'))
 // The relationship map is intentionally isolated from the initial Home/Write bundle.
 const KnowledgeGraphPage = lazy(() => import('./pages/KnowledgeGraphPage'))
 const MemoryInspectorPage = lazy(() => import('./pages/MemoryInspectorPage'))
@@ -30,10 +29,13 @@ function ToWrite({ importMode = false }: { importMode?: boolean }) {
   return <Navigate to={importMode ? writeImportPath(universeId) : writePath(universeId, chapterId)} replace />
 }
 
-function ToExplore({ view }: { view: 'entities' | 'map' }) {
-  const { universeId, entityId } = useParams<{ universeId: string; entityId?: string }>()
+// EntitiesPage was removed (fully absorbed into KnowledgeGraphPage's left
+// pane + tabbed detail); every legacy/entity-scoped Explore link now folds
+// into the consolidated Story Graph map.
+function ToExplore() {
+  const { universeId } = useParams<{ universeId: string }>()
   if (!universeId) return <MissingUniverseRedirect />
-  return <Navigate to={explorePath(universeId, view, entityId)} replace />
+  return <Navigate to={explorePath(universeId, 'map')} replace />
 }
 
 function ToReview({ view }: { view: ReviewView }) {
@@ -75,11 +77,15 @@ export function AppRoutes() {
           {/* Canonical Sprint 7 destinations. Existing feature pages are interim bodies. */}
           <Route path="write" element={<WriteRoute />} />
           <Route path="write/:chapterId" element={<RouteLoadBoundary label="Loading editor…"><EditorPage /></RouteLoadBoundary>} />
-          <Route path="explore/entities" element={<RouteLoadBoundary label="Loading entities…"><EntitiesPage /></RouteLoadBoundary>} />
-          <Route path="explore/entities/:entityId" element={<RouteLoadBoundary label="Loading entities…"><EntitiesPage /></RouteLoadBoundary>} />
+          {/* EntitiesPage was removed as a duplicate entity-browsing surface (its
+              list/filter/detail behavior is fully absorbed into the Story
+              Graph's left pane + tabbed detail panel); legacy links redirect
+              to the consolidated map. */}
+          <Route path="explore/entities" element={<ToExplore />} />
+          <Route path="explore/entities/:entityId" element={<ToExplore />} />
           <Route path="explore/map" element={<MapRoute />} />
           {/* The timeline is now a slider embedded in the map (see KnowledgeGraphPage) rather than its own page. */}
-          <Route path="explore/timeline" element={<ToExplore view="map" />} />
+          <Route path="explore/timeline" element={<ToExplore />} />
           <Route path="memory" element={<RouteLoadBoundary label="Loading memory…"><MemoryInspectorPage /></RouteLoadBoundary>} />
           <Route path="review/:view" element={<RouteLoadBoundary label="Loading review…"><ReviewPage /></RouteLoadBoundary>} />
           {/* SkillsPage was removed as a duplicate skill-config surface (CraftReviewPanel's
@@ -92,10 +98,10 @@ export function AppRoutes() {
           <Route path="works" element={<ToWrite />} />
           <Route path="editor" element={<ToWrite />} />
           <Route path="editor/:chapterId" element={<ToWrite />} />
-          <Route path="entities" element={<ToExplore view="entities" />} />
-          <Route path="entities/:entityId" element={<ToExplore view="entities" />} />
-          <Route path="graph" element={<ToExplore view="map" />} />
-          <Route path="timeline" element={<ToExplore view="map" />} />
+          <Route path="entities" element={<ToExplore />} />
+          <Route path="entities/:entityId" element={<ToExplore />} />
+          <Route path="graph" element={<ToExplore />} />
+          <Route path="timeline" element={<ToExplore />} />
           <Route path="contradictions" element={<ToReview view="issues" />} />
           <Route path="plot-holes" element={<ToReview view="issues" />} />
           <Route path="ingest" element={<ToWrite importMode />} />

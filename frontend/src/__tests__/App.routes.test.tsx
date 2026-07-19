@@ -24,7 +24,6 @@ vi.mock('../pages/UniverseLayout', async () => {
 vi.mock('../pages/LandingPage', () => ({ default: () => <div>Landing route</div> }))
 vi.mock('../pages/UniverseWorksTab', () => ({ default: () => <div>Write route</div> }))
 vi.mock('../pages/EditorPage', () => ({ default: () => <div>Editor route</div> }))
-vi.mock('../pages/EntitiesPage', () => ({ default: () => <div>Entities route</div> }))
 vi.mock('../pages/KnowledgeGraphPage', () => ({ default: () => <div>Map route</div> }))
 vi.mock('../pages/MemoryInspectorPage', () => ({ default: () => <div>Memory route</div> }))
 vi.mock('../pages/ReviewPage', () => ({ default: () => <div>Review route</div> }))
@@ -54,11 +53,13 @@ describe('App legacy universe routes', () => {
     ['editor picker', '/universe/uni-1/editor', '/universe/uni-1/write'],
     ['editor chapter', '/universe/uni-1/editor/ch-1', '/universe/uni-1/write/ch-1'],
     ['ingest', '/universe/uni-1/ingest', '/universe/uni-1/write?panel=import'],
-    ['entities', '/universe/uni-1/entities', '/universe/uni-1/explore/entities'],
-    ['entity', '/universe/uni-1/entities/entity-1', '/universe/uni-1/explore/entities/entity-1'],
+    ['entities', '/universe/uni-1/entities', '/universe/uni-1/explore/map'],
+    ['entity', '/universe/uni-1/entities/entity-1', '/universe/uni-1/explore/map'],
     ['graph', '/universe/uni-1/graph', '/universe/uni-1/explore/map'],
     ['timeline', '/universe/uni-1/timeline', '/universe/uni-1/explore/map'],
     ['explore timeline (folded into map)', '/universe/uni-1/explore/timeline', '/universe/uni-1/explore/map'],
+    ['explore entities (removed EntitiesPage)', '/universe/uni-1/explore/entities', '/universe/uni-1/explore/map'],
+    ['explore entity (removed EntitiesPage)', '/universe/uni-1/explore/entities/entity-1', '/universe/uni-1/explore/map'],
     ['contradictions', '/universe/uni-1/contradictions', '/universe/uni-1/review/issues'],
     ['plot holes', '/universe/uni-1/plot-holes', '/universe/uni-1/review/issues'],
     ['skills', '/universe/uni-1/skills', '/universe/uni-1/review/issues'],

@@ -1,4 +1,4 @@
-export type ExploreView = 'entities' | 'map' | 'timeline'
+export type ExploreView = 'map' | 'timeline'
 export type ReviewView = 'issues' | 'candidates'
 
 function universeBase(universeId: string): string {
@@ -14,9 +14,8 @@ export function writeImportPath(universeId: string): string {
   return `${writePath(universeId)}?panel=import`
 }
 
-export function explorePath(universeId: string, view: ExploreView, entityId?: string): string {
-  const base = `${universeBase(universeId)}/explore/${view}`
-  return entityId && view === 'entities' ? `${base}/${encodeURIComponent(entityId)}` : base
+export function explorePath(universeId: string, view: ExploreView): string {
+  return `${universeBase(universeId)}/explore/${view}`
 }
 
 export function memoryPath(universeId: string): string {
