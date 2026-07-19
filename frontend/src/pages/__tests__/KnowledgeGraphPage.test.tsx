@@ -13,7 +13,7 @@ const { mockCytoscape } = vi.hoisted(() => {
     nodes: vi.fn(() => ({ forEach: vi.fn(), map: vi.fn(() => []) })),
     edges: vi.fn(() => ({ forEach: vi.fn() })),
     fit: vi.fn(),
-    layout: vi.fn(() => ({ run: vi.fn() })),
+    layout: vi.fn(() => ({ run: vi.fn(), one: vi.fn((_event: string, cb: () => void) => cb()) })),
     on: vi.fn(),
     resize: vi.fn(),
     $id: vi.fn(() => ({ select: vi.fn() })),

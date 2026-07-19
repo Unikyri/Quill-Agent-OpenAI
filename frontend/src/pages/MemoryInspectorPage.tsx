@@ -6,16 +6,19 @@ import FusionExplorer from '../components/memory/FusionExplorer'
 import type { RecallExplanation } from '../lib/types'
 import styles from './MemoryInspectorPage.module.css'
 
+// Recall, Forgetting, and Context Budget render as three always-visible
+// stacked "acts" (Docs/FRONTEND-GREENFIELD-PLAN.md §4.7) — none may be
+// hidden behind a closed disclosure on initial load. Each component already
+// carries its own act header (kicker + heading), so no extra wrapper is
+// needed here beyond stacking them with consistent rhythm.
 export default function MemoryInspectorPage() {
   const { universeId } = useParams<{ universeId: string }>()
   const [recall, setRecall] = useState<RecallExplanation | null>(null)
   const [recallUniverseId, setRecallUniverseId] = useState<string | null>(null)
-  const [lifecycleOpen, setLifecycleOpen] = useState(false)
 
   useEffect(() => {
     setRecall(null)
     setRecallUniverseId(null)
-    setLifecycleOpen(false)
   }, [universeId])
 
   const handleRecallResult = useCallback((nextRecall: RecallExplanation | null) => {
@@ -29,22 +32,9 @@ export default function MemoryInspectorPage() {
 
   return (
     <main className={styles.wrap}>
-      <FusionExplorer key={universeId} universeId={universeId} onResult={handleRecallResult} />
-
-      {currentRecall && (
-        <details className={styles.disclosure}>
-          <summary>Inspect the context budget for this recall</summary>
-          <div className={styles.disclosureBody}><BudgetTheater budget={currentRecall.budget} items={currentRecall.items} /></div>
-        </details>
-      )}
-
-      <details key={`lifecycle-${universeId}`} className={styles.disclosure} onToggle={(event) => setLifecycleOpen(event.currentTarget.open)}>
-        <summary>Inspect memory lifecycle and consolidation</summary>
-        <div className={styles.disclosureBody}>
-          <p className={styles.disclosureIntro}>Lifecycle information is loaded when you ask for it, so the first screen stays focused on the answer to your question.</p>
-          {lifecycleOpen && <DecayTimeline key={universeId} universeId={universeId} />}
-        </div>
-      </details>
+      <FusionExplorer key={`recall-${universeId}`} universeId={universeId} onResult={handleRecallResult} />
+      <DecayTimeline key={`forgetting-${universeId}`} universeId={universeId} />
+      <BudgetTheater budget={currentRecall?.budget ?? null} items={currentRecall?.items ?? []} />
     </main>
   )
 }

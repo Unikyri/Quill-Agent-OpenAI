@@ -1,6 +1,6 @@
-.wrap { display: flex; flex-direction: column; gap: 12px; max-width: 980px; margin: 0 auto; padding: 8px 0 32px; }
-.disclosure { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg-card); }
-.disclosure > summary { color: var(--ink); cursor: pointer; font-size: 14px; font-weight: 700; padding: 14px 16px; }
-.disclosure[open] > summary { border-bottom: 1px solid var(--line); }
-.disclosureBody { padding: 14px 16px 16px; }
-.disclosureIntro { margin: 0 0 12px; color: var(--muted-2); font-size: 13px; line-height: 1.5; }
+.wrap {
+  composes: accountStack from '../styles/page.module.css';
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 8px 0 32px;
+}

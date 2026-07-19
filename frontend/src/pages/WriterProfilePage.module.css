@@ -1,4 +1,4 @@
-.wrap { display: flex; flex-direction: column; gap: 16px; }
+.wrap { composes: accountStack from '../styles/page.module.css'; }
 .heading h1 { margin: 0.2rem 0 0.4rem; font-family: var(--serif); color: var(--ink); }
-.eyebrow { margin: 0; text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; color: var(--muted); }
+.eyebrow { margin: 0; text-transform: uppercase; letter-spacing: 0.12em; word-spacing: 0.2em; font-size: 11px; color: var(--muted); }
 .intro { margin: 0; color: var(--muted-2); max-width: 72ch; line-height: 1.5; }

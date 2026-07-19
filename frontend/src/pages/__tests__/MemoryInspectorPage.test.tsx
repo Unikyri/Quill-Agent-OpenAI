@@ -51,31 +51,27 @@ beforeEach(() => {
 })
 
 describe('MemoryInspectorPage', () => {
-  it('starts with the recall question and delays lifecycle loading until disclosed', () => {
+  it('renders Recall, Forgetting, and Context Budget as always-visible stacked sections', async () => {
     renderPage()
     expect(screen.getByRole('heading', { name: /what does quill remember/i })).toBeInTheDocument()
-    expect(mockGetMemoryStatus).not.toHaveBeenCalled()
-    expect(screen.getByText(/inspect memory lifecycle and consolidation/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /what fit in the prompt/i })).toBeInTheDocument()
+    await waitFor(() => expect(mockGetMemoryStatus).toHaveBeenCalledWith('uni-1'))
+    expect(await screen.findByRole('heading', { name: /decay, relevance, and consolidation/i })).toBeInTheDocument()
   })
 
-  it('shows evidence first, then exposes the budget as a disclosure', async () => {
+  it('shows the context budget for a recall without any disclosure interaction', async () => {
     renderPage()
+    expect(screen.getByText(/run a recall above/i)).toBeInTheDocument()
+
     fireEvent.change(screen.getByLabelText(/ask about your story/i), { target: { value: 'Where was the oath made?' } })
     fireEvent.click(screen.getByRole('button', { name: /^recall$/i }))
 
     await waitFor(() => expect(screen.getByTestId('fused-item-r1')).toHaveTextContent(/old gate/i))
-    const budgetDisclosure = screen.getByText(/inspect the context budget/i).closest('details')
-    expect(budgetDisclosure).not.toHaveAttribute('open')
-
-    fireEvent.click(screen.getByText(/inspect the context budget/i))
-    expect(budgetDisclosure).toHaveAttribute('open')
-    expect(screen.getByText(/what fit in the prompt/i)).toBeInTheDocument()
     expect(screen.getByTestId('budget-fitted-count')).toHaveTextContent('1')
   })
 
-  it('loads lifecycle data only after the author asks to inspect it', async () => {
+  it('loads lifecycle data as soon as the page mounts, with no click required', async () => {
     renderPage()
-    fireEvent.click(screen.getByText(/inspect memory lifecycle and consolidation/i))
     await waitFor(() => expect(mockGetMemoryStatus).toHaveBeenCalledWith('uni-1'))
     expect(screen.getByText(/2 consolidated memories/i)).toBeInTheDocument()
   })
@@ -98,11 +94,11 @@ describe('MemoryInspectorPage', () => {
 
     mockRouteParams.universeId = 'uni-b'
     view.rerender(pageTree())
-    expect(screen.queryByText(/inspect the context budget/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/run a recall above/i)).toBeInTheDocument()
 
     resolveA({ ...recallResponse, query: 'A question', items: [{ ...recallResponse.items[0], fact: 'A-only evidence' }] })
     await waitFor(() => expect(screen.getByRole('heading', { name: /what does quill remember/i })).toBeInTheDocument())
     expect(screen.queryByText('A-only evidence')).not.toBeInTheDocument()
-    expect(screen.queryByText(/inspect the context budget/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/run a recall above/i)).toBeInTheDocument()
   })
 })

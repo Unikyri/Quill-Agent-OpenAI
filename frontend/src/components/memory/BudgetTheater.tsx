@@ -1,3 +1,4 @@
+import EmptyState from '../shared/EmptyState'
 import type { ExplainedItem, RecallBudget } from '../../lib/types'
 import styles from './BudgetTheater.module.css'
 
@@ -24,10 +25,12 @@ function EvidenceList({ title, items, empty }: { title: string; items: Explained
 export default function BudgetTheater({ budget, items }: BudgetTheaterProps) {
   if (!budget) {
     return (
-      <section className={styles.wrap} aria-labelledby="budget-title">
+      <section className={styles.wrap} aria-label="Context budget">
         <p className={styles.kicker}>Context budget</p>
-        <h2 id="budget-title">What fit in the prompt</h2>
-        <p className={styles.emptyPlaceholder}>Run a recall above to see which real memories fit in the context window and which were held back.</p>
+        <EmptyState
+          title="What fit in the prompt"
+          detail="Run a recall above to see which real memories fit in the context window and which were held back."
+        />
       </section>
     )
   }

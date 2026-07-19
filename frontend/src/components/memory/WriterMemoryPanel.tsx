@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { GenreTagPicker } from '../genres'
+import EmptyState from '../shared/EmptyState'
 import { api } from '../../lib/api'
 import type { WriterObservationDTO, WriterPreferenceDTO, WriterPreferenceEvidenceDTO } from '../../lib/types'
 import styles from './WriterMemoryPanel.module.css'
@@ -152,7 +153,10 @@ export default function WriterMemoryPanel() {
             <span className={styles.eyebrow}>{observations.length} facts</span>
           </div>
           {observations.length === 0 ? (
-            <p className={styles.state}>No observations yet. Save a chapter or import a manuscript and Quill will measure sentence length, dialogue, adverbs, and vocabulary without inferring intent.</p>
+            <EmptyState
+              title="No observations yet"
+              detail="Save a chapter or import a manuscript and Quill will measure sentence length, dialogue, adverbs, and vocabulary without inferring intent."
+            />
           ) : (
             <div className={styles.observationList}>
               {observations.map((observation) => {
@@ -173,7 +177,10 @@ export default function WriterMemoryPanel() {
         </section>
       )}
       {!loading && !error && preferences.length === 0 && (
-        <p className={styles.state}>No preferences yet. Keep writing and respond to craft notes when you want Quill to learn an intention; measurable observations can exist without inventing a belief.</p>
+        <EmptyState
+          title="No preferences yet"
+          detail="Keep writing and respond to craft notes when you want Quill to learn an intention; measurable observations can exist without inventing a belief."
+        />
       )}
       <div className={styles.list}>
         {preferences.map((preference) => {

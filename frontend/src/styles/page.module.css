@@ -1,0 +1,15 @@
+/* Shared account-scoped page layout primitives (Dashboard, Writer Profile,
+   Integrations). One width, one vertical rhythm, composed into each page's
+   own module via `composes: ... from`. */
+
+.accountColumn {
+  max-width: 1120px;
+  margin-inline: auto;
+  padding: clamp(28px, 5vw, 64px) clamp(20px, 4vw, 48px) 72px;
+}
+
+.accountStack {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(28px, 4vh, 44px);
+}

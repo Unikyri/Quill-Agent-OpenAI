@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useFeedback } from '../components/feedback'
+import EmptyState from '../components/shared/EmptyState'
 import { api } from '../lib/api'
 import { reviewPath, writePath } from '../lib/canonicalRoutes'
 import type { EntityCandidateDTO } from '../lib/types'
@@ -88,11 +89,41 @@ function sortInboxIssues(items: InboxIssue[]): InboxIssue[] {
   })
 }
 
+const CLAUSE_BOUNDARIES = ['. ', '; ', ': ', ' — ']
+const TITLE_CLAUSE_LIMIT = 90
+const TITLE_WORD_CUT_LIMIT = 80
+
+// Derives a short card title from a (potentially long) description: cuts at
+// the first clause boundary if that's a reasonable title length, otherwise
+// falls back to a word-boundary truncation with an ellipsis. Never returns
+// an empty title for a non-empty description.
+export function shortTitle(description: string): string {
+  const text = description.trim()
+  if (!text) return text
+
+  let earliestBoundary = -1
+  for (const boundary of CLAUSE_BOUNDARIES) {
+    const index = text.indexOf(boundary)
+    if (index !== -1 && (earliestBoundary === -1 || index < earliestBoundary)) earliestBoundary = index
+  }
+
+  if (earliestBoundary !== -1 && earliestBoundary <= TITLE_CLAUSE_LIMIT) {
+    return text.slice(0, earliestBoundary).trim()
+  }
+
+  if (text.length <= TITLE_WORD_CUT_LIMIT) return text
+
+  const cutoff = text.slice(0, TITLE_WORD_CUT_LIMIT)
+  const lastSpace = cutoff.lastIndexOf(' ')
+  const trimmed = (lastSpace > 0 ? cutoff.slice(0, lastSpace) : cutoff).replace(/[.,;:—-]+$/, '').trim()
+  return `${trimmed}…`
+}
+
 function toInboxIssues(contradictions: ContradictionIssue[], plotHoles: PlotHoleIssue[]): InboxIssue[] {
   const contradictionItems = contradictions.map((item) => ({
     id: item.id,
     kind: 'contradiction' as const,
-    title: item.description,
+    title: shortTitle(item.description),
     description: item.description,
     severity: item.severity,
     status: item.status || 'open',
@@ -434,7 +465,7 @@ function IssuesInbox({ issues, loading, error, onRetry, onAct, pendingConfirmati
               {settled && <span className={styles.settled}>{issue.status === 'resolved' ? 'Resolved' : 'Marked intentional'}</span>}
             </div>
             <h2>{issue.title}</h2>
-            <p className={styles.description}>{issue.description}</p>
+            {issue.description !== issue.title && <p className={styles.description}>{issue.description}</p>}
 
             <div className={styles.detailGrid}>
               <section>
@@ -580,6 +611,3 @@ function DegradedState({ message, onRetry }: { message: string; onRetry: () => P
   return <div className={styles.degraded} role="status"><span>{message}</span><button type="button" onClick={() => void onRetry()}>Retry</button></div>
 }
 
-function EmptyState({ title, detail }: { title: string; detail: string }) {
-  return <section className={styles.state}><h2>{title}</h2><p>{detail}</p></section>
-}

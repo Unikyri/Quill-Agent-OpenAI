@@ -1,11 +1,9 @@
 .wrap { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg-card); padding: 18px; }
 .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
-.kicker { margin: 0; color: var(--muted-2); font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.header h2, .wrap > h2 { margin: 4px 0 0; color: var(--ink); font-family: var(--serif); font-size: 23px; font-weight: 500; }
+.kicker { margin: 0; color: var(--muted-2); font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .08em; word-spacing: 0.2em; text-transform: uppercase; }
+.header h2 { margin: 4px 0 0; color: var(--ink); font-family: var(--serif); font-size: 23px; font-weight: 500; }
 .usedPercent { color: var(--gold-ink); font-family: var(--mono); font-size: 13px; font-weight: 700; }
-.hint, .emptyPlaceholder { color: var(--muted-2); font-size: 13px; line-height: 1.5; }
-.hint { margin: 8px 0 0; }
-.emptyPlaceholder { margin: 12px 0 0; font-style: italic; }
+.hint { margin: 8px 0 0; color: var(--muted-2); font-size: 13px; line-height: 1.5; }
 .bars { display: grid; gap: 9px; margin-top: 16px; }
 .barRow { display: grid; grid-template-columns: 70px minmax(0, 1fr) 92px; align-items: center; gap: 8px; }
 .barLabel { color: var(--ink-body); font-size: 13px; }

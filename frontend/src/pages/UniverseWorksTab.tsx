@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useFeedback } from '../components/feedback'
+import EmptyState from '../components/shared/EmptyState'
 import ImageUpload from '../components/shared/ImageUpload'
 import { UniverseContext } from '../contexts/UniverseContext'
 import { WORK_FORMAT_OPTIONS } from '../lib/genres'
@@ -350,13 +351,16 @@ function WorkDetail({
         )}
 
         {sorted.length === 0 ? (
-          <div className={styles.emptyState}>
-            <p>No chapters yet. Start writing from a blank chapter, or import a manuscript.</p>
-            <div className={styles.emptyActions}>
-              <button type="button" className={styles.formSubmit} onClick={() => setShowNewForm(true)}>Create chapter</button>
-              <button type="button" className={styles.formCancel} onClick={onOpenImport}>Import manuscript</button>
-            </div>
-          </div>
+          <EmptyState
+            title="No chapters yet"
+            detail="Start writing from a blank chapter, or import a manuscript."
+            action={
+              <div className={styles.emptyActions}>
+                <button type="button" className={styles.formSubmit} onClick={() => setShowNewForm(true)}>Create chapter</button>
+                <button type="button" className={styles.formCancel} onClick={onOpenImport}>Import manuscript</button>
+              </div>
+            }
+          />
         ) : (
           <>
             <div className={styles.tableHeaderRow} aria-hidden="true">
@@ -539,14 +543,16 @@ export default function UniverseWorksTab() {
       )}
 
       {works.length === 0 ? (
-        <section className={styles.emptyState} aria-label="No manuscripts yet">
-          <h2>Start your story</h2>
-          <p>Create a manuscript for a blank chapter, or bring in material you already have.</p>
-          <div className={styles.emptyActions}>
-            <button type="button" className={styles.formSubmit} onClick={() => setShowNewForm(true)}>New manuscript</button>
-            <button type="button" className={styles.formCancel} onClick={openImport}>Import manuscript</button>
-          </div>
-        </section>
+        <EmptyState
+          title="Start your story"
+          detail="Create a manuscript for a blank chapter, or bring in material you already have."
+          action={
+            <div className={styles.emptyActions}>
+              <button type="button" className={styles.formSubmit} onClick={() => setShowNewForm(true)}>New manuscript</button>
+              <button type="button" className={styles.formCancel} onClick={openImport}>Import manuscript</button>
+            </div>
+          }
+        />
       ) : effectiveWorkId ? (
         <WorkDetail workId={effectiveWorkId} universeId={universeId} onOpenImport={openImport} />
       ) : null}

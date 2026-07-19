@@ -12,8 +12,8 @@
   align-items: baseline;
 }
 
-.title { margin: 0; font-family: var(--font-display, Georgia, serif); color: var(--ink, #24333a); }
-.eyebrow { margin: 0; text-transform: uppercase; letter-spacing: .12em; font-size: 11px; color: var(--muted, #776f65); }
+.title { margin: 0; font-family: var(--serif); color: var(--ink); }
+.eyebrow { margin: 0; text-transform: uppercase; letter-spacing: .12em; word-spacing: 0.2em; font-size: 11px; color: var(--muted, #776f65); }
 .intro { color: var(--muted, #776f65); max-width: 72ch; line-height: 1.5; }
 .observations { margin-top: 20px; border-top: 1px solid var(--line, #d7cfc2); padding-top: 16px; }
 .subheading { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }

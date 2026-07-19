@@ -1,12 +1,10 @@
 .layout {
+  composes: accountColumn from '../styles/page.module.css';
   min-height: 100%;
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: clamp(28px, 5vw, 64px) clamp(20px, 4vw, 48px) 72px;
   color: var(--ink);
 }
 
-.accountNav { display: flex; justify-content: flex-end; padding-bottom: 12px; }
+.accountNav { display: flex; justify-content: flex-end; gap: 20px; padding-bottom: 12px; }
 .accountLink { color: var(--muted); font-size: 0.8rem; font-weight: 600; text-decoration: none; }
 .accountLink:hover { color: var(--teal); text-decoration: underline; }
 
@@ -33,6 +31,7 @@
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.12em;
+  word-spacing: 0.2em;
   line-height: 1.2;
   text-transform: uppercase;
 }
@@ -41,7 +40,6 @@
 .libraryHeading h2,
 .createPanel h2,
 .universeCard h3,
-.emptyState h3,
 .errorPanel h3 {
   margin: 0;
   font-family: var(--serif);
@@ -322,27 +320,6 @@
   border-radius: var(--r-xl);
   background: var(--surface-sunken);
   animation: pulse 1.2s ease-in-out infinite alternate;
-}
-
-.emptyState {
-  display: grid;
-  justify-items: start;
-  gap: 10px;
-  padding: clamp(28px, 6vw, 56px);
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--r-xl);
-  background: var(--bg-card);
-}
-
-.emptyState h3 {
-  font-size: 1.55rem;
-}
-
-.emptyState p:not(.eyebrow) {
-  max-width: 510px;
-  margin: 0 0 8px;
-  color: var(--muted);
-  line-height: 1.55;
 }
 
 .universeCard {

@@ -468,8 +468,7 @@
 .mapHeader > div { min-width: 0; }
 
 .mapHeader h1,
-.focusedInspector h2,
-.emptyState h2 {
+.focusedInspector h2 {
   margin: 0;
   color: var(--ink);
   font-family: var(--serif);
@@ -480,7 +479,6 @@
 
 .mapHeader p:not(.kicker),
 .focusedInspector > p:not(.kicker),
-.emptyState p,
 .focalNote {
   margin: 0.35rem 0 0;
   color: var(--muted);
@@ -545,6 +543,7 @@
   font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.1em;
+  word-spacing: 0.2em;
   text-transform: uppercase;
 }
 
@@ -585,19 +584,6 @@
 }
 
 .importButton:hover { background: var(--teal-deep); color: var(--parchment-hi); }
-
-.emptyState {
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: 0.65rem;
-  min-width: 0;
-  color: var(--muted-2);
-  padding: 1.5rem;
-  text-align: center;
-}
-
-.emptyState p { max-width: 28rem; margin-top: 0; }
 
 .inspector {
   display: flex;

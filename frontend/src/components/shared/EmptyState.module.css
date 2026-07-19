@@ -1,0 +1,47 @@
+.wrap {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: clamp(28px, 6vw, 56px);
+  border: 2px dashed var(--line-strong);
+  border-radius: var(--r-xl);
+  background: var(--surface-sunken);
+  text-align: center;
+  animation: qrise 260ms ease-out;
+}
+
+.iconSlot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  color: var(--muted-2);
+}
+
+.title {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 1.3rem;
+  font-weight: 500;
+}
+
+.detail {
+  max-width: 60ch;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.action {
+  margin-top: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wrap {
+    animation: none;
+  }
+}

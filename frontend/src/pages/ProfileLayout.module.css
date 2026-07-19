@@ -122,4 +122,4 @@
 
 .menuItem:hover { background: var(--hover); }
 
-.content { max-width: 980px; margin: 0 auto; padding: clamp(1rem, 3vw, 2rem); }
+.content { composes: accountColumn from '../styles/page.module.css'; }

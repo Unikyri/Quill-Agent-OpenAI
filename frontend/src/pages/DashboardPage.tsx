@@ -2,6 +2,7 @@ import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useMemo, us
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { GenreTagPicker } from '../components/genres'
 import { useFeedback } from '../components/feedback'
+import EmptyState from '../components/shared/EmptyState'
 import { api } from '../lib/api'
 import { profileIntegrationsPath, profileMemoryPath } from '../lib/canonicalRoutes'
 import { GENRE_OPTIONS } from '../lib/genres'
@@ -395,14 +396,15 @@ export default function DashboardPage() {
         )}
 
         {!isLoading && universes.length === 0 && !loadError && (
-          <div className={styles.emptyState}>
-            <p className={styles.eyebrow}>A blank shelf</p>
-            <h3>No universes yet</h3>
-            <p>Create one when you are ready, or use the guided demo to see Quill with a working story.</p>
-            <button type="button" className={styles.primaryButton} onClick={() => setShowCreate(true)}>
-              Create your first universe
-            </button>
-          </div>
+          <EmptyState
+            title="No universes yet"
+            detail="Create one when you are ready, or use the guided demo to see Quill with a working story."
+            action={
+              <button type="button" className={styles.primaryButton} onClick={() => setShowCreate(true)}>
+                Create your first universe
+              </button>
+            }
+          />
         )}
 
         {universes.length > 0 && (
