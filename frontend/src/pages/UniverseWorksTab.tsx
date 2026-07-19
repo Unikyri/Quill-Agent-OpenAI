@@ -72,15 +72,41 @@ function InlineConfirmation({
   )
 }
 
+function WorkSwitcher({
+  works,
+  selectedWorkId,
+  onSelect,
+}: {
+  works: { id: string; title: string }[]
+  selectedWorkId: string | null
+  onSelect: (id: string) => void
+}) {
+  if (works.length <= 1) return null
+  return (
+    <div className={styles.workSwitcher} role="tablist" aria-label="Manuscripts">
+      {works.map((work) => (
+        <button
+          key={work.id}
+          type="button"
+          role="tab"
+          className={styles.switcherPill}
+          aria-selected={work.id === selectedWorkId}
+          onClick={() => onSelect(work.id)}
+        >
+          {work.title}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function WorkDetail({
   workId,
   universeId,
-  onBack,
   onOpenImport,
 }: {
   workId: string
   universeId: string
-  onBack: () => void
   onOpenImport: () => void
 }) {
   const navigate = useNavigate()
@@ -241,12 +267,7 @@ function WorkDetail({
   const totalWords = chapters.reduce((total, chapter) => total + chapter.word_count, 0)
 
   return (
-    <div className={styles.wrap}>
-      <div className={styles.writeToolbar}>
-        <button type="button" className={styles.backBtn} onClick={onBack}>All manuscripts</button>
-        <button type="button" className={styles.newBtn} onClick={onOpenImport}>Import manuscript</button>
-      </div>
-
+    <>
       {actionError && <div className={styles.inlineError} role="alert">{actionError}</div>}
 
       <div className={styles.workHeaderCard}>
@@ -373,7 +394,7 @@ function WorkDetail({
           </>
         )}
       </section>
-    </div>
+    </>
   )
 }
 
@@ -467,14 +488,10 @@ export default function UniverseWorksTab() {
 
   if (!universeId) return null
 
-  if (selectedWorkId) {
-    return (
-      <>
-        {importOpen && <div className={styles.importSurface}><IngestPanel universeId={universeId} onClose={closeImport} onCompleted={handleIngestionComplete} /></div>}
-        <WorkDetail workId={selectedWorkId} universeId={universeId} onBack={() => setSelectedWorkId(null)} onOpenImport={openImport} />
-      </>
-    )
-  }
+  // ponytail: derived default (first work) instead of a mount effect — one fewer render,
+  // and clearing selectedWorkId on delete naturally falls back to the next first work.
+  const effectiveWorkId = selectedWorkId ?? works[0]?.id ?? null
+  const selectedWork = works.find((work) => work.id === effectiveWorkId) ?? null
 
   return (
     <div className={styles.wrap}>
@@ -482,11 +499,14 @@ export default function UniverseWorksTab() {
       <div className={styles.sectionHeaderRow}>
         <div>
           <h1 className={styles.sectionTitle}>Write</h1>
-          <p className={styles.sectionIntro}>Choose a manuscript, create a chapter, or import an existing draft.</p>
+          <WorkSwitcher works={works} selectedWorkId={effectiveWorkId} onSelect={setSelectedWorkId} />
         </div>
         <div className={styles.headerActions}>
-          <button type="button" className={styles.newBtn} onClick={openImport}>Import manuscript</button>
           {!showNewForm && <button type="button" className={styles.formSubmit} onClick={() => setShowNewForm(true)}>New manuscript</button>}
+          <button type="button" className={styles.newBtn} onClick={openImport}>Import manuscript</button>
+          {selectedWork && (
+            <button type="button" className={styles.deleteButton} aria-label={`Delete ${selectedWork.title}`} onClick={() => setPendingWorkDelete(selectedWork)}>Delete</button>
+          )}
         </div>
       </div>
 
@@ -527,20 +547,9 @@ export default function UniverseWorksTab() {
             <button type="button" className={styles.formCancel} onClick={openImport}>Import manuscript</button>
           </div>
         </section>
-      ) : (
-        <div className={styles.worksGrid} aria-label="Manuscripts">
-          {works.map((work) => (
-            <article key={work.id} className={styles.workCard}>
-              <button type="button" className={styles.workOpenButton} aria-label={`Open ${work.title}`} onClick={() => setSelectedWorkId(work.id)}>
-                <span className={styles.workCardType}>{work.type}</span>
-                <span className={styles.workCardTitle}>{work.title}</span>
-                <span className={styles.workCardAction}>Open chapters</span>
-              </button>
-              <button type="button" className={styles.deleteButton} aria-label={`Delete ${work.title}`} onClick={() => setPendingWorkDelete(work)}>Delete</button>
-            </article>
-          ))}
-        </div>
-      )}
+      ) : effectiveWorkId ? (
+        <WorkDetail workId={effectiveWorkId} universeId={universeId} onOpenImport={openImport} />
+      ) : null}
     </div>
   )
 }

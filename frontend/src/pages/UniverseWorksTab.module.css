@@ -370,69 +370,31 @@
 }
 .colRenameBtn:hover { color: var(--teal); }
 
-/* Works list (when no work is selected) */
-.worksGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.workCard {
-  background: var(--bg-card);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  padding: 18px 20px;
-  transition: box-shadow 0.15s, transform 0.1s;
+/* Work switcher (shown above the hero only when there is more than one manuscript) */
+.workSwitcher {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.workCard:hover {
-  box-shadow: 0 4px 16px rgba(43,38,32,.08);
-  transform: translateY(-1px);
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
 }
 
-.workCardType {
-  font-family: var(--mono);
-  font-size: 9px;
+.switcherPill {
+  font-family: var(--sans);
+  font-size: 12.5px;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--teal);
-  background: var(--teal-soft);
-  border-radius: var(--r-pill);
-  padding: 2px 8px;
-  display: inline-block;
-  margin-bottom: 8px;
-}
-
-.workCardTitle {
-  font-family: var(--serif);
-  font-size: 17px;
-  font-weight: 500;
-  color: var(--ink);
-  letter-spacing: -0.01em;
-}
-
-.workOpenButton {
-  display: flex;
-  width: 100%;
-  flex: 1;
-  flex-direction: column;
-  align-items: flex-start;
-  border: 0;
+  color: var(--ink-soft);
   background: none;
-  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  padding: 5px 12px;
   cursor: pointer;
-  text-align: left;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
-
-.workCardAction {
-  margin-top: 14px;
+.switcherPill:hover { border-color: var(--teal); color: var(--teal); }
+.switcherPill[aria-selected="true"] {
+  border-color: var(--teal);
+  background: var(--teal-soft);
   color: var(--teal);
-  font-size: 12px;
-  font-weight: 600;
 }
 
 /* New work form */
@@ -480,7 +442,6 @@
 }
 
 .headerActions,
-.writeToolbar,
 .emptyActions,
 .rowActions,
 .confirmationActions {
@@ -489,34 +450,12 @@
   gap: 8px;
 }
 
-.writeToolbar {
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
 .sectionTitle {
   font-family: var(--serif);
   font-size: 20px;
   font-weight: 500;
   color: var(--ink);
 }
-
-.backBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-md);
-  padding: 6px 14px;
-  font-size: 12.5px;
-  color: var(--muted);
-  cursor: pointer;
-  font-family: var(--sans);
-  margin-bottom: 14px;
-  transition: border-color 0.15s, color 0.15s;
-}
-.backBtn:hover { border-color: var(--teal); color: var(--teal); }
 
 .empty {
   text-align: center;
@@ -617,7 +556,6 @@
   .wrap { padding: 20px; }
   .sectionHeaderRow,
   .headerActions,
-  .writeToolbar,
   .confirmation { align-items: flex-start; flex-direction: column; }
   .tableHeaderRow { display: none; }
   .tableRow { grid-template-columns: 30px 1fr auto; gap: 8px; }
