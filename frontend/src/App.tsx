@@ -19,7 +19,6 @@ const EntitiesPage = lazy(() => import('./pages/EntitiesPage'))
 const KnowledgeGraphPage = lazy(() => import('./pages/KnowledgeGraphPage'))
 const MemoryInspectorPage = lazy(() => import('./pages/MemoryInspectorPage'))
 const ReviewPage = lazy(() => import('./pages/ReviewPage'))
-const SkillsPage = lazy(() => import('./pages/SkillsPage'))
 
 function MissingUniverseRedirect() {
   return <Navigate to="/dashboard" replace />
@@ -83,7 +82,9 @@ export function AppRoutes() {
           <Route path="explore/timeline" element={<ToExplore view="map" />} />
           <Route path="memory" element={<RouteLoadBoundary label="Loading memory…"><MemoryInspectorPage /></RouteLoadBoundary>} />
           <Route path="review/:view" element={<RouteLoadBoundary label="Loading review…"><ReviewPage /></RouteLoadBoundary>} />
-          <Route path="review/skills" element={<RouteLoadBoundary label="Loading editorial skills…"><SkillsPage /></RouteLoadBoundary>} />
+          {/* SkillsPage was removed as a duplicate skill-config surface (CraftReviewPanel's
+              inline picker is the only one now); legacy links redirect to Conflicts. */}
+          <Route path="review/skills" element={<ToReview view="issues" />} />
 
           {/* Legacy universe-scoped deep links remain explicit redirects while their
               content is consolidated by the Write, Explore, and Review work. */}
@@ -98,7 +99,7 @@ export function AppRoutes() {
           <Route path="contradictions" element={<ToReview view="issues" />} />
           <Route path="plot-holes" element={<ToReview view="issues" />} />
           <Route path="ingest" element={<ToWrite importMode />} />
-          <Route path="skills" element={<ToReview view="skills" />} />
+          <Route path="skills" element={<ToReview view="issues" />} />
           <Route path="*" element={<ToWrite />} />
         </Route>
         {/* Legacy redirects */}

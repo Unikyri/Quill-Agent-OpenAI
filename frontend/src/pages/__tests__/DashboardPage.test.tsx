@@ -10,16 +10,12 @@ const mockListUniverses = vi.fn()
 const mockCreateUniverse = vi.fn()
 const mockUpdateUniverse = vi.fn()
 const mockDeleteUniverse = vi.fn()
-const mockDemoClone = vi.fn()
-const mockDemoReset = vi.fn()
 vi.mock('../../lib/api', () => ({
   api: {
     listUniverses: (...args: unknown[]) => mockListUniverses(...args),
     createUniverse: (...args: unknown[]) => mockCreateUniverse(...args),
     updateUniverse: (...args: unknown[]) => mockUpdateUniverse(...args),
     deleteUniverse: (...args: unknown[]) => mockDeleteUniverse(...args),
-    demoClone: (...args: unknown[]) => mockDemoClone(...args),
-    demoReset: (...args: unknown[]) => mockDemoReset(...args),
   },
 }))
 
@@ -70,8 +66,6 @@ describe('DashboardPage', () => {
     mockCreateUniverse.mockResolvedValue({ universe: { id: 'uni-new', name: 'New World', genre_tags: [] } })
     mockUpdateUniverse.mockResolvedValue({ universe: { id: 'uni-1', name: 'World One', description: 'Updated brief', genre_tags: ['mystery'] } })
     mockDeleteUniverse.mockResolvedValue(undefined)
-    mockDemoClone.mockResolvedValue({ status: 'success', universe_id: 'demo-1', message: 'Demo universe cloned successfully' })
-    mockDemoReset.mockResolvedValue({ status: 'success', universe_id: 'demo-1', message: 'Demo data reset successfully' })
   })
 
   it('shows real universe details and sends the primary CTA to Write', async () => {
@@ -249,42 +243,14 @@ describe('DashboardPage', () => {
     await waitFor(() => expect(deleteTrigger).toHaveFocus())
   })
 
-  it('shows the six honest demo steps, clones, enters, and resets through authenticated demo APIs', async () => {
-    const user = userEvent.setup()
+  it('has no demo clone/reset affordance — provisioning now lives only on Landing and Login', async () => {
+    mockListUniverses.mockResolvedValue({ universes: [{ id: 'uni-1', name: 'World One', genre_tags: [] }] })
     renderPage()
 
-    expect(await screen.findByText('Ask Memory a lore question.')).toBeInTheDocument()
-    expect(screen.getByText('Inspect a real review issue.')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Clone demo universe' }))
-    await waitFor(() => expect(mockDemoClone).toHaveBeenCalledTimes(1))
-    const demoSessionId = mockDemoClone.mock.calls[0][0]
-    expect(demoSessionId).toEqual(expect.any(String))
-    expect(localStorage.getItem('quill-guided-demo-universe-id')).toBe('demo-1')
-    expect(await screen.findByRole('button', { name: 'Start guided demo' })).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Start guided demo' }))
-    expect(mockNavigate).toHaveBeenCalledWith('/universe/demo-1/write')
-
-    await user.click(screen.getByRole('button', { name: 'Reset demo' }))
-    await waitFor(() => expect(mockDemoReset).toHaveBeenCalledWith(demoSessionId))
-    expect(mockUpdate).toHaveBeenCalledWith('feedback-id', expect.objectContaining({ status: 'completed' }))
-  })
-
-  it('surfaces authenticated demo failures inline and retries the same action', async () => {
-    mockDemoClone.mockRejectedValueOnce(new Error('authentication required'))
-    const user = userEvent.setup()
-    renderPage()
-
-    await user.click(await screen.findByRole('button', { name: 'Clone demo universe' }))
-    expect((await screen.findAllByText('authentication required')).length).toBeGreaterThan(0)
-    expect(mockUpdate).toHaveBeenCalledWith('feedback-id', expect.objectContaining({
-      status: 'failed',
-      retry: expect.any(Function),
-    }))
-
-    await user.click(screen.getByRole('button', { name: 'Try again' }))
-    await waitFor(() => expect(mockDemoClone).toHaveBeenCalledTimes(2))
-    expect(await screen.findByRole('button', { name: 'Start guided demo' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'World One', level: 3 })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Clone demo universe' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reset demo' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start guided demo' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Ask Memory a lore question.')).not.toBeInTheDocument()
   })
 })

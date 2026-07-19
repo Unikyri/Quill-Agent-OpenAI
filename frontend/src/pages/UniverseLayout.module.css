@@ -300,6 +300,28 @@
 
 .demoJourneyLink:hover { color: var(--teal-deep); text-decoration: underline; }
 
+.demoJourneyResetBtn {
+  display: inline-block;
+  margin-top: 0.4rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--teal);
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.demoJourneyResetBtn:hover:not(:disabled) { color: var(--teal-deep); text-decoration: underline; }
+.demoJourneyResetBtn:disabled { color: var(--muted-2); cursor: default; }
+
+.demoJourneyResetError {
+  margin: 0.3rem 0 0;
+  color: var(--danger);
+  font-size: 0.7rem;
+}
+
 .genreDialogBackdrop {
   position: fixed;
   z-index: 60;

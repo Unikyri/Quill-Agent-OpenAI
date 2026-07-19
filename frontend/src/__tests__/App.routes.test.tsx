@@ -28,7 +28,6 @@ vi.mock('../pages/EntitiesPage', () => ({ default: () => <div>Entities route</di
 vi.mock('../pages/KnowledgeGraphPage', () => ({ default: () => <div>Map route</div> }))
 vi.mock('../pages/MemoryInspectorPage', () => ({ default: () => <div>Memory route</div> }))
 vi.mock('../pages/ReviewPage', () => ({ default: () => <div>Review route</div> }))
-vi.mock('../pages/SkillsPage', () => ({ default: () => <div>Skills route</div> }))
 
 function LocationProbe() {
   const location = useLocation()
@@ -62,7 +61,8 @@ describe('App legacy universe routes', () => {
     ['explore timeline (folded into map)', '/universe/uni-1/explore/timeline', '/universe/uni-1/explore/map'],
     ['contradictions', '/universe/uni-1/contradictions', '/universe/uni-1/review/issues'],
     ['plot holes', '/universe/uni-1/plot-holes', '/universe/uni-1/review/issues'],
-    ['skills', '/universe/uni-1/skills', '/universe/uni-1/review/skills'],
+    ['skills', '/universe/uni-1/skills', '/universe/uni-1/review/issues'],
+    ['review skills (removed SkillsPage)', '/universe/uni-1/review/skills', '/universe/uni-1/review/issues'],
     ['panorama', '/universe/uni-1/panorama', '/dashboard'],
     ['universe wildcard', '/universe/uni-1/not-a-real-route', '/universe/uni-1/write'],
   ])('redirects legacy %s route to the canonical destination', async (_name, legacyPath, expectedPath) => {

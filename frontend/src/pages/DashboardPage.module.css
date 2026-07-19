@@ -10,8 +10,7 @@
 .panelHeading,
 .libraryHeading,
 .errorPanel,
-.cardFooter,
-.demoCard {
+.cardFooter {
   display: flex;
   justify-content: space-between;
   gap: 24px;
@@ -37,7 +36,6 @@
 .title,
 .libraryHeading h2,
 .createPanel h2,
-.demoCard h2,
 .universeCard h3,
 .emptyState h3,
 .errorPanel h3 {
@@ -62,8 +60,7 @@
 }
 
 .heroActions,
-.formActions,
-.demoActions {
+.formActions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -190,8 +187,7 @@
 }
 
 .createPanel,
-.overview,
-.demoCard {
+.overview {
   margin-top: 32px;
 }
 
@@ -209,14 +205,12 @@
 }
 
 .createPanel h2,
-.libraryHeading h2,
-.demoCard h2 {
+.libraryHeading h2 {
   font-size: clamp(1.45rem, 3vw, 2rem);
   line-height: 1.08;
 }
 
-.panelHeading p:not(.eyebrow),
-.demoCard p:not(.eyebrow) {
+.panelHeading p:not(.eyebrow) {
   max-width: 540px;
   margin: 9px 0 0;
   color: var(--muted);
@@ -414,42 +408,6 @@
   font-size: 0.82rem;
 }
 
-.demoCard {
-  align-items: flex-end;
-  padding: clamp(22px, 4vw, 34px);
-  border: 1px solid var(--teal-soft-12);
-  border-radius: var(--r-xl);
-  background: var(--bg-card);
-}
-
-.demoActions {
-  justify-content: flex-end;
-}
-
-.demoSteps {
-  display: grid;
-  gap: 6px;
-  max-width: 42rem;
-  margin: 16px 0 0;
-  padding-left: 1.25rem;
-  color: var(--muted);
-  font-size: 0.86rem;
-  line-height: 1.42;
-}
-
-.demoProgress {
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.demoError {
-  max-width: 22rem;
-  margin: 0;
-  color: var(--danger);
-  font-size: 0.88rem;
-  line-height: 1.4;
-}
-
 @keyframes pulse {
   from { opacity: 0.55; }
   to { opacity: 0.9; }
@@ -459,14 +417,12 @@
   .hero,
   .panelHeading,
   .libraryHeading,
-  .errorPanel,
-  .demoCard {
+  .errorPanel {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .heroActions,
-  .demoActions {
+  .heroActions {
     justify-content: flex-start;
   }
 

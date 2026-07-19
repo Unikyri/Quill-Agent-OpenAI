@@ -19,6 +19,5 @@ describe('canonical Sprint 7 routes', () => {
     expect(memoryPath('uni-1')).toBe('/universe/uni-1/memory')
     expect(reviewPath('uni-1', 'issues')).toBe('/universe/uni-1/review/issues')
     expect(reviewPath('uni-1', 'candidates')).toBe('/universe/uni-1/review/candidates')
-    expect(reviewPath('uni-1', 'craft')).toBe('/universe/uni-1/review/craft')
   })
 })

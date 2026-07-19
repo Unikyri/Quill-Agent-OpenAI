@@ -74,7 +74,18 @@ describe('ReviewPage', () => {
     expect(cards[0]).toHaveAttribute('data-testid', 'review-contradiction-c-high')
     expect(screen.getByText(/model severity: high/i)).toBeInTheDocument()
     expect(screen.getByText(/API did not supply a source excerpt/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Candidates' })).toHaveAttribute('href', '/universe/uni-1/review/candidates')
+    expect(screen.getByRole('link', { name: 'New entities' })).toHaveAttribute('href', '/universe/uni-1/review/candidates')
+  })
+
+  it('renders exactly two tabs — Conflicts and New entities — with no Craft tab', async () => {
+    renderPage()
+    await waitFor(() => expect(screen.getByTestId('review-contradiction-c-high')).toBeInTheDocument())
+
+    const tabs = screen.getByRole('navigation', { name: 'Review views' })
+    expect(within(tabs).getAllByRole('link')).toHaveLength(2)
+    expect(within(tabs).getByRole('link', { name: 'Conflicts' })).toBeInTheDocument()
+    expect(within(tabs).getByRole('link', { name: 'New entities' })).toBeInTheDocument()
+    expect(within(tabs).queryByRole('link', { name: /craft/i })).not.toBeInTheDocument()
   })
 
   it('uses the real plot-hole resolve endpoint only after inline confirmation', async () => {
@@ -105,11 +116,12 @@ describe('ReviewPage', () => {
     expect(screen.getByText('accepted')).toBeInTheDocument()
   })
 
-  it('does not pretend craft reviews are persisted', () => {
+  it('treats an unknown view (e.g. the removed craft tab) as unmapped, rendering no tab content', () => {
     renderPage('craft')
-    expect(screen.getByText(/does not provide a persisted craft-notes inbox/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Manage editorial skills' })).toHaveAttribute('href', '/universe/uni-1/review/skills')
-    expect(screen.getByRole('link', { name: /open write and review a selection/i })).toHaveAttribute('href', '/universe/uni-1/write')
+    expect(screen.queryByText(/does not provide a persisted craft-notes inbox/i)).not.toBeInTheDocument()
+    expect(screen.queryByTestId(/^review-/)).not.toBeInTheDocument()
+    expect(screen.queryByTestId(/^candidate-/)).not.toBeInTheDocument()
+    expect(getContradictions).not.toHaveBeenCalled()
   })
 
   it('ignores a deferred A review inbox after the route changes to B', async () => {

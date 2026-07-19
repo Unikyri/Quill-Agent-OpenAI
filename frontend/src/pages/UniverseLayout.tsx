@@ -11,9 +11,11 @@ import { useAuthStore } from '../stores/authStore'
 import { useUniverseStore } from '../stores/universeStore'
 import { useWSStore, type WSStatus } from '../stores/wsStore'
 import {
+  guidedDemoSessionId,
   isGuidedDemoUniverse,
   readGuidedDemoProgress,
   recordGuidedDemoProgress,
+  rememberGuidedDemoUniverse,
   type GuidedDemoProgress,
 } from './guidedDemo'
 import styles from './UniverseLayout.module.css'
@@ -86,11 +88,30 @@ interface GuidedDemoJourneyProps {
 
 function GuidedDemoJourney({ universeId, destination, pathname, observedAnalysis }: GuidedDemoJourneyProps) {
   const isDemo = isGuidedDemoUniverse(universeId)
+  const navigate = useNavigate()
   const [progress, setProgress] = useState<GuidedDemoProgress>(() => readGuidedDemoProgress(universeId))
+  const [resetting, setResetting] = useState(false)
+  const [resetError, setResetError] = useState<string | null>(null)
 
   useEffect(() => {
     setProgress(readGuidedDemoProgress(universeId))
   }, [universeId])
+
+  const handleReset = async () => {
+    if (resetting) return
+    setResetting(true)
+    setResetError(null)
+    try {
+      const { universe_id: resetUniverseId } = await api.demoReset(guidedDemoSessionId())
+      rememberGuidedDemoUniverse(resetUniverseId)
+      setProgress(readGuidedDemoProgress(resetUniverseId))
+      if (resetUniverseId !== universeId) navigate(writePath(resetUniverseId))
+    } catch (error) {
+      setResetError(error instanceof Error && error.message ? error.message : 'We could not reset the guided demo. Try again.')
+    } finally {
+      setResetting(false)
+    }
+  }
 
   useEffect(() => {
     if (!isDemo) return
@@ -109,10 +130,12 @@ function GuidedDemoJourney({ universeId, destination, pathname, observedAnalysis
   const steps = [
     {
       title: 'Clone or reset the real demo universe',
-      detail: 'Ready from a successful clone or reset for this signed-in account.',
+      detail: resetting
+        ? 'Resetting the guided demo…'
+        : 'Ready from a successful clone or reset for this signed-in account.',
       complete: true,
-      to: '/dashboard',
-      action: 'Reset on Home',
+      to: undefined,
+      action: 'Reset demo',
     },
     {
       title: 'Open writing',
@@ -181,8 +204,21 @@ function GuidedDemoJourney({ universeId, destination, pathname, observedAnalysis
                 <span className={styles.demoJourneyState}>{step.complete ? 'Observed' : 'Pending'}</span>
               </div>
               <p>{step.detail}</p>
-              {!step.complete && <Link className={styles.demoJourneyLink} to={step.to}>{step.action}</Link>}
-              {step.complete && index === 0 && <Link className={styles.demoJourneyLink} to={step.to}>{step.action}</Link>}
+              {index === 0 ? (
+                <>
+                  <button
+                    className={styles.demoJourneyResetBtn}
+                    disabled={resetting}
+                    onClick={() => void handleReset()}
+                    type="button"
+                  >
+                    {resetting ? 'Resetting…' : step.action}
+                  </button>
+                  {resetError && <p className={styles.demoJourneyResetError} role="alert">{resetError}</p>}
+                </>
+              ) : (
+                !step.complete && step.to && <Link className={styles.demoJourneyLink} to={step.to}>{step.action}</Link>
+              )}
             </div>
           </li>
         ))}

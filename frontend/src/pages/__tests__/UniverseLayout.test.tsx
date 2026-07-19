@@ -9,11 +9,13 @@ vi.mock('../UniverseLayout.module.css', () => ({ default: new Proxy({}, { get: (
 const mockGetUniverse = vi.fn()
 const mockListWorks = vi.fn()
 const mockUpdateUniverse = vi.fn()
+const mockDemoReset = vi.fn()
 vi.mock('../../lib/api', () => ({
   api: {
     getUniverse: (...args: unknown[]) => mockGetUniverse(...args),
     listWorks: (...args: unknown[]) => mockListWorks(...args),
     updateUniverse: (...args: unknown[]) => mockUpdateUniverse(...args),
+    demoReset: (...args: unknown[]) => mockDemoReset(...args),
   },
 }))
 
@@ -95,6 +97,7 @@ beforeEach(() => {
   mockGetUniverse.mockResolvedValue({ universe: { id: 'uni-1', name: 'Middle Earth' } })
   mockListWorks.mockResolvedValue({ works: [{ id: 'work-1', title: 'A Work' }] })
   mockUpdateUniverse.mockResolvedValue({ universe: { id: 'uni-1', name: 'Middle Earth', genre_tags: [] } })
+  mockDemoReset.mockResolvedValue({ universe_id: 'uni-1' })
 })
 
 describe('UniverseLayout', () => {
@@ -193,6 +196,21 @@ describe('UniverseLayout', () => {
     expect(screen.getByRole('link', { name: 'Open Review' })).toHaveAttribute('href', '/universe/uni-1/review/issues')
     expect(screen.getByText('Ask Memory a lore question')).toBeInTheDocument()
     expect(screen.getByText('Review a real issue')).toBeInTheDocument()
+  })
+
+  it('resets the demo inline from step 1 now that Dashboard has no reset control', async () => {
+    localStorage.setItem('quill-guided-demo-universe-id', 'uni-1')
+    const user = userEvent.setup()
+    renderLayout()
+
+    expect(await screen.findByRole('heading', { name: 'Six steps, only real progress' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Reset on Home' })).not.toBeInTheDocument()
+
+    const resetButton = screen.getByRole('button', { name: 'Reset demo' })
+    await user.click(resetButton)
+
+    await waitFor(() => expect(mockDemoReset).toHaveBeenCalledTimes(1))
+    expect(mockDemoReset.mock.calls[0][0]).toEqual(expect.any(String))
   })
 
   it('records the map step only after the demo route is actually opened', async () => {

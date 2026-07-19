@@ -47,7 +47,7 @@
 .inbox { display: grid; gap: 12px; }
 .inboxIntro { margin: 0 0 2px; color: var(--muted-2); font-size: 13px; line-height: 1.5; }
 
-.card, .availability, .state {
+.card, .state {
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   background: var(--bg-card);
@@ -63,7 +63,7 @@
 .severityLow { color: var(--muted-2); }
 .settled { color: var(--success-2); }
 
-.card h2, .availability h2, .state h2 { margin: 0; color: var(--ink); font-family: var(--serif); font-size: 21px; font-weight: 550; }
+.card h2, .state h2 { margin: 0; color: var(--ink); font-family: var(--serif); font-size: 21px; font-weight: 550; }
 .description { margin: 8px 0 16px; color: var(--ink-body); line-height: 1.55; }
 
 .detailGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -79,7 +79,7 @@
   cursor: pointer;
 }
 
-.primaryButton, .primaryLink {
+.primaryButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -105,8 +105,6 @@
 .state { color: var(--muted-2); line-height: 1.5; }
 .state p { margin: 8px 0 14px; }
 .degraded { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border: 1px solid var(--gold-ink); border-radius: var(--r-md); background: var(--bg-card); color: var(--gold-ink); padding: 10px 12px; font-size: 13px; }
-.availability { max-width: 680px; }
-.availability p { color: var(--muted-2); line-height: 1.55; margin: 9px 0 16px; }
 
 @media (max-width: 620px) {
   .detailGrid { grid-template-columns: 1fr; }

@@ -4,7 +4,6 @@ import { GenreTagPicker } from '../components/genres'
 import { useFeedback } from '../components/feedback'
 import { api } from '../lib/api'
 import { GENRE_OPTIONS } from '../lib/genres'
-import { guidedDemoSessionId, rememberGuidedDemoUniverse } from './guidedDemo'
 import styles from './DashboardPage.module.css'
 
 type UniverseSummary = {
@@ -17,8 +16,6 @@ type UniverseSummary = {
 
 type StatusTone = 'info' | 'success' | 'error'
 type HomeStatus = { tone: StatusTone; message: string }
-type DemoAction = 'clone' | 'reset'
-type DemoState = 'idle' | 'setting-up' | 'ready' | 'resetting' | 'failed'
 
 const genreLabels = new Map<string, string>(
   GENRE_OPTIONS.map(({ value, label }) => [value, label] as [string, string]),
@@ -61,10 +58,6 @@ export default function DashboardPage() {
   const [createError, setCreateError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [status, setStatus] = useState<HomeStatus | null>(null)
-  const [demoState, setDemoState] = useState<DemoState>('idle')
-  const [demoUniverseId, setDemoUniverseId] = useState<string | null>(null)
-  const [lastDemoAction, setLastDemoAction] = useState<DemoAction>('clone')
-  const [demoError, setDemoError] = useState<string | null>(null)
   const [editingUniverse, setEditingUniverse] = useState<UniverseSummary | null>(null)
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
@@ -258,45 +251,6 @@ export default function DashboardPage() {
       update(feedbackId, { status: 'failed', message })
     } finally {
       setIsCreating(false)
-    }
-  }
-
-  const handleDemo = async (action: DemoAction): Promise<boolean> => {
-    const isReset = action === 'reset'
-    const sessionId = guidedDemoSessionId()
-    const runningMessage = isReset ? 'Resetting the guided demo…' : 'Setting up the guided demo…'
-    const feedbackId = publish({ scope: 'demo', status: 'running', message: runningMessage })
-    setLastDemoAction(action)
-    setDemoError(null)
-    setDemoState(isReset ? 'resetting' : 'setting-up')
-    setStatus({ tone: 'info', message: runningMessage })
-
-    try {
-      const result = isReset
-        ? await api.demoReset(sessionId)
-        : await api.demoClone(sessionId)
-      setDemoUniverseId(result.universe_id)
-      rememberGuidedDemoUniverse(result.universe_id)
-      setDemoState('ready')
-      const message = isReset
-        ? 'The guided demo has been reset and is ready to explore again.'
-        : 'Your guided demo is ready. Start writing to begin the journey.'
-      setStatus({ tone: 'success', message })
-      update(feedbackId, { status: 'completed', message })
-      void loadUniverses(false)
-      return true
-    } catch (error) {
-      const message = errorMessage(
-        error,
-        isReset
-          ? 'We could not reset the guided demo. Please try again.'
-          : 'We could not set up the guided demo. Please try again.'
-      )
-      setDemoState('failed')
-      setDemoError(message)
-      setStatus({ tone: 'error', message })
-      update(feedbackId, { status: 'failed', message, retry: () => handleDemo(action) })
-      return false
     }
   }
 
@@ -505,54 +459,6 @@ export default function DashboardPage() {
           </section>
         </div>
       )}
-
-      <aside className={styles.demoCard} aria-labelledby="guided-demo-title">
-        <div>
-          <p className={styles.eyebrow}>Guided demo</p>
-          <h2 id="guided-demo-title">See a living story world</h2>
-          <p>
-            This uses a real universe owned by your signed-in account. Each step stays pending until Quill observes it.
-          </p>
-          <ol className={styles.demoSteps}>
-            <li>Clone or reset your demo universe.</li>
-            <li>Open a chapter in Write.</li>
-            <li>Submit a paragraph and wait for real analysis.</li>
-            <li>Open the relationship map.</li>
-            <li>Ask Memory a lore question.</li>
-            <li>Inspect a real review issue.</li>
-          </ol>
-        </div>
-        <div className={styles.demoActions}>
-          {demoState === 'idle' && (
-            <button type="button" className={styles.primaryButton} onClick={() => void handleDemo('clone')}>
-              Clone demo universe
-            </button>
-          )}
-          {(demoState === 'setting-up' || demoState === 'resetting') && (
-            <span className={styles.demoProgress} role="status">
-              {demoState === 'resetting' ? 'Resetting demo…' : 'Setting up demo…'}
-            </span>
-          )}
-          {demoState === 'ready' && demoUniverseId && (
-            <>
-              <button type="button" className={styles.primaryButton} onClick={() => navigate(writePath(demoUniverseId))}>
-                Start guided demo
-              </button>
-              <button type="button" className={styles.secondaryButton} onClick={() => void handleDemo('reset')}>
-                Reset demo
-              </button>
-            </>
-          )}
-          {demoState === 'failed' && (
-            <>
-              {demoError && <p className={styles.demoError} role="alert">{demoError}</p>}
-              <button type="button" className={styles.secondaryButton} onClick={() => void handleDemo(lastDemoAction)}>
-                Try again
-              </button>
-            </>
-          )}
-        </div>
-      </aside>
     </main>
   )
 }

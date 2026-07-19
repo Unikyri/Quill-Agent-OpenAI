@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, NavLink, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { NavLink, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useFeedback } from '../components/feedback'
 import { api } from '../lib/api'
-import { reviewPath, writePath, type ReviewView } from '../lib/canonicalRoutes'
+import { reviewPath, writePath } from '../lib/canonicalRoutes'
 import type { EntityCandidateDTO } from '../lib/types'
 import styles from './ReviewPage.module.css'
 
@@ -61,8 +61,9 @@ interface ActiveAction {
   universeId: string
 }
 
-const REVIEW_VIEWS = ['issues', 'candidates', 'craft'] as const
+const REVIEW_VIEWS = ['issues', 'candidates'] as const
 type ReviewTabView = typeof REVIEW_VIEWS[number]
+const REVIEW_VIEW_LABELS: Record<ReviewTabView, string> = { issues: 'Conflicts', candidates: 'New entities' }
 const SEVERITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 }
 
 function messageFor(error: unknown, fallback: string): string {
@@ -111,10 +112,6 @@ function toInboxIssues(contradictions: ContradictionIssue[], plotHoles: PlotHole
   }))
 
   return sortInboxIssues([...contradictionItems, ...plotHoleItems])
-}
-
-function viewLabel(view: ReviewView): string {
-  return view.charAt(0).toUpperCase() + view.slice(1)
 }
 
 export default function ReviewPage() {
@@ -361,7 +358,7 @@ export default function ReviewPage() {
             className={({ isActive }) => `${styles.tab} ${isActive ? styles.tabActive : ''}`}
             to={reviewPath(universeId, item)}
           >
-            {viewLabel(item)}
+            {REVIEW_VIEW_LABELS[item]}
           </NavLink>
         ))}
       </nav>
@@ -397,8 +394,6 @@ export default function ReviewPage() {
           onOpenChapter={(chapterId) => navigate(writePath(universeId, chapterId))}
         />
       )}
-
-      {view === 'craft' && <CraftAvailability universeId={universeId} />}
     </section>
   )
 }
@@ -556,18 +551,6 @@ function CandidatesInbox({ candidates, loading, error, onRetry, onAct, pendingCo
         )
       })}
     </div>
-  )
-}
-
-function CraftAvailability({ universeId }: { universeId: string }) {
-  return (
-    <section className={styles.availability} aria-labelledby="craft-availability-title">
-      <p className={styles.eyebrow}>Contextual review</p>
-      <h2 id="craft-availability-title">Craft notes stay with the passage</h2>
-      <p>The current API returns craft feedback only for a selected passage in Write. It does not provide a persisted craft-notes inbox, so Quill cannot honestly list historical notes here.</p>
-      <Link className={styles.primaryLink} to={reviewPath(universeId, 'skills')}>Manage editorial skills</Link>
-      <Link className={styles.primaryLink} to={writePath(universeId)}>Open Write and review a selection</Link>
-    </section>
   )
 }
 
