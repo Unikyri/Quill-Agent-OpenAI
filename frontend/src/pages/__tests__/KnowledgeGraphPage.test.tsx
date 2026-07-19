@@ -9,7 +9,9 @@ const { mockCytoscape } = vi.hoisted(() => {
   const core = {
     add: vi.fn(),
     destroy: vi.fn(),
-    elements: vi.fn(() => ({ remove: vi.fn(), unselect: vi.fn() })),
+    elements: vi.fn(() => ({ remove: vi.fn(), unselect: vi.fn(), removeClass: vi.fn() })),
+    nodes: vi.fn(() => ({ forEach: vi.fn(), map: vi.fn(() => []) })),
+    edges: vi.fn(() => ({ forEach: vi.fn() })),
     fit: vi.fn(),
     layout: vi.fn(() => ({ run: vi.fn() })),
     on: vi.fn(),
@@ -40,13 +42,17 @@ const { pingBox } = vi.hoisted(() => {
   return { pingBox: box }
 })
 
-// Mock api
+// Mock api. listEntities backs both the initial auto-focus lookup and the
+// "Jump to entity" search box; getEntityNeighbors backs fetchGraph/focusNode;
+// getTimeline backs the embedded TimelineSlider.
 const mockListEntities = vi.fn()
 const mockGetEntityNeighbors = vi.fn()
+const mockGetTimeline = vi.fn()
 vi.mock('../../lib/api', () => ({
   api: {
     listEntities: (...args: unknown[]) => mockListEntities(...args),
     getEntityNeighbors: (...args: unknown[]) => mockGetEntityNeighbors(...args),
+    getTimeline: (...args: unknown[]) => mockGetTimeline(...args),
   },
 }))
 
@@ -82,6 +88,7 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks()
   mockNavigate.mockClear()
+  mockGetTimeline.mockResolvedValue({ events: [] })
   pingBox.value = [] // start each test with no pings
   useGraphStore.setState({
     nodes: [],
@@ -106,7 +113,7 @@ describe('KnowledgeGraphPage', () => {
     expect(screen.getByTestId('loading-state')).toBeInTheDocument()
   })
 
-  it('shows empty state when graph has zero nodes', async () => {
+  it('shows empty state when the universe has no entities', async () => {
     mockListEntities.mockResolvedValue({ entities: [] })
     renderPage()
 

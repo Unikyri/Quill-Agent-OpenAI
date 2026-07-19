@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import type { SkillCatalogueItem } from '../lib/types'
+import { displaySkillName, shortDescription } from '../lib/skillDisplay'
 import styles from './SkillsPage.module.css'
 
 const GROUP_LABELS: Record<string, string> = {
@@ -146,18 +147,25 @@ export default function SkillsPage() {
               <div className={styles.skillGrid}>
                 {skills.map((skill) => {
                   const active = activeNames.includes(skill.name)
+                  const inputId = `skill-${skill.name}`
                   return (
-                    <label key={skill.name} className={`${styles.card} ${active ? styles.cardActive : ''}`}>
-                      <input type="checkbox" checked={active} disabled={saving} onChange={() => toggle(skill.name)} />
-                      <span className={styles.cardBody}>
-                        <span className={styles.cardTopline}>
-                          <span className={styles.skillName}>{skill.name}</span>
-                          <span className={styles.status}>{active ? 'Active' : 'Off'}</span>
+                    <div key={skill.name} className={`${styles.card} ${active ? styles.cardActive : ''}`}>
+                      <label htmlFor={inputId} className={styles.cardBody}>
+                        <input id={inputId} type="checkbox" checked={active} disabled={saving} onChange={() => toggle(skill.name)} />
+                        <span className={styles.cardText}>
+                          <span className={styles.cardTopline}>
+                            <span className={styles.skillName}>{displaySkillName(skill.name)}</span>
+                            <span className={styles.status}>{active ? 'Active' : 'Off'}</span>
+                          </span>
+                          <span className={styles.description}>{shortDescription(skill.description)}</span>
+                          {skill.genre_tags.length > 0 && <span className={styles.tags}>{skill.genre_tags.join(' · ')}</span>}
                         </span>
-                        <span className={styles.description}>{skill.description}</span>
-                        {skill.genre_tags.length > 0 && <span className={styles.tags}>{skill.genre_tags.join(' · ')}</span>}
-                      </span>
-                    </label>
+                      </label>
+                      <details className={styles.details}>
+                        <summary className={styles.detailsSummary}>Details</summary>
+                        <p className={styles.fullDescription}>{skill.description}</p>
+                      </details>
+                    </div>
                   )
                 })}
               </div>

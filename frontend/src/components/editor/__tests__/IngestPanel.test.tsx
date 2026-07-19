@@ -1,26 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import IngestPage from '../IngestPage'
+import { MemoryRouter } from 'react-router-dom'
+import { IngestPanel } from '../IngestPanel'
 
-vi.mock('../IngestPage.module.css', () => ({ default: new Proxy({}, { get: (_, k) => k }) }))
-
-const mockRouteParams = vi.hoisted(() => ({ universeId: 'uni-1' }))
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
-  return { ...actual, useParams: () => mockRouteParams }
-})
+vi.mock('../IngestPanel.module.css', () => ({ default: new Proxy({}, { get: (_, k) => k }) }))
 
 const mockPublish = vi.fn(() => 'feedback-id')
 const mockUpdate = vi.fn()
-vi.mock('../../components/feedback', () => ({
+vi.mock('../../feedback', () => ({
   useFeedback: () => ({ publish: mockPublish, update: mockUpdate }),
 }))
 
 const mockIngestDocument = vi.fn()
 const mockListIngestionJobs = vi.fn()
-vi.mock('../../lib/api', () => ({
+vi.mock('../../../lib/api', () => ({
   api: {
     ingestDocument: (...args: unknown[]) => mockIngestDocument(...args),
     listIngestionJobs: (...args: unknown[]) => mockListIngestionJobs(...args),
@@ -31,47 +25,39 @@ const mockConnect = vi.fn()
 const mockDisconnect = vi.fn()
 let mockIngestionProgress: Record<string, unknown> = {}
 
-vi.mock('../../stores/wsStore', () => ({
+vi.mock('../../../stores/wsStore', () => ({
   useWSStore: (selector: (s: unknown) => unknown) => {
     const state = { ingestionProgress: mockIngestionProgress, status: 'open', connect: mockConnect, disconnect: mockDisconnect }
     return selector ? selector(state) : state
   },
 }))
 
-vi.mock('../../hooks/useWS', () => ({
+vi.mock('../../../hooks/useWS', () => ({
   useWS: () => ({ status: 'open' }),
 }))
 
-function pageTree() {
-  return (
-    <MemoryRouter initialEntries={[`/universe/${mockRouteParams.universeId}/ingest`]}>
-      <Routes>
-        <Route path="/universe/:universeId/ingest" element={<IngestPage />} />
-      </Routes>
-    </MemoryRouter>
+function renderPanel(universeId = 'uni-1') {
+  return render(
+    <MemoryRouter>
+      <IngestPanel universeId={universeId} standalone />
+    </MemoryRouter>,
   )
 }
 
-function renderPage(universeId = 'uni-1') {
-  mockRouteParams.universeId = universeId
-  return render(pageTree())
-}
-
-describe('IngestPage', () => {
+describe('IngestPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockRouteParams.universeId = 'uni-1'
     mockIngestionProgress = {}
     mockListIngestionJobs.mockResolvedValue({ jobs: [] })
   })
 
   it('renders the dropzone', async () => {
-    renderPage()
+    renderPanel()
     expect(await screen.findByText('Choose a manuscript or drop it here')).toBeInTheDocument()
   })
 
   it('rejects unsupported file types without calling the API', async () => {
-    renderPage()
+    renderPanel()
     const input = await screen.findByTestId('ingest-file-input') as HTMLInputElement
     const file = new File(['binary'], 'cover.png', { type: 'image/png' })
 
@@ -83,7 +69,7 @@ describe('IngestPage', () => {
   })
 
   it('rejects legacy .doc files without calling the API', async () => {
-    renderPage()
+    renderPanel()
     const input = await screen.findByTestId('ingest-file-input') as HTMLInputElement
     const file = new File(['binary'], 'manuscript.doc', { type: 'application/msword' })
 
@@ -96,7 +82,7 @@ describe('IngestPage', () => {
 
   it('uploads an accepted file and lists it as a job', async () => {
     mockIngestDocument.mockResolvedValue({ job_id: 'job-1', status: 'accepted' })
-    renderPage()
+    renderPanel()
     const input = await screen.findByTestId('ingest-file-input') as HTMLInputElement
     const file = new File(['# Chapter 1'], 'manuscript.md', { type: 'text/markdown' })
 
@@ -126,7 +112,7 @@ describe('IngestPage', () => {
         },
       ],
     })
-    renderPage()
+    renderPanel()
 
     await waitFor(() => {
       expect(mockListIngestionJobs).toHaveBeenCalledWith('uni-1')
@@ -152,7 +138,7 @@ describe('IngestPage', () => {
         },
       ],
     })
-    renderPage()
+    renderPanel()
 
     await waitFor(() => {
       expect(screen.getByText('Failed')).toBeInTheDocument()
@@ -176,7 +162,7 @@ describe('IngestPage', () => {
         },
       ],
     })
-    renderPage()
+    renderPanel()
 
     await waitFor(() => {
       expect(screen.getByText('Failed')).toBeInTheDocument()
@@ -186,7 +172,7 @@ describe('IngestPage', () => {
 
   it('shows the existing job instead of a new card on a duplicate upload', async () => {
     mockIngestDocument.mockResolvedValue({ job_id: 'job-9', status: 'duplicate' })
-    renderPage()
+    renderPanel()
     await waitFor(() => expect(mockListIngestionJobs).toHaveBeenCalledTimes(1))
 
     mockListIngestionJobs.mockResolvedValue({
@@ -222,7 +208,7 @@ describe('IngestPage', () => {
     mockIngestionProgress = {
       'job-1': { job_id: 'job-1', status: 'running', chapters_processed: 2, total_chapters: 4, action: 'Extracting entities from chapter 2…', eta_seconds: 18 },
     }
-    renderPage()
+    renderPanel()
     const input = await screen.findByTestId('ingest-file-input') as HTMLInputElement
     const file = new File(['# Chapter 1'], 'manuscript.md', { type: 'text/markdown' })
 
@@ -242,7 +228,7 @@ describe('IngestPage', () => {
     mockIngestionProgress = {
       'job-1': { job_id: 'job-1', status: 'completed', chapters_processed: 4, total_chapters: 4 },
     }
-    renderPage()
+    renderPanel()
     const input = await screen.findByTestId('ingest-file-input') as HTMLInputElement
     const file = new File(['# Chapter 1'], 'manuscript.md', { type: 'text/markdown' })
 
@@ -259,7 +245,7 @@ describe('IngestPage', () => {
     mockIngestionProgress = {
       'job-1': { job_id: 'job-1', status: 'completed', chapters_processed: 0, total_chapters: 0 },
     }
-    renderPage()
+    renderPanel()
     const input = await screen.findByTestId('ingest-file-input') as HTMLInputElement
     const file = new File([''], 'empty.md', { type: 'text/markdown' })
 
@@ -275,7 +261,7 @@ describe('IngestPage', () => {
     let resolveFetch!: (v: { jobs: unknown[] }) => void
     mockListIngestionJobs.mockReturnValue(new Promise((r) => { resolveFetch = r }))
     mockIngestDocument.mockResolvedValue({ job_id: 'job-new', status: 'accepted' })
-    renderPage()
+    renderPanel()
 
     const input = await screen.findByTestId('ingest-file-input') as HTMLInputElement
     const file = new File(['# Chapter 1'], 'fresh.md', { type: 'text/markdown' })
@@ -311,7 +297,7 @@ describe('IngestPage', () => {
     mockIngestionProgress = {
       'job-1': { job_id: 'job-1', status: 'running', chapters_processed: 2, total_chapters: 4 },
     }
-    renderPage()
+    renderPanel()
     await waitFor(() => expect(mockListIngestionJobs).toHaveBeenCalledTimes(1))
 
     const input = await screen.findByTestId('ingest-file-input') as HTMLInputElement
@@ -326,7 +312,7 @@ describe('IngestPage', () => {
     expect(mockListIngestionJobs).toHaveBeenCalledTimes(2)
   })
 
-  it('ignores a deferred A job list after the route changes to B', async () => {
+  it('ignores a deferred A job list after the universeId prop changes to B', async () => {
     let resolveA!: (value: { jobs: unknown[] }) => void
     let resolveB!: (value: { jobs: unknown[] }) => void
     mockListIngestionJobs.mockImplementation((universeId: string) => new Promise((resolve) => {
@@ -334,11 +320,14 @@ describe('IngestPage', () => {
       else resolveB = resolve
     }))
 
-    const view = renderPage('uni-a')
+    const view = renderPanel('uni-a')
     await waitFor(() => expect(mockListIngestionJobs).toHaveBeenCalledWith('uni-a'))
 
-    mockRouteParams.universeId = 'uni-b'
-    view.rerender(pageTree())
+    view.rerender(
+      <MemoryRouter>
+        <IngestPanel universeId="uni-b" standalone />
+      </MemoryRouter>,
+    )
     await waitFor(() => expect(mockListIngestionJobs).toHaveBeenCalledWith('uni-b'))
 
     resolveB({

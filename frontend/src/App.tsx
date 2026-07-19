@@ -15,7 +15,6 @@ const LandingPage = lazy(() => import('./pages/LandingPage'))
 const UniverseWorksTab = lazy(() => import('./pages/UniverseWorksTab'))
 const EditorPage = lazy(() => import('./pages/EditorPage'))
 const EntitiesPage = lazy(() => import('./pages/EntitiesPage'))
-const TimelinePage = lazy(() => import('./pages/TimelinePage'))
 // The relationship map is intentionally isolated from the initial Home/Write bundle.
 const KnowledgeGraphPage = lazy(() => import('./pages/KnowledgeGraphPage'))
 const MemoryInspectorPage = lazy(() => import('./pages/MemoryInspectorPage'))
@@ -32,7 +31,7 @@ function ToWrite({ importMode = false }: { importMode?: boolean }) {
   return <Navigate to={importMode ? writeImportPath(universeId) : writePath(universeId, chapterId)} replace />
 }
 
-function ToExplore({ view }: { view: 'entities' | 'map' | 'timeline' }) {
+function ToExplore({ view }: { view: 'entities' | 'map' }) {
   const { universeId, entityId } = useParams<{ universeId: string; entityId?: string }>()
   if (!universeId) return <MissingUniverseRedirect />
   return <Navigate to={explorePath(universeId, view, entityId)} replace />
@@ -80,7 +79,8 @@ export function AppRoutes() {
           <Route path="explore/entities" element={<RouteLoadBoundary label="Loading entities…"><EntitiesPage /></RouteLoadBoundary>} />
           <Route path="explore/entities/:entityId" element={<RouteLoadBoundary label="Loading entities…"><EntitiesPage /></RouteLoadBoundary>} />
           <Route path="explore/map" element={<MapRoute />} />
-          <Route path="explore/timeline" element={<RouteLoadBoundary label="Loading timeline…"><TimelinePage /></RouteLoadBoundary>} />
+          {/* The timeline is now a slider embedded in the map (see KnowledgeGraphPage) rather than its own page. */}
+          <Route path="explore/timeline" element={<ToExplore view="map" />} />
           <Route path="memory" element={<RouteLoadBoundary label="Loading memory…"><MemoryInspectorPage /></RouteLoadBoundary>} />
           <Route path="review/:view" element={<RouteLoadBoundary label="Loading review…"><ReviewPage /></RouteLoadBoundary>} />
           <Route path="review/skills" element={<RouteLoadBoundary label="Loading editorial skills…"><SkillsPage /></RouteLoadBoundary>} />
@@ -94,7 +94,7 @@ export function AppRoutes() {
           <Route path="entities" element={<ToExplore view="entities" />} />
           <Route path="entities/:entityId" element={<ToExplore view="entities" />} />
           <Route path="graph" element={<ToExplore view="map" />} />
-          <Route path="timeline" element={<ToExplore view="timeline" />} />
+          <Route path="timeline" element={<ToExplore view="map" />} />
           <Route path="contradictions" element={<ToReview view="issues" />} />
           <Route path="plot-holes" element={<ToReview view="issues" />} />
           <Route path="ingest" element={<ToWrite importMode />} />

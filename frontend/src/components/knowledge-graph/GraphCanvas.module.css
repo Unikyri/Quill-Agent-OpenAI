@@ -70,6 +70,21 @@
   text-transform: capitalize;
 }
 
+.edgeLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  padding: 0.5rem 0.75rem;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.edgeLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .canvas {
     scroll-behavior: auto;

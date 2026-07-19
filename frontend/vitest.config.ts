@@ -6,7 +6,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: ['./src/test/setup.ts'],
+    setupFiles: ['./src/vitestSetup.ts'],
     // jsdom plus the graph renderer exhausts the 2 GB runner when Vitest forks every file.
     // Two threads preserve useful parallelism without exceeding the constrained runner heap.
     pool: 'threads',

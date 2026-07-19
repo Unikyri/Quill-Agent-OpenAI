@@ -49,6 +49,21 @@ export interface EntityNeighborhoodDTO {
   limits: GraphTraversalLimitsDTO
 }
 
+// Matches models.TimelineEvent's JSON tags. timeline_position orders events
+// (lower = earlier); it is a relative float, not a literal date.
+export interface TimelineEventDTO {
+  id: string
+  universe_id: string
+  event_entity_id?: string
+  title: string
+  description?: string
+  timeline_position?: number
+  timeline_label?: string
+  chapter_id?: string
+  participants?: string[]
+  created_at: string
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { json, ...fetchOptions } = options
   const token = localStorage.getItem('token')
@@ -202,10 +217,11 @@ export const api = {
   dismissContradiction: (universeId: string, id: string) =>
     request<void>(`/universes/${universeId}/contradictions/${id}/dismiss`, { method: 'PUT' }),
 
+  // Field names match models.TimelineEvent's JSON tags exactly (title,
+  // timeline_position, timeline_label, participants — not the renderer-shaped
+  // label/timestamp the old standalone TimelinePage assumed).
   getTimeline: (universeId: string) =>
-    request<{ events: Array<{ id: string; label: string; timestamp: string; description: string }> }>(
-      `/universes/${universeId}/timeline`
-    ),
+    request<{ events: TimelineEventDTO[] }>(`/universes/${universeId}/timeline`),
 
   getPlotHoles: (universeId: string) =>
     request<{

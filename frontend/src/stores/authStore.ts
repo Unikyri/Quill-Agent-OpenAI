@@ -24,7 +24,10 @@ function demoRegistration() {
 
   return {
     email: `demo-${identity}@example.invalid`,
-    password: `${createOpaqueDemoId()}-${identity}`,
+    // A single UUID (36 chars) stays comfortably under bcrypt's 72-byte
+    // password cap; concatenating two UUIDs here used to produce a
+    // 73-character password that made every registration fail.
+    password: identity,
     display_name: 'Demo Visitor',
   }
 }

@@ -25,6 +25,10 @@ interface GraphState {
   _universeId: string | null
   focalNodeId: string | null
   breadcrumb: string[]
+  // Entity IDs to highlight (dimming everything else) — set by the timeline
+  // slider when a story event is selected, so "filter by event" doesn't
+  // require an extra click, only whichever entities are already on the map.
+  eventHighlightIds: string[] | null
   fetchGraph: (universeId: string) => Promise<void>
   refresh: () => Promise<void>
   focusNode: (id: string) => Promise<void>
@@ -34,6 +38,7 @@ interface GraphState {
   selectEdge: (id: string | null) => void
   toggleFilter: (type: string) => void
   toggleArchived: () => void
+  setEventHighlight: (ids: string[] | null) => void
 }
 
 const ALL_TYPES = ENTITY_TYPES as readonly string[]
@@ -69,6 +74,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   _universeId: null,
   focalNodeId: null,
   breadcrumb: [],
+  eventHighlightIds: null,
 
   fetchGraph: async (universeId) => {
     const requestVersion = get().requestVersion + 1
@@ -83,9 +89,15 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       breadcrumb: [],
       truncated: false,
       limits: null,
+      eventHighlightIds: null,
     })
 
     try {
+      // Land on an ego graph centered on the universe's most relevant
+      // entity — a curated, ranked neighborhood reads as an actual graph.
+      // An unranked full-universe dump (every node, no fan-out shaping)
+      // renders as disconnected squares once there are more than a few
+      // entities, so it is not used as the default view.
       let { entities } = await api.listEntities(universeId, { limit: '1', status: 'active' })
       if (!isCurrentRequest(get, requestVersion, universeId)) return
 
@@ -116,7 +128,13 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   refresh: async () => {
     const { _universeId, focalNodeId } = get()
-    if (!_universeId || !focalNodeId) return
+    if (!_universeId) return
+    if (!focalNodeId) {
+      // No focal entity yet: "refresh" means reload the full graph, the same
+      // view fetchGraph landed on (e.g. after new entities were extracted).
+      await get().fetchGraph(_universeId)
+      return
+    }
 
     const requestVersion = get().requestVersion + 1
     set({ requestVersion, loading: true, error: null })
@@ -189,4 +207,6 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   toggleArchived: () => set((state) => ({ showArchived: !state.showArchived })),
+
+  setEventHighlight: (ids) => set({ eventHighlightIds: ids }),
 }))

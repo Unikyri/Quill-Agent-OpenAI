@@ -5,7 +5,7 @@ import ImageUpload from '../components/shared/ImageUpload'
 import { UniverseContext } from '../contexts/UniverseContext'
 import { WORK_FORMAT_OPTIONS } from '../lib/genres'
 import { api } from '../lib/api'
-import { IngestPanel } from './IngestPage'
+import { IngestPanel } from '../components/editor/IngestPanel'
 import { writeImportPath, writePath } from './writeRoutes'
 import styles from './UniverseWorksTab.module.css'
 

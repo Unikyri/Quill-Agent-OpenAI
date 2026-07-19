@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import type { CraftReviewNote, CraftReviewResult, SkillCatalogueItem } from '../../lib/types'
+import { displaySkillName, shortDescription } from '../../lib/skillDisplay'
 import styles from './CraftReviewPanel.module.css'
 
 interface CraftReviewPanelProps {
@@ -19,10 +20,6 @@ function noteId(note: CraftReviewNote): string {
   return note.id
 }
 
-function friendlySkillName(name: string) {
-  return name.replace(/[-_]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
-}
-
 export default function CraftReviewPanel({ review, loading = false, universeId, chapterId, workId, selectedSkills = null, onSelectedSkillsChange }: CraftReviewPanelProps) {
   const [decisions, setDecisions] = useState<Record<string, FeedbackSignal>>({})
   const [pending, setPending] = useState<string | null>(null)
@@ -30,11 +27,21 @@ export default function CraftReviewPanel({ review, loading = false, universeId, 
   const [catalogue, setCatalogue] = useState<SkillCatalogueItem[]>([])
   const [activeNames, setActiveNames] = useState<string[]>([])
   const [skillLoadError, setSkillLoadError] = useState<string | null>(null)
+  // Once the writer has configured a fixed set of craft checks (Review →
+  // Craft), the editor should not ask them to re-pick those same checks for
+  // every passage. manualOverride reveals the picker only when the writer
+  // explicitly asks for it, or when they already have a manual pick in
+  // flight — it never auto-collapses mid-interaction (see the effect below).
+  const [manualOverride, setManualOverride] = useState(selectedSkills !== null)
 
   useEffect(() => {
     setDecisions({})
     setError(null)
   }, [review])
+
+  useEffect(() => {
+    if (selectedSkills !== null) setManualOverride(true)
+  }, [selectedSkills])
 
   useEffect(() => {
     let live = true
@@ -108,23 +115,39 @@ export default function CraftReviewPanel({ review, loading = false, universeId, 
           <span className={styles.disclosureChevron} aria-hidden="true">⌄</span>
         </summary>
         <div className={styles.skillPicker}>
-          <div className={styles.skillPickerHeading}>
-            <span className={styles.muted}>Choose up to three checks, or let Quill choose.</span>
-            <button type="button" className={styles.autoButton} onClick={() => onSelectedSkillsChange?.(null)} aria-pressed={selectedSkills === null}>
-              Let Quill choose
-            </button>
-          </div>
           {activeSkills.length === 0 && !skillLoadError ? (
             <p className={styles.muted}>No craft checks are active. Configure them in Review → Craft.</p>
-          ) : (
-            <div className={styles.skillChoices} aria-label="Choose craft checks">
-              {activeSkills.map((skill) => (
-                <label key={skill.name} className={styles.skillChoice}>
-                  <input type="checkbox" checked={(selectedSkills || []).includes(skill.name)} onChange={() => toggleSkill(skill.name)} disabled={loading} />
-                  <span><strong>{friendlySkillName(skill.name)}</strong>{skill.description && <small>{skill.description}</small>}</span>
-                </label>
-              ))}
+          ) : !manualOverride ? (
+            <div className={styles.autoNotice}>
+              <p className={styles.muted}>
+                Quill will run the review using your configured craft checks
+                ({activeSkills.map((skill) => displaySkillName(skill.name)).join(', ')}) and pick the best fit for this passage.
+              </p>
+              <button type="button" className={styles.linkButton} onClick={() => setManualOverride(true)}>
+                Choose specific checks instead
+              </button>
             </div>
+          ) : (
+            <>
+              <div className={styles.skillPickerHeading}>
+                <span className={styles.muted}>Choose up to three checks, or let Quill choose.</span>
+                <button
+                  type="button"
+                  className={styles.autoButton}
+                  onClick={() => { onSelectedSkillsChange?.(null); setManualOverride(false) }}
+                >
+                  Let Quill choose
+                </button>
+              </div>
+              <div className={styles.skillChoices} aria-label="Choose craft checks">
+                {activeSkills.map((skill) => (
+                  <label key={skill.name} className={styles.skillChoice}>
+                    <input type="checkbox" checked={(selectedSkills || []).includes(skill.name)} onChange={() => toggleSkill(skill.name)} disabled={loading} />
+                    <span><strong>{displaySkillName(skill.name)}</strong>{skill.description && <small>{shortDescription(skill.description, 80)}</small>}</span>
+                  </label>
+                ))}
+              </div>
+            </>
           )}
           {skillLoadError && <p className={styles.error} role="alert">{skillLoadError}</p>}
         </div>
@@ -148,7 +171,7 @@ export default function CraftReviewPanel({ review, loading = false, universeId, 
                 <span className={styles.muted}>No active skill selected.</span>
               ) : review.selections.map((selection) => (
                 <div key={selection.skill} className={styles.skill}>
-                  <span className={styles.skillName}>{friendlySkillName(selection.skill)}</span>
+                  <span className={styles.skillName}>{displaySkillName(selection.skill)}</span>
                   {selection.rationale && <span className={styles.rationale}>{selection.rationale}</span>}
                 </div>
               ))}
@@ -165,7 +188,7 @@ export default function CraftReviewPanel({ review, loading = false, universeId, 
               return (
                 <article key={id} className={styles.note} data-severity={note.severity}>
                   <div className={styles.noteMeta}>
-                    <span className={styles.noteSkill}>{friendlySkillName(note.skill)}</span>
+                    <span className={styles.noteSkill}>{displaySkillName(note.skill)}</span>
                     <span className={styles.severity}>{note.severity}</span>
                   </div>
                   <blockquote className={styles.quote}>{note.quote}</blockquote>

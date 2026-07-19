@@ -25,7 +25,6 @@ vi.mock('../pages/LandingPage', () => ({ default: () => <div>Landing route</div>
 vi.mock('../pages/UniverseWorksTab', () => ({ default: () => <div>Write route</div> }))
 vi.mock('../pages/EditorPage', () => ({ default: () => <div>Editor route</div> }))
 vi.mock('../pages/EntitiesPage', () => ({ default: () => <div>Entities route</div> }))
-vi.mock('../pages/TimelinePage', () => ({ default: () => <div>Timeline route</div> }))
 vi.mock('../pages/KnowledgeGraphPage', () => ({ default: () => <div>Map route</div> }))
 vi.mock('../pages/MemoryInspectorPage', () => ({ default: () => <div>Memory route</div> }))
 vi.mock('../pages/ReviewPage', () => ({ default: () => <div>Review route</div> }))
@@ -59,7 +58,8 @@ describe('App legacy universe routes', () => {
     ['entities', '/universe/uni-1/entities', '/universe/uni-1/explore/entities'],
     ['entity', '/universe/uni-1/entities/entity-1', '/universe/uni-1/explore/entities/entity-1'],
     ['graph', '/universe/uni-1/graph', '/universe/uni-1/explore/map'],
-    ['timeline', '/universe/uni-1/timeline', '/universe/uni-1/explore/timeline'],
+    ['timeline', '/universe/uni-1/timeline', '/universe/uni-1/explore/map'],
+    ['explore timeline (folded into map)', '/universe/uni-1/explore/timeline', '/universe/uni-1/explore/map'],
     ['contradictions', '/universe/uni-1/contradictions', '/universe/uni-1/review/issues'],
     ['plot holes', '/universe/uni-1/plot-holes', '/universe/uni-1/review/issues'],
     ['skills', '/universe/uni-1/skills', '/universe/uni-1/review/skills'],

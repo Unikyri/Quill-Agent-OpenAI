@@ -7,7 +7,9 @@ const { mockCore, mockCytoscape } = vi.hoisted(() => {
   const mockCore = {
     add: vi.fn(),
     destroy: vi.fn(),
-    elements: vi.fn(() => ({ remove: vi.fn(), unselect: vi.fn() })),
+    elements: vi.fn(() => ({ remove: vi.fn(), unselect: vi.fn(), removeClass: vi.fn() })),
+    nodes: vi.fn(() => ({ forEach: vi.fn(), map: vi.fn(() => []) })),
+    edges: vi.fn(() => ({ forEach: vi.fn() })),
     fit: vi.fn(),
     layout: vi.fn(() => ({ run: vi.fn() })),
     on: vi.fn(),
@@ -47,6 +49,7 @@ beforeEach(() => {
     nodeFilter: { character: true, place: true, object: true, faction: true, event: true, world_rule: true, plot_arc: true },
     showArchived: false,
     limits: graphLimits,
+    eventHighlightIds: null,
   })
 })
 
@@ -68,14 +71,37 @@ describe('GraphCanvas', () => {
     })
   })
 
-  it('does not run fCoSE when graph data lacks traversal bounds', async () => {
+  it('still renders using the default render caps when graph data has no traversal bounds (full-graph view)', async () => {
     useGraphStore.setState({ limits: null })
 
     render(<GraphCanvas />)
 
     await waitFor(() => {
-      expect(mockCore.add).not.toHaveBeenCalled()
-      expect(mockCore.layout).not.toHaveBeenCalled()
+      expect(latestAddedNodeIds()).toEqual(['active'])
+      expect(mockCore.layout).toHaveBeenCalled()
     })
+  })
+
+  it('dims nodes/edges not in eventHighlightIds without re-running layout', async () => {
+    const activeNode = { id: () => 'active', addClass: vi.fn() }
+    const otherNode = { id: () => 'other', addClass: vi.fn() }
+    mockCore.nodes.mockReturnValue({
+      forEach: (fn: (n: typeof activeNode) => void) => [activeNode, otherNode].forEach(fn),
+      map: (fn: (n: typeof activeNode) => string) => [activeNode, otherNode].map(fn),
+    } as unknown as ReturnType<typeof mockCore.nodes>)
+
+    render(<GraphCanvas />)
+    await waitFor(() => expect(mockCore.layout).toHaveBeenCalledTimes(1))
+
+    act(() => {
+      useGraphStore.setState({ eventHighlightIds: ['active'] })
+    })
+
+    await waitFor(() => {
+      expect(otherNode.addClass).toHaveBeenCalledWith('dimmed')
+    })
+    expect(activeNode.addClass).not.toHaveBeenCalled()
+    // Highlighting must not trigger a fresh layout/re-add of elements.
+    expect(mockCore.layout).toHaveBeenCalledTimes(1)
   })
 })

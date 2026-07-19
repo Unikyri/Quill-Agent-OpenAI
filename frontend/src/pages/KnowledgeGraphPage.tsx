@@ -3,6 +3,7 @@ import { ArrowLeft, FileQuestion, Network, RotateCcw, Search } from 'lucide-reac
 import { useNavigate, useParams } from 'react-router-dom'
 import GraphCanvas from '../components/knowledge-graph/GraphCanvas'
 import GraphControls from '../components/knowledge-graph/GraphControls'
+import TimelineSlider from '../components/knowledge-graph/TimelineSlider'
 import PageStatus from '../components/shared/PageStatus'
 import { UniverseContext } from '../contexts/UniverseContext'
 import { relationText } from '../lib/graphElements'
@@ -119,7 +120,7 @@ export default function KnowledgeGraphPage() {
           <div>
             <p className={styles.kicker}>Explore</p>
             <h1 id="relationship-map-heading">Relationship map</h1>
-            <p>Start with relationships, then focus any entity to inspect its two-hop story neighborhood.</p>
+            <p>Centered on your most relevant entity — search or tap any node to re-center the map on it.</p>
           </div>
           <div className={styles.mapActions}>
             <button className={styles.resetButton} type="button" onClick={() => void refresh()} disabled={loading}>
@@ -165,6 +166,10 @@ export default function KnowledgeGraphPage() {
             <GraphControls />
             <GraphCanvas />
           </>
+        )}
+
+        {universeId && (
+          <TimelineSlider universeId={universeId} />
         )}
       </section>
 
@@ -266,7 +271,7 @@ export default function KnowledgeGraphPage() {
           <section className={styles.focusedInspector}>
             <p className={styles.kicker}>Map summary</p>
             <h2>{visibleNodes.length} entities · {visibleEdges.length} relationships</h2>
-            <p>Relationships come first so you can inspect the connections before choosing an entity.</p>
+            <p>Search or tap an entity to center the map on it.</p>
           </section>
         )}
 

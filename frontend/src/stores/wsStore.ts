@@ -110,6 +110,7 @@ interface WSState {
   liveCandidates: EntityCandidateDTO[]
   removeLiveCandidate: (candidateId: string) => void
   setUniverseScope: (universeId: string | null) => void
+  resetLiveAnalysis: () => void
   connect: (token: string) => void
   disconnect: () => void
   send: (msg: WSMessage) => void
@@ -236,9 +237,14 @@ export const useWSStore = create<WSState>((set, get) => {
         break
       case 'entity_discovered':
         if (!isInActiveUniverseScope(payload)) break
-        set({ discoveredEntities: [...get().discoveredEntities, payload as DiscoveredEntity].slice(-200) })
         {
+          // The backend nests the actual entity under payload.entity
+          // (models.EntityDiscoveredPayload); the outer payload only carries
+          // universe_id/is_new. Pushing the outer payload here used to leave
+          // discoveredEntities[].name undefined, so the sidebar always fell
+          // back to the generic "Entity" label.
           const entity = (payload.entity as Record<string, unknown> | undefined) || payload
+          set({ discoveredEntities: [...get().discoveredEntities, entity as DiscoveredEntity].slice(-200) })
           const status = typeof entity.status === 'string' ? entity.status : ''
           const confidence = typeof entity.confidence === 'number' ? entity.confidence : undefined
           const threshold = typeof payload.candidate_threshold === 'number' ? payload.candidate_threshold : 0.7
@@ -267,7 +273,11 @@ export const useWSStore = create<WSState>((set, get) => {
         break
       case 'contextual_recall':
         if (!isInActiveUniverseScope(payload)) break
-        set({ recallItems: [...get().recallItems, payload as RecallItem].slice(-200) })
+        // models.ContextualRecallPayload carries the facts as an items array,
+        // not a single flat item; pushing the outer payload here used to add
+        // one recallItem per message whose .fact was always undefined,
+        // rendering as an empty quote in the sidebar.
+        set({ recallItems: [...get().recallItems, ...((payload.items as RecallItem[] | undefined) || [])].slice(-200) })
         break
       case 'graph_updated':
         if (!isInActiveUniverseScope(payload)) break
@@ -424,6 +434,22 @@ export const useWSStore = create<WSState>((set, get) => {
         budget: null,
         craftReviews: [],
         liveCandidates: [],
+      })
+    },
+
+    // Live-analysis display slices are keyed to whichever chapter is open in
+    // the editor, not the WS connection. Switching chapters within the same
+    // universe never touches setUniverseScope, so the sidebar otherwise kept
+    // showing the previous chapter's pipeline/entities/contradictions/recall.
+    resetLiveAnalysis: () => {
+      set({
+        analysisResults: [],
+        contradictions: [],
+        discoveredEntities: [],
+        recallItems: [],
+        graphPings: [],
+        pipeline: null,
+        budget: null,
       })
     },
 

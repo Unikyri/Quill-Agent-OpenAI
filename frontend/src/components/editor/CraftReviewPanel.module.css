@@ -75,6 +75,8 @@
 .skillPickerHeading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .autoButton { border: 0; background: transparent; color: var(--teal); cursor: pointer; font: 600 10px var(--sans); }
 .autoButton[aria-pressed='true'] { text-decoration: underline; text-underline-offset: 3px; }
+.autoNotice { display: grid; gap: 6px; }
+.linkButton { justify-self: start; border: 0; background: transparent; padding: 0; color: var(--teal); cursor: pointer; font: 600 10px var(--sans); text-decoration: underline; text-underline-offset: 3px; }
 .skillChoices { display: grid; gap: 6px; }
 .skillChoice { display: flex; align-items: flex-start; gap: 7px; color: var(--ink); cursor: pointer; font-size: 11px; line-height: 1.3; }
 .skillChoice input { margin: 2px 0 0; accent-color: var(--teal); }

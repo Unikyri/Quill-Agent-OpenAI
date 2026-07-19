@@ -11,7 +11,7 @@ import CraftReviewPanel from '../components/editor/CraftReviewPanel'
 import EntityCandidateTray from '../components/editor/EntityCandidateTray'
 import type { CandidateHighlightEntity } from '../components/editor/candidateHighlightExtension'
 import ContextPanel from '../components/context-panel/ContextPanel'
-import { IngestPanel } from './IngestPage'
+import { IngestPanel } from '../components/editor/IngestPanel'
 import { writeImportPath, writePath } from './writeRoutes'
 import styles from './EditorPage.module.css'
 
@@ -84,6 +84,7 @@ export default function EditorPage() {
   const craftReviews = useWSStore((s) => s.craftReviews) || []
   const liveCandidates = useWSStore((s) => s.liveCandidates) || []
   const removeLiveCandidate = useWSStore((s) => s.removeLiveCandidate)
+  const resetLiveAnalysis = useWSStore((s) => s.resetLiveAnalysis)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const chapterLoadRequestRef = useRef(0)
   const knownEntitiesRequestRef = useRef(0)
@@ -180,6 +181,11 @@ export default function EditorPage() {
     setChapters([])
     setChaptersError(null)
     setContent('', '')
+    // The Live Analysis sidebar (pipeline/entities/contradictions/recall) is
+    // keyed to whichever paragraph was last analyzed over the WS connection,
+    // which stays open across chapter navigation — without this, switching
+    // chapters kept showing the previous chapter's stale analysis.
+    resetLiveAnalysis()
 
     if (!chapterId) {
       setEditorReady(true)
@@ -208,7 +214,7 @@ export default function EditorPage() {
     } finally {
       if (isCurrentRequest()) setEditorReady(true)
     }
-  }, [chapterId, getLocalDraft, publish, routeKey, setContent])
+  }, [chapterId, getLocalDraft, publish, resetLiveAnalysis, routeKey, setContent])
 
   useEffect(() => { void loadChapter() }, [loadChapter])
 

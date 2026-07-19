@@ -55,7 +55,7 @@ describe('SkillsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Retry loading skills' }))
 
     await waitFor(() => expect(mockGetSkills).toHaveBeenCalledTimes(2))
-    expect(screen.getByRole('checkbox', { name: /line-edit/i })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /line edit/i })).toBeInTheDocument()
   })
 
   it('keeps selections unsaved and explains recovery after a save failure', async () => {
@@ -65,7 +65,7 @@ describe('SkillsPage', () => {
     renderPage()
 
     const user = userEvent.setup()
-    const checkbox = await screen.findByRole('checkbox', { name: /line-edit/i })
+    const checkbox = await screen.findByRole('checkbox', { name: /line edit/i })
     await user.click(checkbox)
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 

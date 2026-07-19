@@ -1,0 +1,124 @@
+.wrap {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--bg-card);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kicker {
+  color: var(--muted-2);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.position {
+  color: var(--muted-3);
+  font-family: var(--mono);
+  font-size: 9px;
+}
+
+.scrubber {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.track {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+  height: 22px;
+  padding: 0 2px;
+}
+
+.track::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 50%;
+  height: 1px;
+  background: var(--line-strong);
+  transform: translateY(-50%);
+}
+
+.tick {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tickDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  transition: transform 0.12s, background 0.12s;
+}
+
+.tick:hover .tickDot { background: var(--teal-soft-12); transform: scale(1.3); }
+
+.tickActive .tickDot {
+  background: var(--teal);
+  transform: scale(1.6);
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.step:hover:not(:disabled) { border-color: var(--teal); color: var(--teal); }
+.step:disabled { cursor: default; opacity: 0.4; }
+
+.eventCard { display: grid; gap: 6px; }
+.eventLabel { margin: 0; color: var(--ink); font-family: var(--serif); font-size: 15px; font-weight: 500; }
+.eventDescription { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+.participants { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.participantChip {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  padding: 4px 9px;
+  background: var(--surface-sunken);
+  color: var(--teal);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+}
+.participantChip:hover { border-color: var(--teal); background: var(--teal-soft); }
+
+.skeleton { height: 64px; border-radius: var(--r-md); }
+.error { margin: 14px 0 0; color: var(--danger); font-size: 12px; }

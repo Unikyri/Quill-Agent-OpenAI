@@ -341,18 +341,33 @@ describe('wsStore', () => {
       expect(getStore().contradictions[0].message).toBe('conflict')
     })
 
-    it('dispatches entity_discovered to discoveredEntities slice', () => {
+    it('dispatches entity_discovered to discoveredEntities slice, unwrapping the nested entity payload', () => {
       const ws = MockWebSocket.instances[0]
-      ws.simulateMessage({ type: 'entity_discovered', payload: { universe_id: 'uni-a', name: 'Alice', type: 'character' } })
+      // Matches models.EntityDiscoveredPayload: the entity is nested, not flat.
+      ws.simulateMessage({
+        type: 'entity_discovered',
+        payload: { universe_id: 'uni-a', is_new: true, entity: { id: 'e1', name: 'Alice', type: 'character' } },
+      })
       expect(getStore().discoveredEntities).toHaveLength(1)
       expect(getStore().discoveredEntities[0].name).toBe('Alice')
     })
 
-    it('dispatches contextual_recall to recallItems slice', () => {
+    it('dispatches contextual_recall items to recallItems slice, one entry per item', () => {
       const ws = MockWebSocket.instances[0]
-      ws.simulateMessage({ type: 'contextual_recall', payload: { universe_id: 'uni-a', fact: 'something', score: 0.9 } })
-      expect(getStore().recallItems).toHaveLength(1)
+      // Matches models.ContextualRecallPayload: facts arrive as an items array.
+      ws.simulateMessage({
+        type: 'contextual_recall',
+        payload: {
+          universe_id: 'uni-a',
+          items: [
+            { id: 'r1', fact: 'something', score: 0.9 },
+            { id: 'r2', fact: 'something else', score: 0.7 },
+          ],
+        },
+      })
+      expect(getStore().recallItems).toHaveLength(2)
       expect(getStore().recallItems[0].fact).toBe('something')
+      expect(getStore().recallItems[1].fact).toBe('something else')
     })
 
     it('dispatches graph_updated to graphPings slice', () => {
@@ -580,7 +595,7 @@ describe('wsStore', () => {
       MockWebSocket.instances[0].simulateOpen()
       getStore().setUniverseScope('uni-a')
       MockWebSocket.instances[0].simulateMessage({ type: 'analysis_result', payload: { universe_id: 'uni-a', content: 'x' } })
-      MockWebSocket.instances[0].simulateMessage({ type: 'contextual_recall', payload: { universe_id: 'uni-a', fact: 'y' } })
+      MockWebSocket.instances[0].simulateMessage({ type: 'contextual_recall', payload: { universe_id: 'uni-a', items: [{ id: 'r1', fact: 'y' }] } })
 
       expect(getStore().analysisResults).toHaveLength(1)
       expect(getStore().recallItems).toHaveLength(1)
@@ -589,6 +604,39 @@ describe('wsStore', () => {
 
       expect(getStore().analysisResults).toEqual([])
       expect(getStore().recallItems).toEqual([])
+    })
+  })
+
+  describe('resetLiveAnalysis', () => {
+    it('clears per-paragraph display slices without touching universe scope or submissions', () => {
+      getStore().connect('test-token')
+      MockWebSocket.instances[0].simulateOpen()
+      getStore().setUniverseScope('uni-a')
+      MockWebSocket.instances[0].simulateMessage({ type: 'analysis_result', payload: { universe_id: 'uni-a', content: 'x' } })
+      MockWebSocket.instances[0].simulateMessage({ type: 'contextual_recall', payload: { universe_id: 'uni-a', items: [{ id: 'r1', fact: 'y' }] } })
+      MockWebSocket.instances[0].simulateMessage({ type: 'graph_updated', payload: { universe_id: 'uni-a' } })
+      getStore().send({
+        type: 'paragraph_submit',
+        payload: { submission_id: 'submission-1', paragraph_ref: 'chapter:1', universe_id: 'uni-a', text: 'hello' },
+      })
+
+      expect(getStore().analysisResults).toHaveLength(1)
+      expect(getStore().recallItems).toHaveLength(1)
+      expect(getStore().graphPings).toHaveLength(1)
+
+      getStore().resetLiveAnalysis()
+
+      expect(getStore().analysisResults).toEqual([])
+      expect(getStore().recallItems).toEqual([])
+      expect(getStore().graphPings).toEqual([])
+      expect(getStore().contradictions).toEqual([])
+      expect(getStore().discoveredEntities).toEqual([])
+      expect(getStore().pipeline).toBeNull()
+      expect(getStore().budget).toBeNull()
+      // Chapter navigation must not disturb the WS connection scope or
+      // in-flight submission tracking used for save-retry feedback.
+      expect(getStore().activeUniverseId).toBe('uni-a')
+      expect(getStore().submissions['submission-1']).toBeDefined()
     })
   })
 })

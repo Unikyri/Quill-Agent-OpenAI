@@ -97,7 +97,7 @@ describe('graphStore', () => {
   })
 
   describe('fetchGraph', () => {
-    it('sets loading true and populates nodes/edges on success', async () => {
+    it('auto-focuses the most relevant active entity and populates its ego neighborhood', async () => {
       mockListEntities.mockResolvedValue({ entities: [{ id: 'n1' }] })
       mockGetEntityNeighbors.mockResolvedValue({ nodes: mockBackendNodes, edges: mockBackendEdges, truncated: false, limits: graphLimits })
 
@@ -118,6 +118,32 @@ describe('graphStore', () => {
       expect(getStore().loading).toBe(false)
       expect(getStore().error).toBeNull()
       expect(getStore()._universeId).toBe('uni-1')
+      expect(getStore().focalNodeId).toBe('n1')
+      expect(mockListEntities).toHaveBeenCalledWith('uni-1', { limit: '1', status: 'active' })
+      expect(mockGetEntityNeighbors).toHaveBeenCalledWith('n1', 'uni-1', 2)
+    })
+
+    it('falls back to an archived entity when no active entity exists', async () => {
+      mockListEntities
+        .mockResolvedValueOnce({ entities: [] })
+        .mockResolvedValueOnce({ entities: [{ id: 'n2' }] })
+      mockGetEntityNeighbors.mockResolvedValueOnce({ nodes: mockBackendNodes, edges: mockBackendEdges, truncated: false, limits: graphLimits })
+
+      await getStore().fetchGraph('uni-1')
+
+      expect(mockListEntities).toHaveBeenNthCalledWith(1, 'uni-1', { limit: '1', status: 'active' })
+      expect(mockListEntities).toHaveBeenNthCalledWith(2, 'uni-1', { limit: '1', status: 'archived' })
+      expect(getStore().focalNodeId).toBe('n2')
+    })
+
+    it('shows an empty map when the universe has no entities at all', async () => {
+      mockListEntities.mockResolvedValue({ entities: [] })
+
+      await getStore().fetchGraph('uni-1')
+
+      expect(getStore().nodes).toEqual([])
+      expect(getStore().focalNodeId).toBeNull()
+      expect(getStore().loading).toBe(false)
     })
 
     it('sets error on failure', async () => {
@@ -142,26 +168,6 @@ describe('graphStore', () => {
 
       expect(getStore().truncated).toBe(true)
       expect(getStore().limits).toEqual(graphLimits)
-    })
-
-    it('initializes an archived-only universe without making archived nodes visible by default', async () => {
-      const archivedFocal = {
-        id: 'n2',
-        properties: { raw: '{"id":2,"label":"place","properties":{"entity_id":"n2","name":"Archive","status":"archived","relevance_score":0.4}}' },
-      }
-      mockListEntities
-        .mockResolvedValueOnce({ entities: [] })
-        .mockResolvedValueOnce({ entities: [{ id: 'n2' }] })
-      mockGetEntityNeighbors.mockResolvedValueOnce({ nodes: [archivedFocal], edges: [], truncated: false, limits: graphLimits })
-
-      await getStore().fetchGraph('uni-1')
-
-      expect(mockListEntities).toHaveBeenNthCalledWith(1, 'uni-1', { limit: '1', status: 'active' })
-      expect(mockListEntities).toHaveBeenNthCalledWith(2, 'uni-1', { limit: '1', status: 'archived' })
-      expect(getStore().nodes).toHaveLength(1)
-      expect(getStore().focalNodeId).toBe('n2')
-      expect(getStore().nodes[0].data.status).toBe('archived')
-      expect(getStore().showArchived).toBe(false)
     })
 
     it('ignores a stale universe response after a newer graph fetch finishes', async () => {
@@ -191,25 +197,32 @@ describe('graphStore', () => {
   })
 
   describe('refresh', () => {
-    it('refetches using stored universeId', async () => {
-      mockListEntities.mockResolvedValueOnce({ entities: [{ id: 'n1' }] })
-      mockGetEntityNeighbors.mockResolvedValueOnce({ nodes: mockBackendNodes, edges: mockBackendEdges, truncated: false, limits: graphLimits })
+    it('re-runs auto-focus when there is no focal entity', async () => {
+      mockListEntities.mockResolvedValue({ entities: [] })
       await getStore().fetchGraph('uni-1')
       vi.clearAllMocks()
 
-      const updatedNodes = [{ ...mockBackendNodes[0], properties: { ...mockBackendNodes[0].properties, raw: '{"id":1,"label":"character","properties":{"entity_id":"n1","name":"Alice Updated","status":"active","relevance_score":0.7}}' } }]
-      mockGetEntityNeighbors.mockResolvedValueOnce({ nodes: updatedNodes, edges: [], truncated: false, limits: graphLimits })
+      mockListEntities.mockResolvedValueOnce({ entities: [{ id: 'n1' }] })
+      mockGetEntityNeighbors.mockResolvedValueOnce({ nodes: mockBackendNodes, edges: mockBackendEdges, truncated: false, limits: graphLimits })
+
+      await getStore().refresh()
+      expect(mockListEntities).toHaveBeenCalledWith('uni-1', { limit: '1', status: 'active' })
+      expect(getStore().focalNodeId).toBe('n1')
+    })
+
+    it('refetches the focal neighborhood when a focal entity is set', async () => {
+      useGraphStore.setState({ _universeId: 'uni-1', focalNodeId: 'n1' })
+      mockGetEntityNeighbors.mockResolvedValueOnce({ nodes: mockBackendNodes, edges: mockBackendEdges, truncated: false, limits: graphLimits })
 
       await getStore().refresh()
       expect(mockGetEntityNeighbors).toHaveBeenCalledWith('n1', 'uni-1', 2)
-      expect(getStore().nodes).toHaveLength(1)
-      expect(getStore().nodes[0].data.label).toBe('Alice Updated')
-      expect(getStore().edges).toEqual([])
+      expect(getStore().nodes).toHaveLength(3)
     })
 
     it('does nothing if no universeId was set', async () => {
       await getStore().refresh()
       expect(mockGetEntityNeighbors).not.toHaveBeenCalled()
+      expect(mockListEntities).not.toHaveBeenCalled()
     })
 
     it('cannot overwrite a newer focal neighborhood when it resolves late', async () => {

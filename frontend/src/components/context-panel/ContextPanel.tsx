@@ -204,7 +204,11 @@ export default function ContextPanel({ status, universeId }: ContextPanelProps) 
                   <div className={styles.budgetBarFill} style={{ width: `${Math.min(budget.used_percent, 100)}%` }} />
                 </div>
                 <div className={styles.budgetLegend}>
-                  <span>{budget.used_percent}%</span>
+                  {/* used_percent covers reserved system/response overhead
+                      plus this paragraph's tokens — a short paragraph is
+                      expected to leave most of the budget available, which
+                      is what the second figure below reports. */}
+                  <span>{budget.used_percent.toFixed(1)}% used</span>
                   <span>{budget.available}/{budget.max_context_tokens} tokens available</span>
                 </div>
                 <div className={styles.budgetBreakdown}>

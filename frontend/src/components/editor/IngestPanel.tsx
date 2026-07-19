@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { useFeedback } from '../components/feedback'
-import { api } from '../lib/api'
-import { useWSStore } from '../stores/wsStore'
-import { useWS } from '../hooks/useWS'
-import { writePath } from './writeRoutes'
-import styles from './IngestPage.module.css'
+import { useNavigate } from 'react-router-dom'
+import { useFeedback } from '../feedback'
+import { api } from '../../lib/api'
+import { useWSStore } from '../../stores/wsStore'
+import { useWS } from '../../hooks/useWS'
+import { writePath } from '../../pages/writeRoutes'
+import styles from './IngestPanel.module.css'
 
 const ACCEPTED_EXTENSIONS = ['.md', '.txt', '.pdf', '.docx']
 
@@ -394,11 +394,4 @@ export function IngestPanel({ universeId, workId, onClose, onCompleted, standalo
       </>
     </section>
   )
-}
-
-export default function IngestPage() {
-  const { universeId } = useParams<{ universeId: string }>()
-
-  if (!universeId) return null
-  return <IngestPanel universeId={universeId} standalone />
 }

@@ -58,26 +58,42 @@
 .skillGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); gap: 10px; }
 .card {
   display: flex;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
   min-height: 116px;
   padding: 13px;
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   background: var(--bg-card);
-  cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
 .card:hover { border-color: var(--line-strong); background: var(--surface-sunken); }
 .cardActive { border-color: var(--teal-soft-12); background: var(--teal-soft); }
 .card:focus-within { outline: 3px solid var(--color-focus); outline-offset: 3px; }
-.card input { width: 15px; height: 15px; margin: 1px 0 0; accent-color: var(--teal); }
-.cardBody { display: grid; align-content: start; gap: 7px; min-width: 0; }
+.cardBody { display: flex; gap: 10px; cursor: pointer; }
+.cardBody input { width: 15px; height: 15px; margin: 1px 0 0; accent-color: var(--teal); }
+.cardText { display: grid; align-content: start; gap: 7px; min-width: 0; }
 .cardTopline { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .skillName { color: var(--ink); font-size: 13px; font-weight: 600; }
 .status { color: var(--teal); font-size: 8px; }
 .card:not(.cardActive) .status { color: var(--muted-3); }
 .description { color: var(--muted); font-size: 11.5px; line-height: 1.45; }
 .tags { color: var(--muted-3); font-size: 8px; }
+
+.details { margin-top: auto; }
+.detailsSummary {
+  color: var(--muted-2);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  list-style: none;
+}
+.detailsSummary::-webkit-details-marker { display: none; }
+.detailsSummary::before { content: '+ '; }
+.details[open] .detailsSummary::before { content: '– '; }
+.fullDescription { margin: 6px 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.5; }
 
 @media (max-width: 680px) {
   .wrap { padding: 22px 18px 34px; }

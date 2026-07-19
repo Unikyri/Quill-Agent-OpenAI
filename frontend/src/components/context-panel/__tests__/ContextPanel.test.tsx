@@ -130,7 +130,7 @@ describe('ContextPanel — Context Budget section', () => {
     })
     render(<ContextPanel status="open" />)
     expect(screen.getByText('Context Budget')).toBeInTheDocument()
-    expect(screen.getByText('50%')).toBeInTheDocument()
+    expect(screen.getByText('50.0% used')).toBeInTheDocument()
   })
 })
 

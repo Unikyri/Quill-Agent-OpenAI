@@ -7,7 +7,7 @@ import cytoscape, {
 } from 'cytoscape'
 import fcose from 'cytoscape-fcose'
 import { useGraphStore } from '../../stores/graphStore'
-import { toCytoscapeElements } from '../../lib/graphElements'
+import { GRAPH_RENDER_EDGE_LIMIT, GRAPH_RENDER_NODE_LIMIT, toCytoscapeElements } from '../../lib/graphElements'
 import styles from './GraphCanvas.module.css'
 
 cytoscape.use(fcose)
@@ -70,6 +70,17 @@ const style: StylesheetJson = [
       'background-color': '#f1f3ee',
     },
   },
+  // Ego-graph hop styling: degree-2 nodes read as peripheral context — same
+  // shape and color language as degree-1, just quieter — so the eye lands on
+  // the focal entity and its direct neighbors first.
+  {
+    selector: 'node[hop = 2]',
+    style: {
+      'font-size': 10.5,
+      'border-width': 1.5,
+      opacity: 0.75,
+    },
+  },
   {
     selector: 'node:selected',
     style: {
@@ -89,13 +100,55 @@ const style: StylesheetJson = [
       'overlay-opacity': 0,
     },
   },
+  // Edge visual language for the ego graph: a relationship's weight in the
+  // line mirrors how peripheral it is, so the map reads center-out instead
+  // of as an undifferentiated tangle. edgeTier: 0 touches the focal entity,
+  // 1 connects two direct neighbors, 2 reaches a second-degree node (see
+  // toCytoscapeElements) — matches the legend in GraphControls.tsx.
+  {
+    selector: 'edge[edgeTier = 0]',
+    style: {
+      width: 2.5,
+      'line-color': '#155e58',
+      'target-arrow-color': '#155e58',
+    },
+  },
+  {
+    selector: 'edge[edgeTier = 1]',
+    style: {
+      width: 1.5,
+      'line-color': '#7c8b85',
+      'target-arrow-color': '#7c8b85',
+    },
+  },
+  {
+    selector: 'edge[edgeTier = 2]',
+    style: {
+      width: 1,
+      'line-color': '#b7bdb8',
+      'target-arrow-color': '#b7bdb8',
+      'line-style': 'dashed',
+    },
+  },
   {
     selector: 'edge:selected',
     style: {
       width: 3,
       'line-color': '#155e58',
       'target-arrow-color': '#155e58',
+      'line-style': 'solid',
     },
+  },
+  // Applied/removed imperatively by the eventHighlightIds effect below, not
+  // part of element data — dimming must not trigger a re-layout (see that
+  // effect for why it's driven by classes instead of a data field).
+  {
+    selector: 'node.dimmed',
+    style: { opacity: 0.25 },
+  },
+  {
+    selector: 'edge.dimmed',
+    style: { opacity: 0.12 },
   },
 ]
 
@@ -116,6 +169,7 @@ export default function GraphCanvas() {
   const selectNode = useGraphStore((state) => state.selectNode)
   const selectEdge = useGraphStore((state) => state.selectEdge)
   const focusNode = useGraphStore((state) => state.focusNode)
+  const eventHighlightIds = useGraphStore((state) => state.eventHighlightIds)
   const containerRef = useRef<HTMLDivElement>(null)
   const cyRef = useRef<Core | null>(null)
   const callbacksRef = useRef({ selectNode, selectEdge, focusNode })
@@ -123,23 +177,25 @@ export default function GraphCanvas() {
   callbacksRef.current = { selectNode, selectEdge, focusNode }
 
   const visibleNeighborhood = useMemo(() => {
-    // A map response without limits is treated as unsafe rather than passed
-    // into fCoSE. graphStore turns that contract failure into a retry state.
-    if (!limits) return null
+    // limits is only present for a bounded focal-entity traversal; a
+    // full-graph fetch has no hop count to report, so fall back to the same
+    // render caps the store adapters already applied to nodes/edges.
+    const nodeCap = limits?.node_limit ?? GRAPH_RENDER_NODE_LIMIT
+    const edgeCap = limits?.edge_limit ?? GRAPH_RENDER_EDGE_LIMIT
 
     const visibleNodes = nodes.filter((node) => (
       nodeFilter[node.type] !== false && (showArchived || node.data.status !== 'archived')
-    )).slice(0, limits.node_limit)
+    )).slice(0, nodeCap)
     const visibleNodeIds = new Set(visibleNodes.map((node) => node.id))
     const visibleEdges = edges.filter((edge) => (
       visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)
-    )).slice(0, limits.edge_limit)
+    )).slice(0, edgeCap)
 
     return { nodes: visibleNodes, edges: visibleEdges, truncated: false, limits }
   }, [edges, limits, nodeFilter, nodes, showArchived])
 
   const elements = useMemo(
-    () => visibleNeighborhood ? toCytoscapeElements(visibleNeighborhood, focalNodeId) : [],
+    () => toCytoscapeElements(visibleNeighborhood, focalNodeId),
     [focalNodeId, visibleNeighborhood],
   )
 
@@ -188,18 +244,35 @@ export default function GraphCanvas() {
     if (elements.length === 0) return
 
     cy.add(elements as unknown as ElementDefinition[])
-    cy.layout({
-      name: 'fcose',
-      quality: 'default',
-      randomize: false,
-      animate: !prefersReducedMotion(),
-      animationDuration: 220,
-      nodeSeparation: 90,
-      idealEdgeLength: 150,
-      nodeRepulsion: 8_000,
-      gravity: 0.25,
-      padding: 48,
-    } as LayoutOptions).run()
+
+    // Ego mode (a focal entity was picked) carries a hop distance on every
+    // node — lay those out in rings around the center instead of letting
+    // fCoSE's force simulation scatter them. The full, unfocused graph has
+    // no hop data and keeps the force-directed layout.
+    const isEgoGraph = elements.some((el) => el.group === 'nodes' && typeof el.data.hop === 'number')
+    const layout: LayoutOptions = isEgoGraph
+      ? {
+          name: 'concentric',
+          animate: !prefersReducedMotion(),
+          animationDuration: 220,
+          concentric: (node) => 3 - (Number(node.data('hop')) || 0),
+          levelWidth: () => 1,
+          minNodeSpacing: 60,
+          padding: 48,
+        } as LayoutOptions
+      : {
+          name: 'fcose',
+          quality: 'default',
+          randomize: false,
+          animate: !prefersReducedMotion(),
+          animationDuration: 220,
+          nodeSeparation: 90,
+          idealEdgeLength: 150,
+          nodeRepulsion: 8_000,
+          gravity: 0.25,
+          padding: 48,
+        } as LayoutOptions
+    cy.layout(layout).run()
     cy.fit(cy.elements(), 48)
   }, [elements])
 
@@ -211,6 +284,30 @@ export default function GraphCanvas() {
     const selectedId = selectedNodeId || selectedEdgeId
     if (selectedId) cy.$id(selectedId).select()
   }, [selectedEdgeId, selectedNodeId])
+
+  useEffect(() => {
+    const cy = cyRef.current
+    if (!cy) return
+
+    cy.elements().removeClass('dimmed')
+    if (!eventHighlightIds || eventHighlightIds.length === 0) return
+
+    const highlighted = new Set(eventHighlightIds)
+    const visibleNodeIds = new Set(cy.nodes().map((node) => node.id()))
+    // Dimming everything because none of the event's participants happen to
+    // be on the current map would read as a broken graph, not a filter —
+    // leave it alone and let the timeline's own participant chips be the way
+    // to jump to an off-screen entity instead.
+    const anyVisible = eventHighlightIds.some((id) => visibleNodeIds.has(id))
+    if (!anyVisible) return
+
+    cy.nodes().forEach((node) => {
+      if (!highlighted.has(node.id())) node.addClass('dimmed')
+    })
+    cy.edges().forEach((edge) => {
+      if (!highlighted.has(edge.source().id()) || !highlighted.has(edge.target().id())) edge.addClass('dimmed')
+    })
+  }, [elements, eventHighlightIds])
 
   return (
     <div className={styles.canvasWrap}>

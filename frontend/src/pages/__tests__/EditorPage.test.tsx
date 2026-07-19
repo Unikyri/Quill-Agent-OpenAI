@@ -6,7 +6,7 @@ import EditorPage from '../EditorPage'
 import type { CraftReviewResult } from '../../lib/types'
 
 vi.mock('../EditorPage.module.css', () => ({ default: new Proxy({}, { get: (_, k) => k }) }))
-vi.mock('../IngestPage', () => ({ IngestPanel: () => null }))
+vi.mock('../../components/editor/IngestPanel', () => ({ IngestPanel: () => null }))
 
 const mockPublish = vi.fn(() => 'feedback-id')
 const mockFeedbackUpdate = vi.fn()
@@ -38,6 +38,7 @@ const mockStoreState = vi.hoisted(() => ({
     craftReviews: [] as CraftReviewResult[],
     liveCandidates: [],
     removeLiveCandidate: vi.fn(),
+    resetLiveAnalysis: vi.fn(),
   },
   editor: {
     content: '',
