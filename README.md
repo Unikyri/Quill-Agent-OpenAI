@@ -41,8 +41,8 @@ Quill treats Qwen Cloud as a first-class platform, not a generic chat endpoint.
 
 A wire-neutral `LLMService` interface (`internal/services/llm_service.go`) lets the same domain code run against either the native client or the OpenAI-compatible fallback, so features degrade gracefully but the native path is the intended one.
 
-### Mini ReAct agent + MCP
-Contradiction, plot-hole, and timeline checks are not single-shot prompts — they run a small **tool-calling agent loop** (`QwenService.RunAgentLoop`) where Qwen calls `search_vector_memory` (pgvector similarity) and `query_entity_graph` (AGE neighbour walk), receives results as `role: "tool"` messages, and loops until it stops calling tools. Those same memory tools are exposed over a real **MCP server** (`internal/mcp/server.go`, JSON-RPC `initialize` / `tools/list` / `tools/call`) so external MCP clients — Claude Desktop, Cursor, any MCP-speaking agent — can query Quill's memory directly.
+### Four independent agents, not one prompt
+Contradiction, plot-hole, and timeline checks are not single-shot prompts — each runs its own **tool-calling agent loop** (`QwenService.RunAgentLoop`) with its own system prompt and persona, calling `search_vector_memory` (pgvector similarity) and `query_entity_graph` (AGE neighbour walk) as needed, receiving results as `role: "tool"` messages, and looping until it stops calling tools. A fourth agent, the **Arbiter**, reviews what the first three found and writes one prioritised note instead of three independent opinions reaching the writer unreconciled. See [The Multi-Agent System](#the-multi-agent-system) below. Those same memory tools are exposed over a real **MCP server** (`internal/mcp/server.go`, JSON-RPC `initialize` / `tools/list` / `tools/call`) so external MCP clients — Claude Desktop, Cursor, any MCP-speaking agent — can query Quill's memory directly.
 
 ### Custom Skills framework
 Quill ships **15 editorial Skills** (`backend/skills/`: `developmental-editor`, `line-editor`, `pacing-and-tension`, `sensitivity-reader`, `show-dont-tell`, …) plus genre references. A `SkillRegistry` loads them, they are **activated per universe** over the API (`GET/PUT /universes/:id/skills`), and the craft-review service composes them with recalled memory into Qwen prompts. These are Quill's own domain Skills — an extensible capability layer over the model, not a fixed prompt.
@@ -131,6 +131,61 @@ The two paths worth tracing with your eyes are: **write path** (top-left to bott
 
 ---
 
+## The Multi-Agent System
+
+The architecture diagram above deliberately doesn't zoom into the reasoning layer — cramming both "how data flows" and "how the agents reason" into one diagram makes both hard to read. This is that second diagram.
+
+Quill runs **four independent agents**, not one prompt reused four ways. Each has its own system prompt, its own persona, and decides for itself whether it needs to call a tool before answering:
+
+```mermaid
+flowchart TB
+    subgraph SPECIALISTS["Three specialists — same loop, different persona, never see each other's work"]
+        Contra["Continuity Analyst<br/><i>ContradictionService</i><br/>'detect contradictions in this story'<br/>— runs on every paragraph"]
+        Plot["Plot-Hole Evaluator<br/><i>PlotHoleService</i><br/>'is this entity's arc a plot hole?'<br/>— runs on every paragraph"]
+        Time["Timeline Validator<br/><i>TimelineService</i><br/>'is this event chronologically consistent?'<br/>— runs when a timeline event is created"]
+    end
+
+    subgraph TOOLS["Tools — called only if the agent decides it needs them"]
+        SearchMem["search_vector_memory<br/>pgvector similarity"]
+        QueryGraph["query_entity_graph<br/>AGE neighbour walk"]
+    end
+
+    Contra -.-> SearchMem
+    Contra -.-> QueryGraph
+    Plot -.-> SearchMem
+    Plot -.-> QueryGraph
+    Time -.-> SearchMem
+
+    Contra --> Arbiter
+    Plot --> Arbiter
+
+    Arbiter["Arbiter<br/><i>ArbiterService</i><br/>reads both specialists' raw findings,<br/>synthesises one verdict — no tools needed"]
+
+    Arbiter --> Writer(["One prioritised note<br/>to the writer — not three<br/>unreconciled opinions"])
+
+    Contra -. RunAgentLoop .-> QwenMax["qwen-max"]
+    Plot -. RunAgentLoop .-> QwenMax
+    Time -. RunAgentLoop .-> QwenMax
+    Arbiter -. "RunAgentLoop, tools: none" .-> QwenMax
+
+    classDef agent fill:#605198,color:#fffefa,stroke:#3e2f6e
+    classDef tool fill:#f2c65a,color:#192321,stroke:#8a5d00
+    classDef model fill:#155e58,color:#fffefa,stroke:#0f4743
+    classDef out fill:#a23d33,color:#fffefa,stroke:#7f3029
+    class Contra,Plot,Time,Arbiter agent
+    class SearchMem,QueryGraph tool
+    class QwenMax model
+    class Writer out
+```
+
+- **Continuity Analyst** and **Plot-Hole Evaluator** run automatically on every submitted paragraph, fanned out from `AnalysisService.processJob` — see [The live analysis pipeline](#the-live-analysis-pipeline) below.
+- **Timeline Validator** runs when a writer creates a timeline event whose chronological position is ambiguous relative to the work's latest chapter; an inconsistent verdict is surfaced as a non-blocking `timeline_warning`, not a hard rejection — the writer still makes the final call, same as every other finding in Quill.
+- **Arbiter** closes the loop the other three don't: without it, a contradiction and a plot-hole finding for the same paragraph reach the writer as two disconnected alerts, even when they describe the same underlying issue. The Arbiter reads both raw finding sets and writes one short synthesis — which one actually matters, and whether two findings are really one.
+
+None of the four share a tool registry entry that isn't already exposed to the MCP server above, and none run a bespoke reasoning path — they're all the same `RunAgentLoop`, invoked with a different prompt and a different (possibly empty) tool set. That's the whole trick: specialisation through persona and tool access, not four separate codebases.
+
+---
+
 ## The live analysis pipeline
 
 As the author drafts, the frontend submits paragraphs over WebSocket. A **sequential per-work queue** (one goroutine per work, not a shared pool) keeps paragraphs from the same manuscript analysed in order, then fans out to entity extraction, contradiction detection, relevance decay, timeline validation, and plot-hole checks. Results stream back as typed WS messages (`analysis_result`, `contradiction_alert`, `entity_discovered`, `graph_updated`). Extracted entities and relationships are also written into the per-universe AGE graph, and the paragraph's own embedding is persisted so the vector recall pipeline has real prose to search — not just what was imported from a file. See `internal/services/analysis_service.go` and `internal/ws/`.
@@ -200,12 +255,29 @@ TEST_DATABASE_URL=postgres://quill:quill_dev_password@localhost:5432/quill?sslmo
   QWEN_API_KEY=your_key go test ./eval/ -run TestMemoryEval -v
 ```
 
+**Measured results from the eval corpus** (small dated corpus, `backend/eval/corpus/saga_gold.json`; reproducible with the command above):
+
+| Metric | Result |
+| --- | --- |
+| Recall@5 — vector only | 0.583 |
+| Recall@5 — graph-walk only | 0.333 |
+| Recall@5 — recency only | 0.167 |
+| Recall@5 — keyword only | 0.000 |
+| Recall@5 — **vector + graph** | **0.833** |
+| Recall@5 — all pipelines fused | 0.417 |
+| Recall latency, p50 / p95 @ 50 entities | 2 ms / 2 ms |
+| Recall latency, p50 / p95 @ 5,000 entities | 27 ms / 33 ms |
+| Forgetting — active entities before / after 17 decay ticks | 21 → 15 |
+| Consolidation fidelity (sample entities) | 0.75, 0.25 |
+
+The ablation is the honest finding here: no single pipeline wins outright, vector+graph beats every pipeline alone (including the full fused set) on this corpus, and keyword-only recall is a real, reported zero rather than a hidden failure — that's what makes hybrid recall a design decision instead of a marketing claim.
+
 ---
 
 ## How the Judging Criteria map to this repo
 
-- **Innovation & AI Creativity** — native DashScope client with context caching + native rerank, a tool-calling agent loop, an MCP server, and a 15-Skill custom capability layer over Qwen.
-- **Technical Depth & Engineering** — provider-neutral `LLMService` with two wire implementations; RRF hybrid recall across six pipelines; event-driven decay with archive/reactivate; token-budget knapsack; injection-hardened AGE graph access; sequential per-work analysis queue.
+- **Innovation & AI Creativity** — native DashScope client with context caching + native rerank, [four independent agents](#the-multi-agent-system) (three specialists + a consensus-forming Arbiter) over a shared tool-calling loop, an MCP server, and a 15-Skill custom capability layer over Qwen.
+- **Technical Depth & Engineering** — provider-neutral `LLMService` with two wire implementations; RRF hybrid recall across six pipelines; event-driven decay with archive/reactivate; token-budget knapsack; injection-hardened AGE graph access; sequential per-work analysis queue. Measured, not asserted — see [Verification](#verification) for real recall/latency/forgetting numbers from the eval harness.
 - **Problem Value & Impact** — continuity and voice consistency in long-form fiction, with a memory design (learned author preferences + forgetting + budgeted recall) that generalises to any long-horizon, context-limited agent.
 - **Presentation & Documentation** — this README, the architecture diagram above, and the in-app Memory Theater that visualises recall, decay, and budget live.
 
