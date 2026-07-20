@@ -2,6 +2,8 @@
 
 **Qwen Cloud Global AI Hackathon Series — Track 1: MemoryAgent**
 
+**🔗 Live demo:** [http://47.253.216.249:3001](http://47.253.216.249:3001) — no account needed, click "Jump into a finished universe" or "Start from scratch" on the landing page. Runs on an Alibaba Cloud Simple Application Server via the `docker-compose.yml` in this repo.
+
 Long-form fiction breaks when a writer has to remember every promise made hundreds of pages ago — a hair colour, a death, a vow, a timeline. Quill is a **memory agent** that reads a manuscript as the author writes it, accumulates durable memory of *both the story and the author*, forgets what stops mattering, and recalls only what fits the model's context window — then checks new prose against that memory and gets better at it the longer you write together.
 
 Every model call in Quill goes to **Qwen models on Qwen Cloud (DashScope)**. Quill ships a hand-written **native DashScope client** — not just the OpenAI-compatible shim — so it can use Qwen-specific features (explicit context caching, native reranking, native token accounting) that a portable OpenAI client cannot reach.
@@ -299,9 +301,9 @@ The ablation is the honest finding here: no single pipeline wins outright, vecto
 - [x] Architecture diagram: see [Architecture](#architecture) above.
 - [x] Qwen model/API configuration visible without secrets: [`.env.example`](.env.example).
 - [x] Memory storage, retrieval, forgetting, budgeting, and preference learning implemented (links above).
-- [ ] **Proof of Alibaba Cloud deployment** — link to the code/config running the backend on Alibaba Cloud (Compose alone is not deployment proof). *In progress.*
+- [x] **Proof of Alibaba Cloud deployment** — live at [http://47.253.216.249:3001](http://47.253.216.249:3001), running on an Alibaba Cloud Simple Application Server from the `docker-compose.yml` in this repo (not just Compose in the abstract — this is the actual running instance).
 - [ ] **Demo video ≤3 min** on YouTube / Vimeo / Youku, showing the working flow. *In progress.*
-- [ ] Public testing link (or credentials in the testing instructions) available to judges through the Judging Period.
+- [x] Public testing link available to judges through the Judging Period: [http://47.253.216.249:3001](http://47.253.216.249:3001) — no credentials needed, the demo entry points provision a throwaway account automatically.
 
 The official [Devpost rules](https://qwencloud-hackathon.devpost.com/rules) take precedence if anything here differs.
 
