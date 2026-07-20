@@ -94,6 +94,7 @@ function Sparkline({ entityId, history, dotColor }: {
 
 export default function ContextPanel({ status, universeId }: ContextPanelProps) {
   const contradictions = useWSStore((s) => s.contradictions)
+  const arbiterNote = useWSStore((s) => s.arbiterNote)
   const discoveredEntities = useWSStore((s) => s.discoveredEntities)
   const recallItems = useWSStore((s) => s.recallItems)
   const graphPings = useWSStore((s) => s.graphPings)
@@ -288,6 +289,18 @@ export default function ContextPanel({ status, universeId }: ContextPanelProps) 
               ))
             )}
         </AnalysisSection>
+
+        {/* ── Arbiter's note ─ only rendered once the Arbiter has actually
+             synthesized a verdict across the Continuity Analyst's and
+             Plot-Hole Evaluator's findings for this paragraph ────────── */}
+        {arbiterNote && (
+          <AnalysisSection title="🧭 Arbiter's note">
+            <div className={styles.suggestionBox}>
+              <div className={styles.suggestionKicker}>Synthesized from the findings above</div>
+              <div className={styles.suggestionText}>{arbiterNote}</div>
+            </div>
+          </AnalysisSection>
+        )}
 
         {/* ── Relevant memory ─ always rendered, with retrieval-source badges ── */}
         <AnalysisSection title="Relevant memory" defaultOpen={false}>

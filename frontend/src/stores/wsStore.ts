@@ -99,6 +99,7 @@ interface WSState {
   activeUniverseId: string | null
   analysisResults: AnalysisResult[]
   contradictions: Contradiction[]
+  arbiterNote: string | null
   discoveredEntities: DiscoveredEntity[]
   recallItems: RecallItem[]
   graphPings: GraphPing[]
@@ -220,7 +221,12 @@ export const useWSStore = create<WSState>((set, get) => {
       case 'analysis_result':
         if (!isInActiveUniverseScope(payload)) break
         updateSubmission(payload, 'done')
-        set({ analysisResults: [...get().analysisResults, payload as AnalysisResult].slice(-200) })
+        set({
+          analysisResults: [...get().analysisResults, payload as AnalysisResult].slice(-200),
+          ...(typeof payload.arbiter_summary === 'string' && payload.arbiter_summary.trim() !== ''
+            ? { arbiterNote: payload.arbiter_summary }
+            : {}),
+        })
         break
       case 'analysis_failed':
         if (!isInActiveUniverseScope(payload)) break
@@ -403,6 +409,7 @@ export const useWSStore = create<WSState>((set, get) => {
     activeUniverseId: null,
     analysisResults: [],
     contradictions: [],
+    arbiterNote: null,
     discoveredEntities: [],
     recallItems: [],
     graphPings: [],
@@ -426,6 +433,7 @@ export const useWSStore = create<WSState>((set, get) => {
         activeUniverseId: universeId,
         analysisResults: [],
         contradictions: [],
+        arbiterNote: null,
         discoveredEntities: [],
         recallItems: [],
         graphPings: [],
@@ -445,6 +453,7 @@ export const useWSStore = create<WSState>((set, get) => {
       set({
         analysisResults: [],
         contradictions: [],
+        arbiterNote: null,
         discoveredEntities: [],
         recallItems: [],
         graphPings: [],
@@ -490,6 +499,7 @@ export const useWSStore = create<WSState>((set, get) => {
       set({
         analysisResults: [],
         contradictions: [],
+        arbiterNote: null,
         discoveredEntities: [],
         recallItems: [],
         graphPings: [],

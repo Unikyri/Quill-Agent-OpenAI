@@ -230,6 +230,20 @@ describe('wsStore', () => {
       expect(getStore().analysisResults[0].content).toBe('analysis')
     })
 
+    it('surfaces the Arbiter synthesis when analysis_result carries one, and ignores an empty one', () => {
+      const ws = MockWebSocket.instances[0]
+      ws.simulateMessage({
+        type: 'analysis_result',
+        payload: { universe_id: 'uni-a', arbiter_summary: 'The contradiction about Edric matters most.' },
+      })
+      expect(getStore().arbiterNote).toBe('The contradiction about Edric matters most.')
+
+      ws.simulateMessage({ type: 'analysis_result', payload: { universe_id: 'uni-a', arbiter_summary: '' } })
+      // An empty synthesis (nothing to adjudicate) must not blank out a
+      // still-relevant prior note from an earlier paragraph in this chapter.
+      expect(getStore().arbiterNote).toBe('The contradiction about Edric matters most.')
+    })
+
     it('tracks a submission from progress to terminal result', () => {
       const ws = MockWebSocket.instances[0]
       getStore().send({

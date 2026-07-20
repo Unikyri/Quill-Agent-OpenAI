@@ -21,6 +21,7 @@ beforeEach(() => {
     reconnectAttempt: 0,
     analysisResults: [],
     contradictions: [],
+    arbiterNote: null,
     discoveredEntities: [],
     recallItems: [],
     graphPings: [],
@@ -102,6 +103,16 @@ describe('ContextPanel', () => {
     render(<ContextPanel status="open" />)
     expect(screen.getByText(/Alice is a detective/)).toBeInTheDocument()
     expect(screen.getByText('95%')).toBeInTheDocument()
+  })
+
+  it('renders the Arbiter note only once one has actually been synthesized', () => {
+    const { rerender } = render(<ContextPanel status="open" />)
+    expect(screen.queryByText("🧭 Arbiter's note")).not.toBeInTheDocument()
+
+    useWSStore.setState({ arbiterNote: 'The contradiction about Edric matters most here.' })
+    rerender(<ContextPanel status="open" />)
+    expect(screen.getByText("🧭 Arbiter's note")).toBeInTheDocument()
+    expect(screen.getByText('The contradiction about Edric matters most here.')).toBeInTheDocument()
   })
 
   it('renders both contradiction and entity data simultaneously', () => {
