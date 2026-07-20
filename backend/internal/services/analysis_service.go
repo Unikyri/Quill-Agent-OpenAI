@@ -39,6 +39,7 @@ type AnalysisResult struct {
 	Entities       []models.EntityBrief
 	Contradictions []models.Contradiction
 	PlotHoles      []models.PlotHole
+	ArbiterSummary string
 }
 
 // AnalysisHub is the minimal WebSocket hub interface used by AnalysisService.
@@ -75,6 +76,7 @@ type AnalysisService struct {
 	qwenSvc     LLMService
 	hub         AnalysisHub
 	memorySvc   *MemoryService
+	arbiterSvc  *ArbiterService
 
 	queues  map[uuid.UUID]chan analysisJob
 	cancels map[uuid.UUID]context.CancelFunc
@@ -120,6 +122,14 @@ func NewAnalysisService(
 	}
 	svc.processJobFn = svc.processJob
 	return svc
+}
+
+// SetArbiterSvc wires the fourth, consensus-forming agent that synthesizes
+// the Continuity Analyst's and Plot-Hole Evaluator's findings into one
+// prioritized note. Optional — nil-safe; processJob skips adjudication
+// entirely when unset, same as the other optional AnalysisService inputs.
+func (s *AnalysisService) SetArbiterSvc(arbiterSvc *ArbiterService) {
+	s.arbiterSvc = arbiterSvc
 }
 
 // SubmitParagraph is a convenience wrapper that satisfies the ws.ParagraphSubmitter
@@ -450,6 +460,18 @@ func (s *AnalysisService) processJob(ctx context.Context, job analysisJob) (*Ana
 		p.PlotHoleCount = &plotHoleCount
 	})
 
+	// 5b. Adjudicate: the two specialists above never see each other's
+	// findings. A failure here is never terminal for the analysis — the raw
+	// findings still reach the writer even without a synthesized note.
+	if s.arbiterSvc != nil {
+		summary, err := s.arbiterSvc.Adjudicate(ctx, result.Contradictions, result.PlotHoles)
+		if err != nil {
+			log.Printf("[analysis] arbiter: %v", err)
+		} else {
+			result.ArbiterSummary = summary
+		}
+	}
+
 	// 6. Contextual recall after analysis
 	if s.memorySvc != nil && len(resolvedEntities) > 0 {
 		queryText := strings.TrimSpace(job.Text)
@@ -627,6 +649,7 @@ func (s *AnalysisService) broadcastResult(job analysisJob, result AnalysisResult
 		Entities:       result.Entities,
 		Contradictions: result.Contradictions,
 		PlotHoles:      result.PlotHoles,
+		ArbiterSummary: result.ArbiterSummary,
 	})
 	if err != nil {
 		log.Printf("[analysis] marshal result: %v", err)

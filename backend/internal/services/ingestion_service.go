@@ -92,6 +92,14 @@ type IngestionService struct {
 	progressNow         func() time.Time
 	newProgressTicker   func(time.Duration) ingestionTicker
 	stylometrySvc       WriterCorpusObservationSink
+	timelineRepo        *repositories.TimelineRepo
+}
+
+// SetTimelineRepo wires timeline event creation for imported manuscripts.
+// Optional — nil-safe; createTimelineEventsForChapter silently skips without
+// it, same as this service's other optional dependencies.
+func (s *IngestionService) SetTimelineRepo(timelineRepo *repositories.TimelineRepo) {
+	s.timelineRepo = timelineRepo
 }
 
 // SetStylometry wires the corpus-wide cold-start pass. It is optional so
@@ -595,6 +603,7 @@ func (s *IngestionService) runWorker(jobID, universeID, workID uuid.UUID, create
 		if s.qwenSvc != nil && s.entitySvc != nil && s.pool != nil {
 			anySucceeded = true
 			resolved := s.reduceMentions(ctx, universeID, chapterID, mapped.Mentions)
+			s.createTimelineEventsForChapter(ctx, universeID, chapterID, baseOrder+i+1, resolved)
 			entitiesTotal += len(resolved)
 			relationshipCorpus.WriteString(truncateIngestionRelationshipCorpus(ch.content, relationshipCorpus.Len()))
 			relationshipEntities = append(relationshipEntities, resolved...)
@@ -1241,6 +1250,48 @@ func (s *IngestionService) reduceMentions(ctx context.Context, universeID, chapt
 		}
 	}
 	return resolved
+}
+
+// createTimelineEventsForChapter seeds one timeline_events row per resolved
+// "event"-type entity in this chapter, using the chapter's position among
+// this import's chunks as a first-pass chronological ordering. Without this,
+// an imported manuscript's Timeline stays permanently empty — only the
+// hand-seeded demo template ever populated it. The writer can still reorder
+// or edit these later; this just seeds something instead of nothing.
+// Nil-safe: skips entirely without a timelineRepo (existing tests/deployments
+// that never call SetTimelineRepo are unaffected).
+func (s *IngestionService) createTimelineEventsForChapter(ctx context.Context, universeID, chapterID uuid.UUID, position int, resolved []ResolvedEntity) {
+	if s.timelineRepo == nil || chapterID == uuid.Nil {
+		return
+	}
+
+	var participantIDs []uuid.UUID
+	for _, re := range resolved {
+		if re.Entity.Type == "character" {
+			participantIDs = append(participantIDs, re.Entity.ID)
+		}
+	}
+
+	for _, re := range resolved {
+		if re.Entity.Type != "event" {
+			continue
+		}
+		pos := float64(position)
+		entityID := re.Entity.ID
+		event := models.TimelineEvent{
+			ID:               uuid.New(),
+			UniverseID:       universeID,
+			EventEntityID:    &entityID,
+			Title:            re.Entity.Name,
+			Description:      re.Entity.Description,
+			TimelinePosition: &pos,
+			ChapterID:        &chapterID,
+			Participants:     participantIDs,
+		}
+		if err := s.timelineRepo.Create(ctx, &event); err != nil {
+			log.Printf("[ingestion] create timeline event for %s: %v", re.Entity.Name, err)
+		}
+	}
 }
 
 // decayCompletedIngestion applies one chapter-aware decay tick for a completed

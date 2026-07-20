@@ -78,13 +78,28 @@ func (h *TimelineHandler) Create(c *fiber.Ctx) error {
 	req.UniverseID = universeID
 
 	req.ID = uuid.New()
+
+	// Advisory only — a chronologically-suspicious event is still the
+	// writer's call to make, so a validation finding is surfaced alongside
+	// the created event rather than blocking creation (matching how
+	// contradictions/plot-holes are shown as alerts, not hard errors,
+	// elsewhere in the app).
+	var timelineWarning string
+	if h.timelineSvc != nil {
+		if err := h.timelineSvc.ValidateNewEvent(c.Context(), req); err != nil {
+			timelineWarning = err.Error()
+		}
+	}
+
 	if err := h.timelineRepo.Create(c.Context(), &req); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fiber.Map{"code": "INTERNAL_ERROR", "message": err.Error()},
 		})
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"event": req,
-	})
+	response := fiber.Map{"event": req}
+	if timelineWarning != "" {
+		response["timeline_warning"] = timelineWarning
+	}
+	return c.Status(fiber.StatusCreated).JSON(response)
 }

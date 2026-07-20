@@ -37,6 +37,27 @@ func TestAnalysisServiceNew(t *testing.T) {
 	}
 }
 
+// TestAnalysisServiceArbiterSvcOptedOutByDefault verifies SetArbiterSvc wires
+// in cleanly and that processJob still completes without an arbiter call
+// when there is nothing for it to adjudicate (empty text -> no entities ->
+// no contradictions/plot holes -> Adjudicate is never reached).
+func TestAnalysisServiceArbiterSvcOptedOutByDefault(t *testing.T) {
+	svc := NewAnalysisService(nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	svc.SetArbiterSvc(NewArbiterService(nil))
+
+	result, err := svc.processJob(context.Background(), analysisJob{
+		SubmissionID: "sub-1", ParagraphRef: "p1",
+		WorkID: uuid.New(), ChapterID: uuid.New(), UniverseID: uuid.New(), UserID: uuid.New(),
+		Text: "",
+	})
+	if err != nil {
+		t.Fatalf("processJob: %v", err)
+	}
+	if result.ArbiterSummary != "" {
+		t.Errorf("expected no arbiter summary with no findings, got: %q", result.ArbiterSummary)
+	}
+}
+
 // TestAnalysisServiceSubmit verifies that Submit enqueues a job
 // to the correct per-work channel.
 func TestAnalysisServiceSubmit(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -113,6 +114,94 @@ func TestTimelineServiceValidateNoChapter(t *testing.T) {
 
 	if err := svc.ValidatePosition(ctx, event, ch1.ID); err != nil {
 		t.Errorf("expected no error for event without chapter, got: %v", err)
+	}
+}
+
+// TestTimelineServiceValidateNewEventResolvesLatestChapter verifies
+// ValidateNewEvent resolves "present" as the highest order_index chapter in
+// the event's own work, without the caller having to pass it explicitly.
+func TestTimelineServiceValidateNewEventResolvesLatestChapter(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "010")
+	ctx := context.Background()
+
+	user := svcCreateTestUser(t, ctx, pool)
+	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
+	_, ch1, ch2 := svcCreateWorkAndChapters(t, ctx, pool, universe, 2)
+
+	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), nil, nil)
+
+	// Tied to ch1, which is chronologically before the work's latest
+	// chapter (ch2) — unambiguously valid, no agent call needed.
+	past := models.TimelineEvent{ID: uuid.New(), UniverseID: universe.ID, Title: "Past Event", ChapterID: &ch1.ID}
+	if err := svc.ValidateNewEvent(ctx, past); err != nil {
+		t.Errorf("expected no error for event before the work's latest chapter, got: %v", err)
+	}
+
+	// Tied to ch2 itself — ch2 IS the work's latest chapter, so this is the
+	// ambiguous case. With no qwenSvc configured it falls through to valid.
+	present := models.TimelineEvent{ID: uuid.New(), UniverseID: universe.ID, Title: "Present Event", ChapterID: &ch2.ID}
+	if err := svc.ValidateNewEvent(ctx, present); err != nil {
+		t.Errorf("expected no error for the ambiguous case with no agent configured, got: %v", err)
+	}
+}
+
+// TestTimelineServiceValidateNewEventNoChapter mirrors ValidatePosition's
+// nil-chapter short circuit through the new entry point.
+func TestTimelineServiceValidateNewEventNoChapter(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "010")
+	ctx := context.Background()
+
+	user := svcCreateTestUser(t, ctx, pool)
+	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
+
+	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), nil, nil)
+
+	event := models.TimelineEvent{ID: uuid.New(), UniverseID: universe.ID, Title: "Timeless Event", ChapterID: nil}
+	if err := svc.ValidateNewEvent(ctx, event); err != nil {
+		t.Errorf("expected no error for event without chapter, got: %v", err)
+	}
+}
+
+// TestTimelineServiceValidateNewEventAgentRejects proves the previously
+// dead-code agent path (validateWithAgent) actually fires and its verdict
+// propagates when a real qwenSvc is configured and the event lands on the
+// work's latest (ambiguous) chapter.
+func TestTimelineServiceValidateNewEventAgentRejects(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]interface{}{
+			"choices": []map[string]interface{}{
+				{"message": map[string]interface{}{"role": "assistant", "content": "INCONSISTENT: contradicts an earlier chapter"}},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	qwenSvc := NewQwenService(&config.Config{
+		QwenBaseURL: srv.URL, QwenAPIKey: "test", QwenMaxConcurrency: 1, QwenTurboConcurrency: 1,
+	}, nil)
+	qwenSvc.client.Timeout = 5 * time.Second
+
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "010")
+	ctx := context.Background()
+
+	user := svcCreateTestUser(t, ctx, pool)
+	universe := svcCreateTestUniverse(t, ctx, pool, user.ID)
+	_, _, ch2 := svcCreateWorkAndChapters(t, ctx, pool, universe, 2)
+
+	svc := NewTimelineService(pool, repositories.NewTimelineRepo(pool), qwenSvc, nil)
+
+	event := models.TimelineEvent{ID: uuid.New(), UniverseID: universe.ID, Title: "Present Event", ChapterID: &ch2.ID}
+	err := svc.ValidateNewEvent(ctx, event)
+	if err == nil {
+		t.Fatal("expected the agent's INCONSISTENT verdict to surface as an error")
+	}
+	if !strings.Contains(err.Error(), "CONTRADICTS AN EARLIER CHAPTER") {
+		t.Errorf("expected agent reason in error, got: %v", err)
 	}
 }
 

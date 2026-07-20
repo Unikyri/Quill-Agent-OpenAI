@@ -586,12 +586,18 @@ func (r *EntityRepo) DecayAll(ctx context.Context, universeID uuid.UUID, lambda 
 // than the supplied entity IDs. A completed chapter passes its mentioned
 // entities here so the same chapter cannot both reinforce and decay them.
 func (r *EntityRepo) DecayExcept(ctx context.Context, universeID uuid.UUID, excludedIDs []uuid.UUID, lambda float64) error {
-	// ponytail: per-chapter decay, multiply by e^(-lambda) each chapter advance
+	// ponytail: per-chapter decay, multiply by e^(-lambda) each chapter advance.
+	// DecayAll calls this with excludedIDs == nil (manual sweep, nothing to
+	// exclude); pgx sends a nil slice as SQL NULL, and `cardinality(NULL) = 0`
+	// and `id <> ALL(NULL)` both evaluate to NULL (not TRUE), making the whole
+	// WHERE clause NULL for every row — the UPDATE silently affected zero
+	// rows. COALESCE to an empty array before the cardinality/ALL checks so a
+	// nil exclusion list means "exclude nothing" instead of "match nothing".
 	query := `
 		UPDATE entities SET relevance_score = relevance_score * EXP($2), updated_at = NOW()
 		WHERE universe_id = $1
 		  AND status = 'active'
-		  AND (cardinality($3::uuid[]) = 0 OR id <> ALL($3))
+		  AND NOT (id = ANY(COALESCE($3::uuid[], ARRAY[]::uuid[])))
 	`
 	_, err := r.pool.Exec(ctx, query, universeID, -lambda, excludedIDs)
 	if err != nil {

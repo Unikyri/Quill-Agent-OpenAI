@@ -58,6 +58,28 @@ func (s *TimelineService) ValidatePosition(ctx context.Context, event models.Tim
 	return nil
 }
 
+// ValidateNewEvent is the entry point for a manually-created timeline event:
+// it resolves "present" as the work's most-recently-authored chapter (the
+// highest order_index chapter in the same work as the event), then delegates
+// to ValidatePosition. Nil-safe — an event with no chapter is trivially valid.
+func (s *TimelineService) ValidateNewEvent(ctx context.Context, event models.TimelineEvent) error {
+	if event.ChapterID == nil {
+		return nil
+	}
+
+	var workID uuid.UUID
+	if err := s.pool.QueryRow(ctx, "SELECT work_id FROM chapters WHERE id = $1", *event.ChapterID).Scan(&workID); err != nil {
+		return fmt.Errorf("resolve event chapter's work: %w", err)
+	}
+
+	var latestChapterID uuid.UUID
+	if err := s.pool.QueryRow(ctx, "SELECT id FROM chapters WHERE work_id = $1 ORDER BY order_index DESC LIMIT 1", workID).Scan(&latestChapterID); err != nil {
+		return fmt.Errorf("resolve work's latest chapter: %w", err)
+	}
+
+	return s.ValidatePosition(ctx, event, latestChapterID)
+}
+
 // validateWithAgent calls the LLM to evaluate if this timeline position is
 // chronologically consistent using vector memory search for context.
 func (s *TimelineService) validateWithAgent(ctx context.Context, event models.TimelineEvent) error {

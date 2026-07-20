@@ -401,6 +401,79 @@ func TestReduceMentionsSeriallyResolvesDuplicatesAndPersistsMentions(t *testing.
 	}
 }
 
+// TestCreateTimelineEventsForChapterSeedsEventEntitiesWithParticipants proves
+// an imported manuscript's Timeline is no longer permanently empty: an
+// "event"-type entity resolved during ingestion gets a real timeline_events
+// row, using the chapter's position as a first-pass chronological order and
+// attaching any characters resolved in the same chapter as participants.
+func TestCreateTimelineEventsForChapterSeedsEventEntitiesWithParticipants(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.RunMigrationsUpTo(t, pool, "023")
+	ctx := context.Background()
+	user := svcCreateTestUser(t, ctx, pool)
+	universe := models.Universe{ID: uuid.New(), UserID: user.ID, Name: "Test Universe", GenreTags: []string{"fantasy"}}
+	if _, err := pool.Exec(ctx, "INSERT INTO universes (id, user_id, name, description, genre_tags) VALUES ($1,$2,$3,$4,$5)", universe.ID, universe.UserID, universe.Name, "", universe.GenreTags); err != nil {
+		t.Fatalf("create universe: %v", err)
+	}
+	work := svcCreateTestWork(t, ctx, pool, universe.ID)
+	chapter := svcCreateTestChapter(t, ctx, pool, work.ID, "The Fall", 1)
+
+	svc := &IngestionService{pool: pool, timelineRepo: repositories.NewTimelineRepo(pool)}
+
+	characterID := uuid.New()
+	eventID := uuid.New()
+	insertEntity := func(id uuid.UUID, entityType, name, description string) {
+		if _, err := pool.Exec(ctx,
+			"INSERT INTO entities (id, universe_id, type, name, description, status, relevance_score) VALUES ($1,$2,$3,$4,$5,'active',0.5)",
+			id, universe.ID, entityType, name, description,
+		); err != nil {
+			t.Fatalf("create test entity %s: %v", name, err)
+		}
+	}
+	insertEntity(characterID, "character", "Edric Ashvale", "")
+	insertEntity(eventID, "event", "The Fall of Ironmere", "The fortress burns.")
+
+	resolved := []ResolvedEntity{
+		{Entity: models.Entity{ID: characterID, UniverseID: universe.ID, Type: "character", Name: "Edric Ashvale"}},
+		{Entity: models.Entity{ID: eventID, UniverseID: universe.ID, Type: "event", Name: "The Fall of Ironmere", Description: "The fortress burns."}},
+	}
+
+	svc.createTimelineEventsForChapter(ctx, universe.ID, chapter.ID, 1, resolved)
+
+	var title, description string
+	var position float64
+	var participants []uuid.UUID
+	err := pool.QueryRow(ctx,
+		"SELECT title, description, timeline_position, participants FROM timeline_events WHERE event_entity_id=$1",
+		eventID,
+	).Scan(&title, &description, &position, &participants)
+	if err != nil {
+		t.Fatalf("expected a timeline_events row for the event entity, got: %v", err)
+	}
+	if title != "The Fall of Ironmere" {
+		t.Errorf("title = %q, want %q", title, "The Fall of Ironmere")
+	}
+	if description != "The fortress burns." {
+		t.Errorf("description = %q, want %q", description, "The fortress burns.")
+	}
+	if position != 1 {
+		t.Errorf("timeline_position = %v, want 1", position)
+	}
+	if len(participants) != 1 || participants[0] != characterID {
+		t.Errorf("participants = %v, want [%s]", participants, characterID)
+	}
+}
+
+// TestCreateTimelineEventsForChapterNilSafe verifies the default (no
+// SetTimelineRepo call) stays a silent no-op, matching every other optional
+// dependency on IngestionService.
+func TestCreateTimelineEventsForChapterNilSafe(t *testing.T) {
+	svc := &IngestionService{}
+	svc.createTimelineEventsForChapter(context.Background(), uuid.New(), uuid.New(), 1, []ResolvedEntity{
+		{Entity: models.Entity{ID: uuid.New(), Type: "event", Name: "Should not panic"}},
+	})
+}
+
 // TestReduceMentionsReinforcesImportedEntities proves imported entities get
 // relevance from their actual mention frequency instead of every extracted
 // entity remaining at the same creation default.

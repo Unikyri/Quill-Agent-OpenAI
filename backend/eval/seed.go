@@ -56,10 +56,11 @@ func runMigrationsForEval(t *testing.T, pool *pgxpool.Pool) {
 		}
 	}()
 
-	// Evaluation services read the current Universe shape, including
-	// genre_tags introduced by migration 021. Keep this harness aligned with
-	// production schema while leaving later demo-only migrations out of scope.
-	testutil.RunMigrationsUpTo(t, pool, "021")
+	// Evaluation services read the current Universe/entity_mentions shape,
+	// including character_offset (migration 023) that ConsolidationFidelity's
+	// mention lookup depends on. Track the latest migration, not a frozen
+	// snapshot, so this harness doesn't silently drift from production schema.
+	testutil.RunMigrationsUpTo(t, pool, "027")
 }
 
 // makeSyntheticEmbedding returns a deterministic 1024-dim embedding.

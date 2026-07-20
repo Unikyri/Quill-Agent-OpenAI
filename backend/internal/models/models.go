@@ -432,6 +432,7 @@ type AnalysisResultPayload struct {
 	Entities       []EntityBrief   `json:"entities"`
 	Contradictions []Contradiction `json:"contradictions"`
 	PlotHoles      []PlotHole      `json:"plot_holes"`
+	ArbiterSummary string          `json:"arbiter_summary,omitempty"`
 }
 
 // AnalysisFailedPayload is the terminal failure counterpart of

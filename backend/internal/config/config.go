@@ -85,7 +85,7 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		DatabaseURL:                        getEnv("DATABASE_URL", "postgres://quill:quill_dev_password@localhost:5432/quill?sslmode=disable"),
-		DBMaxConnections:                   getEnvInt("DB_MAX_CONNECTIONS", 25),
+		DBMaxConnections:                   getEnvInt("DB_MAX_CONNECTIONS", 8),
 		DBMaxIdleConns:                     getEnvInt("DB_MAX_IDLE_CONNECTIONS", 5),
 		QwenAPIKey:                         os.Getenv("QWEN_API_KEY"),
 		QwenBaseURL:                        baseURL,

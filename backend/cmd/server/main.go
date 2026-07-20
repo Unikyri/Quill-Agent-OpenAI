@@ -155,6 +155,7 @@ func main() {
 
 	// AnalysisService (depends on all other services and the hub)
 	analysisSvc := services.NewAnalysisService(pool, entitySvc, contraSvc, relevSvc, timelineSvc, plotHoleSvc, llmSvc, hub, memorySvc)
+	analysisSvc.SetArbiterSvc(services.NewArbiterService(llmSvc))
 
 	// Wire the analysis service into the hub (now both exist)
 	hub.SetSubmitter(telemetry.InstrumentParagraphSubmitter(analysisSvc))
@@ -164,6 +165,7 @@ func main() {
 	ingestionSvc.SetRelevance(relevSvc)
 	ingestionSvc.SetPostIngestAnalysis(contraSvc, plotHoleSvc, budgetMgr, cfg.IngestAnalysisMaxChapters)
 	ingestionSvc.SetStylometry(stylometrySvc)
+	ingestionSvc.SetTimelineRepo(timelineRepo)
 
 	// ── Handlers ──
 
