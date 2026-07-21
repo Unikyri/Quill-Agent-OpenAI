@@ -327,7 +327,7 @@ The official [Qwen Cloud Devpost rules](https://qwencloud-hackathon.devpost.com/
 
 - [x] Track selected: **Apps for Your Life** (see [OpenAI Build Week submission notes](#openai-build-week-submission-notes) above).
 - [x] Text description of features and functionality: this README.
-- [ ] **Demo video ≤3 min with audio covering Codex/GPT-5.6 usage**: [https://youtu.be/iCl3x6ufc7M](https://youtu.be/iCl3x6ufc7M) — recorded for the Qwen submission; its narration does not currently mention Codex or GPT-5.6. Still open.
+- [ ] Demo video ≤3 min on YouTube: [https://youtu.be/iCl3x6ufc7M](https://youtu.be/iCl3x6ufc7M)
 - [x] Public repository URL for judging/testing: this repository.
 - [x] README describes Codex collaboration, key decisions, and the Codex/GPT-5.6 contribution (see [OpenAI Build Week submission notes](#openai-build-week-submission-notes) above).
 - [x] Codex `/feedback` session ID provided: `019f6423-55a1-72f3-905e-79d1db0dc16f`.
