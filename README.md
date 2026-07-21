@@ -4,7 +4,7 @@
 
 **🔗 Live demo:** [http://47.253.216.249:3001](http://47.253.216.249:3001) — no account needed, click "Jump into a finished universe" or "Start from scratch" on the landing page. Runs on an Alibaba Cloud Simple Application Server via the `docker-compose.yml` in this repo.
 
-**🎬 Demo video:** [https://youtu.be/iCl3x6ufc7M](https://youtu.be/iCl3x6ufc7M)
+**🎬 Demo video:** [https://youtu.be/MeyMcH-Bls4](https://youtu.be/MeyMcH-Bls4)
 
 Long-form fiction breaks when a writer has to remember every promise made hundreds of pages ago — a hair colour, a death, a vow, a timeline. Quill is a **memory agent** that reads a manuscript as the author writes it, accumulates durable memory of *both the story and the author*, forgets what stops mattering, and recalls only what fits the model's context window — then checks new prose against that memory and gets better at it the longer you write together.
 
@@ -318,7 +318,7 @@ The ablation is the honest finding here: no single pipeline wins outright, vecto
 - [x] Qwen model/API configuration visible without secrets: [`.env.example`](.env.example).
 - [x] Memory storage, retrieval, forgetting, budgeting, and preference learning implemented (links above).
 - [x] **Proof of Alibaba Cloud deployment** — live at [http://47.253.216.249:3001](http://47.253.216.249:3001), running on an Alibaba Cloud Simple Application Server from the `docker-compose.yml` in this repo (not just Compose in the abstract — this is the actual running instance).
-- [x] **Demo video ≤3 min** on YouTube: [https://youtu.be/iCl3x6ufc7M](https://youtu.be/iCl3x6ufc7M)
+- [x] **Demo video ≤3 min** on YouTube: [https://youtu.be/MeyMcH-Bls4](https://youtu.be/MeyMcH-Bls4)
 - [x] Public testing link available to judges through the Judging Period: [http://47.253.216.249:3001](http://47.253.216.249:3001) — no credentials needed, the demo entry points provision a throwaway account automatically.
 
 The official [Qwen Cloud Devpost rules](https://qwencloud-hackathon.devpost.com/rules) take precedence if anything here differs.
@@ -327,7 +327,7 @@ The official [Qwen Cloud Devpost rules](https://qwencloud-hackathon.devpost.com/
 
 - [x] Track selected: **Apps for Your Life** (see [OpenAI Build Week submission notes](#openai-build-week-submission-notes) above).
 - [x] Text description of features and functionality: this README.
-- [ ] Demo video ≤3 min on YouTube: [https://youtu.be/iCl3x6ufc7M](https://youtu.be/iCl3x6ufc7M)
+- [x] Demo video ≤3 min on YouTube, audio covers Codex/GPT-5.6 usage: [https://youtu.be/MeyMcH-Bls4](https://youtu.be/MeyMcH-Bls4)
 - [x] Public repository URL for judging/testing: this repository.
 - [x] README describes Codex collaboration, key decisions, and the Codex/GPT-5.6 contribution (see [OpenAI Build Week submission notes](#openai-build-week-submission-notes) above).
 - [x] Codex `/feedback` session ID provided: `019f6423-55a1-72f3-905e-79d1db0dc16f`.
