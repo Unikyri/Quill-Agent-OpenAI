@@ -1,6 +1,6 @@
 # Quill — a MemoryAgent for long-form fiction
 
-**Qwen Cloud Global AI Hackathon Series — Track 1: MemoryAgent**
+**Submitted to two hackathons:** Qwen Cloud Global AI Hackathon Series — Track 1: MemoryAgent, and **OpenAI Build Week — Apps for Your Life track**.
 
 **🔗 Live demo:** [http://47.253.216.249:3001](http://47.253.216.249:3001) — no account needed, click "Jump into a finished universe" or "Start from scratch" on the landing page. Runs on an Alibaba Cloud Simple Application Server via the `docker-compose.yml` in this repo.
 
@@ -8,7 +8,19 @@
 
 Long-form fiction breaks when a writer has to remember every promise made hundreds of pages ago — a hair colour, a death, a vow, a timeline. Quill is a **memory agent** that reads a manuscript as the author writes it, accumulates durable memory of *both the story and the author*, forgets what stops mattering, and recalls only what fits the model's context window — then checks new prose against that memory and gets better at it the longer you write together.
 
-Every model call in Quill goes to **Qwen models on Qwen Cloud (DashScope)**. Quill ships a hand-written **native DashScope client** — not just the OpenAI-compatible shim — so it can use Qwen-specific features (explicit context caching, native reranking, native token accounting) that a portable OpenAI client cannot reach.
+Every model call the running application makes goes to **Qwen models on Qwen Cloud (DashScope)**. Quill ships a hand-written **native DashScope client** — not just the OpenAI-compatible shim — so it can use Qwen-specific features (explicit context caching, native reranking, native token accounting) that a portable OpenAI client cannot reach. Separately, and this is the subject of the section directly below, the *development* of Quill from July 13, 2026 onward was carried out substantially with **OpenAI Codex**.
+
+---
+
+## OpenAI Build Week submission notes
+
+**Track: Apps for Your Life.** Quill is a consumer creativity app — a second brain for people writing long-form fiction, built around the everyday act of drafting and revising a story.
+
+**This is a pre-existing project, extended during the Submission Period.** Quill's first commit is June 29, 2026, before OpenAI Build Week's Registration Period opened (July 9). Per the pre-existing-project rules, only the work added during the Submission Period (July 13, 9:00 am PT – July 21, 5:00 pm PT) is being submitted for judging:
+
+- **Prior work (June 29 – July 12, not submitted for judging):** the original, rougher pass at Quill's memory core — manuscript upload, entity extraction into a graph, chapter splitting, and a live-analysis pass that was unstable at the time.
+- **New work (July 13 – July 21, built with Codex, submitted for judging):** the live-analysis fix and E2E suite (Sprint 1), MAP/REDUCE ingestion performance (Sprint 2), the native DashScope client (Sprint 3 — see the `codex/sprint3-dashscope-native` branch merged 2026-07-16), the writer-memory learning loop (Sprint 4), the Skills/craft-review framework (Sprint 5), the resilient editor and MCP server (Sprint 6), and the full jury-facing frontend refactor, the Arbiter agent, and the published eval numbers (Sprint 7, July 17–20). Sprint plans and progress logs for all of this live in `Docs/Sprints/` (kept out of this public repository; available on request).
+- **Codex `/feedback` session ID** for the project thread where the majority of this new-work functionality was built: `019f6423-55a1-72f3-905e-79d1db0dc16f`.
 
 ---
 
@@ -299,6 +311,8 @@ The ablation is the honest finding here: no single pipeline wins outright, vecto
 
 ## Submission evidence
 
+### Qwen Cloud Global AI Hackathon Series
+
 - [x] Open-source license: [MIT](LICENSE) (visible in the repository About section).
 - [x] Architecture diagram: see [Architecture](#architecture) above.
 - [x] Qwen model/API configuration visible without secrets: [`.env.example`](.env.example).
@@ -307,7 +321,20 @@ The ablation is the honest finding here: no single pipeline wins outright, vecto
 - [x] **Demo video ≤3 min** on YouTube: [https://youtu.be/iCl3x6ufc7M](https://youtu.be/iCl3x6ufc7M)
 - [x] Public testing link available to judges through the Judging Period: [http://47.253.216.249:3001](http://47.253.216.249:3001) — no credentials needed, the demo entry points provision a throwaway account automatically.
 
-The official [Devpost rules](https://qwencloud-hackathon.devpost.com/rules) take precedence if anything here differs.
+The official [Qwen Cloud Devpost rules](https://qwencloud-hackathon.devpost.com/rules) take precedence if anything here differs.
+
+### OpenAI Build Week
+
+- [x] Track selected: **Apps for Your Life** (see [OpenAI Build Week submission notes](#openai-build-week-submission-notes) above).
+- [x] Text description of features and functionality: this README.
+- [ ] **Demo video ≤3 min with audio covering Codex/GPT-5.6 usage**: [https://youtu.be/iCl3x6ufc7M](https://youtu.be/iCl3x6ufc7M) — recorded for the Qwen submission; its narration does not currently mention Codex or GPT-5.6. Still open.
+- [x] Public repository URL for judging/testing: this repository.
+- [x] README describes Codex collaboration, key decisions, and the Codex/GPT-5.6 contribution (see [OpenAI Build Week submission notes](#openai-build-week-submission-notes) above).
+- [x] Codex `/feedback` session ID provided: `019f6423-55a1-72f3-905e-79d1db0dc16f`.
+- [x] Public testing link available through the Judging Period: [http://47.253.216.249:3001](http://47.253.216.249:3001) — throwaway account auto-provisioned, no credentials needed.
+- [x] New/existing project documentation distinguishing prior work from Submission-Period work (see [OpenAI Build Week submission notes](#openai-build-week-submission-notes) above).
+
+The official [OpenAI Build Week rules](https://openai.devpost.com/rules) take precedence if anything here differs.
 
 ---
 
